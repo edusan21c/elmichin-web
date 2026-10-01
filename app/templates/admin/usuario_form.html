@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block titulo %}{{ 'Editar' if usuario else 'Nuevo' }} Usuario{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-{{ 'pencil' if usuario else 'person-plus' }}"></i>
+        {{ 'Editar usuario' if usuario else 'Nuevo usuario' }}
+    </h1>
+    <a href="{{ url_for('admin.lista_usuarios') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-3">
+                        <label class="form-label">Nombre completo *</label>
+                        <input type="text" name="nombre" class="form-control" required
+                               value="{{ usuario.nombre if usuario else '' }}"
+                               placeholder="Ej: Juan Pérez">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Usuario (para login) *</label>
+                        <input type="text" name="username" class="form-control" required
+                               value="{{ usuario.username if usuario else '' }}"
+                               placeholder="Ej: jperez"
+                               autocomplete="off">
+                        <small class="text-muted">Sin espacios, sin tildes. Es lo que se escribe al iniciar sesión.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Contraseña
+                            {% if usuario %}<small class="text-muted">(dejar en blanco para no cambiar)</small>{% endif %}
+                        </label>
+                        <input type="text" name="password" class="form-control"
+                               {% if not usuario %}required{% endif %}
+                               placeholder="{{ 'Dejar en blanco para no cambiar' if usuario else 'Contraseña del usuario' }}"
+                               autocomplete="off">
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Rol *</label>
+                            <select name="rol" class="form-select" required id="selector-rol">
+                                <option value="operario" {% if usuario and usuario.rol == 'operario' %}selected{% endif %}>
+                                    Operario (cajero)
+                                </option>
+                                <option value="admin" {% if usuario and usuario.rol == 'admin' %}selected{% endif %}>
+                                    Admin (dueño de tienda)
+                                </option>
+                                <option value="programador" {% if usuario and usuario.rol == 'programador' %}selected{% endif %}>
+                                    Programador (control total)
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tienda</label>
+                            <select name="tienda_id" class="form-select" id="selector-tienda">
+                                <option value="">— Sin tienda (solo programador) —</option>
+                                {% for t in tiendas %}
+                                <option value="{{ t.id }}"
+                                        {% if usuario and usuario.tienda_id == t.id %}selected{% endif %}>
+                                    {{ t.nombre }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">El programador no necesita tienda.</small>
+                        </div>
+                    </div>
+
+                    {% if usuario %}
+                    <div class="form-check mb-3">
+                        <input type="checkbox" name="activo" class="form-check-input" id="chk-activo"
+                               {% if usuario.activo %}checked{% endif %}>
+                        <label class="form-check-label" for="chk-activo">
+                            Usuario activo (puede iniciar sesión)
+                        </label>
+                    </div>
+                    {% endif %}
+
+                    <hr>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('admin.lista_usuarios') }}" class="btn btn-outline-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Info -->
+        <div class="alert alert-light mt-3">
+            <h6 class="mb-2"><i class="bi bi-info-circle"></i> Sobre los roles:</h6>
+            <ul class="mb-0 small">
+                <li><strong>Operario:</strong> solo puede facturar y ver reportes básicos.</li>
+                <li><strong>Admin:</strong> puede facturar, gestionar inventario, ver reportes completos.</li>
+                <li><strong>Programador:</strong> control total, incluye gestión de usuarios.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Si el rol es programador, auto-seleccionar "sin tienda"
+    document.getElementById('selector-rol').addEventListener('change', function() {
+        const tiendaSelect = document.getElementById('selector-tienda');
+        if (this.value === 'programador') {
+            tiendaSelect.value = '';
+        }
+    });
+</script>
+{% endblock %}
