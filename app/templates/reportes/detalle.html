@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% block titulo %}Factura {{ factura.numero_factura }}{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-receipt"></i> Factura {{ factura.numero_factura }}
+    </h1>
+    <div>
+        <a href="{{ url_for('reportes.ventas') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+        <a href="{{ url_for('facturacion.ticket', factura_id=factura.id) }}" class="btn btn-primary">
+            <i class="bi bi-printer"></i> Ver ticket
+        </a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card mb-3">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-person-circle"></i> Cliente
+            </div>
+            <div class="card-body">
+                <p class="mb-1"><strong>{{ cliente.nombre }}</strong></p>
+                {% if cliente.documento %}<p class="mb-1 text-muted small">Doc: {{ cliente.documento }}</p>{% endif %}
+                {% if cliente.telefono %}<p class="mb-1 text-muted small">Tel: {{ cliente.telefono }}</p>{% endif %}
+                {% if cliente.saldo_actual and cliente.saldo_actual > 0 %}
+                <div class="alert alert-warning mt-2 mb-0 small">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Saldo total del cliente: <strong>${{ "{:,.0f}".format(cliente.saldo_actual) }}</strong>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-cart3"></i> Productos
+            </div>
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Producto</th>
+                            <th class="text-center">Cant</th>
+                            <th class="text-end">P. Unit</th>
+                            <th class="text-end">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in detalles %}
+                        <tr>
+                            <td>{{ d.producto_nombre }}</td>
+                            <td class="text-center">{{ d.cantidad }}</td>
+                            <td class="text-end">${{ "{:,.0f}".format(d.precio_unitario) }}</td>
+                            <td class="text-end">${{ "{:,.0f}".format(d.subtotal) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr><th colspan="3" class="text-end">Subtotal</th><th class="text-end">${{ "{:,.0f}".format(factura.subtotal) }}</th></tr>
+                        {% if factura.recargo_nequi > 0 %}
+                        <tr><td colspan="3" class="text-end">Recargo digital</td><td class="text-end">${{ "{:,.0f}".format(factura.recargo_nequi) }}</td></tr>
+                        {% endif %}
+                        {% if factura.recargo_bolsa > 0 %}
+                        <tr><td colspan="3" class="text-end">Bolsas</td><td class="text-end">${{ "{:,.0f}".format(factura.recargo_bolsa) }}</td></tr>
+                        {% endif %}
+                        <tr class="table-success"><th colspan="3" class="text-end">TOTAL</th><th class="text-end">${{ "{:,.0f}".format(factura.total) }}</th></tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-info-circle"></i> Info
+            </div>
+            <div class="card-body">
+                <p class="mb-1 small"><strong>Fecha:</strong> {{ factura.fecha_hora | fecha_local }}</p>
+                <p class="mb-1 small"><strong>Método:</strong> {{ factura.metodo_pago | upper }}</p>
+                <p class="mb-1 small"><strong>Estado:</strong> 
+                    {% if factura.estado_credito == 'pendiente' %}
+                        <span class="badge bg-warning text-dark">Pendiente</span>
+                    {% else %}
+                        <span class="badge bg-success">Pagado</span>
+                    {% endif %}
+                </p>
+                {% if factura.usuario %}
+                <p class="mb-1 small"><strong>Atendido por:</strong> {{ factura.usuario.nombre }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if factura.estado_credito == 'pendiente' %}
+        <div class="card border-warning mb-3">
+            <div class="card-header bg-warning text-dark fw-semibold">
+                <i class="bi bi-cash"></i> Saldo pendiente
+            </div>
+            <div class="card-body">
+                <div class="fs-3 fw-bold text-danger mb-3">${{ "{:,.0f}".format(factura.saldo_pendiente) }}</div>
+                <form method="POST" action="{{ url_for('reportes.registrar_abono') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="factura_id" value="{{ factura.id }}">
+                    <div class="mb-2">
+                        <label class="form-label small">Monto a abonar</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" name="monto" class="form-control" 
+                                   max="{{ factura.saldo_pendiente }}" min="1" required>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">Método</label>
+                        <select name="metodo" class="form-select form-select-sm">
+                            <option value="efectivo">Efectivo</option>
+                            <option value="nequi">Nequi</option>
+                            <option value="daviplata">Daviplata</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100">
+                        <i class="bi bi-check-circle"></i> Registrar abono
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if pagos %}
+        <div class="card">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-clock-history"></i> Historial de pagos
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha</th>
+                            <th class="text-end">Monto</th>
+                            <th>Método</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in pagos %}
+                        <tr>
+                            <td class="small">{{ p.fecha | fecha_local }}</td>
+                            <td class="text-end small">${{ "{:,.0f}".format(p.monto) }}</td>
+                            <td class="small">{{ p.metodo_pago }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

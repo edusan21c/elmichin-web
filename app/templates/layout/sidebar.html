@@ -31,9 +31,15 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link disabled" href="#">
+                <a class="nav-link {% if request.blueprint == 'reportes' %}active{% endif %}"
+                   href="{{ url_for('reportes.ventas') }}">
                     <i class="bi bi-graph-up"></i> Reportes
-                    <small class="text-muted">(pronto)</small>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'reportes.cuentas_por_cobrar' %}active{% endif %}"
+                   href="{{ url_for('reportes.cuentas_por_cobrar') }}">
+                    <i class="bi bi-cash-coin"></i> CxC
                 </a>
             </li>
             {% endif %}

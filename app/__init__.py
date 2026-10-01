@@ -39,11 +39,13 @@ def create_app(config_class=None):
     from .blueprints.dashboard import bp as dashboard_bp
     from .blueprints.inventario import bp as inventario_bp
     from .blueprints.facturacion import bp as facturacion_bp
+    from .blueprints.reportes import bp as reportes_bd
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(inventario_bp)
     app.register_blueprint(facturacion_bp)
+    app.register_blueprint(reportes_bd)
 
     # Filtro de plantilla para hora local
     @app.template_filter('fecha_local')
