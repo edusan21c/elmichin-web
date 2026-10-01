@@ -14,6 +14,12 @@ def create_app(config_class=None):
     """Factory de la aplicación Flask."""
     app = Flask(__name__)
 
+    # ProxyFix: confiar en headers de Cloudflare Tunnel (X-Forwarded-*)
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+    )
+
     if config_class is None:
         config_class = get_config()
     app.config.from_object(config_class)
