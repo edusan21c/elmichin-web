@@ -1,0 +1,32 @@
+/* Estilos personalizados - El Michín */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar-brand {
+    letter-spacing: 1px;
+}
+
+.sidebar .nav-link {
+    color: #333;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 2px;
+}
+
+.sidebar .nav-link:hover:not(.disabled) {
+    background-color: #e9ecef;
+}
+
+.sidebar .nav-link.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.card {
+    border-radius: 10px;
+}
+
+.btn {
+    border-radius: 8px;
+}

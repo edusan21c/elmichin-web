@@ -1,0 +1,29 @@
+# Entorno virtual
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Variables de entorno
+.env
+
+# Backups
+backups/
+*.db
+*.sqlite3
+*.db-journal
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+
+# Archivos temporales
+.DS_Store
+Thumbs.db
+
+# Migraciones locales (opcional)
+# migrations/versions/*.pyc
