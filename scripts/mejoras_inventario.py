@@ -1,4 +1,86 @@
-{% extends 'base.html' %}
+# scripts/mejoras_inventario.py
+# Actualiza el sidebar y agrega el modal de stock rapido en la lista.
+# Ejecutar UNA VEZ: python scripts\mejoras_inventario.py
+
+import os
+
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ARCHIVOS = {}
+
+# ==================== SIDEBAR ACTUALIZADO ====================
+ARCHIVOS['app/templates/layout/sidebar.html'] = '''<nav class="col-md-3 col-lg-2 d-md-block bg-light sidebar border-end" style="min-height: calc(100vh - 56px);">
+    <div class="position-sticky pt-3">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}"
+                   href="{{ url_for('dashboard.index') }}">
+                    <i class="bi bi-house-door"></i> Inicio
+                </a>
+            </li>
+
+            {% if current_user.rol in ('admin', 'programador') %}
+            <li class="nav-item">
+                <a class="nav-link {% if request.blueprint == 'inventario' %}active{% endif %}"
+                   href="{{ url_for('inventario.lista') }}">
+                    <i class="bi bi-box-seam"></i> Inventario
+                </a>
+            </li>
+            {% endif %}
+
+            {% if current_user.rol in ('admin', 'programador', 'operario') %}
+            <li class="nav-item">
+                <a class="nav-link disabled" href="#">
+                    <i class="bi bi-receipt"></i> Facturación
+                    <small class="text-muted">(pronto)</small>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link disabled" href="#">
+                    <i class="bi bi-lightning-charge"></i> Venta Rápida
+                    <small class="text-muted">(pronto)</small>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link disabled" href="#">
+                    <i class="bi bi-graph-up"></i> Reportes
+                    <small class="text-muted">(pronto)</small>
+                </a>
+            </li>
+            {% endif %}
+
+            {% if current_user.rol in ('admin', 'programador') %}
+            <li class="nav-item">
+                <a class="nav-link disabled" href="#">
+                    <i class="bi bi-bar-chart"></i> Estadísticas
+                    <small class="text-muted">(pronto)</small>
+                </a>
+            </li>
+            {% endif %}
+
+            {% if current_user.rol == 'programador' %}
+            <li class="nav-item mt-3">
+                <small class="text-muted ps-3">ADMINISTRACIÓN</small>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link disabled" href="#">
+                    <i class="bi bi-people"></i> Usuarios
+                    <small class="text-muted">(pronto)</small>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link disabled" href="#">
+                    <i class="bi bi-gear"></i> Configuración
+                    <small class="text-muted">(pronto)</small>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </div>
+</nav>
+'''
+
+# ==================== LISTA CON MODAL DE STOCK ====================
+ARCHIVOS['app/templates/inventario/lista.html'] = '''{% extends 'base.html' %}
 {% block titulo %}Inventario{% endblock %}
 
 {% block contenido %}
@@ -232,3 +314,21 @@ document.querySelectorAll('.btn-stock').forEach(function(btn) {
 });
 </script>
 {% endblock %}
+'''
+
+
+def main():
+    print(f'Actualizando archivos en: {RAIZ}')
+    print('-' * 60)
+    for rel_path, contenido in ARCHIVOS.items():
+        ruta = os.path.join(RAIZ, *rel_path.split('/'))
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, 'w', encoding='utf-8') as f:
+            f.write(contenido)
+        print(f'  OK  {rel_path}')
+    print('-' * 60)
+    print(f'Listo: {len(ARCHIVOS)} archivos actualizados.')
+
+
+if __name__ == '__main__':
+    main()
