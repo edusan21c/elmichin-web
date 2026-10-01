@@ -19,9 +19,9 @@
 
             {% if current_user.rol in ('admin', 'programador', 'operario') %}
             <li class="nav-item">
-                <a class="nav-link disabled" href="#">
+                <a class="nav-link {% if request.blueprint == 'facturacion' %}active{% endif %}"
+                   href="{{ url_for('facturacion.nueva') }}">
                     <i class="bi bi-receipt"></i> Facturación
-                    <small class="text-muted">(pronto)</small>
                 </a>
             </li>
             <li class="nav-item">

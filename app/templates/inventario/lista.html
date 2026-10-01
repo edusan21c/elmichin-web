@@ -15,41 +15,52 @@
             </small>
         {% endif %}
     </h1>
-    {% if puede_editar %}
+    <div>
+        {% if puede_editar %}
+        <a href="{{ url_for('inventario.stock_masivo') }}" class="btn btn-success">
+            <i class="bi bi-lightning"></i> Stock masivo
+        </a>
         <a href="{{ url_for('inventario.nuevo') }}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Nuevo producto
         </a>
-    {% endif %}
-</div>
-
-<!-- Barra de búsqueda -->
-<div class="card mb-3">
-    <div class="card-body py-2">
-        <form method="GET" class="row g-2 align-items-center" id="form-busqueda">
-            <div class="col-md-8">
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" name="q" id="input-busqueda" class="form-control"
-                           placeholder="Buscar por nombre o código de barras..."
-                           value="{{ busqueda }}" autofocus autocomplete="off">
-                    {% if busqueda %}
-                        <a href="{{ url_for('inventario.lista') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x"></i> Limpiar
-                        </a>
-                    {% endif %}
-                    <button type="submit" class="btn btn-primary">Buscar</button>
-                </div>
-            </div>
-            <div class="col-md-4 text-end">
-                <span class="text-muted small">
-                    {{ paginacion.total }} producto{{ 's' if paginacion.total != 1 }}
-                </span>
-            </div>
-        </form>
+        {% endif %}
     </div>
 </div>
 
-<!-- Tabla de productos -->
+<!-- Filtros -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-6">
+                <form method="GET" class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="q" class="form-control"
+                           placeholder="Buscar por nombre o código..." value="{{ busqueda }}">
+                    {% if filtro_stock %}<input type="hidden" name="filtro" value="{{ filtro_stock }}">{% endif %}
+                    <button type="submit" class="btn btn-primary">Buscar</button>
+                </form>
+            </div>
+            <div class="col-md-6 text-end">
+                <div class="btn-group">
+                    <a href="{{ url_for('inventario.lista', q=busqueda, tienda=tienda_id) }}"
+                       class="btn btn-sm {% if not filtro_stock %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                        Todos ({{ contadores.total }})
+                    </a>
+                    <a href="{{ url_for('inventario.lista', q=busqueda, filtro='sin_stock', tienda=tienda_id) }}"
+                       class="btn btn-sm {% if filtro_stock == 'sin_stock' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+                        🔴 Sin stock ({{ contadores.sin_stock }})
+                    </a>
+                    <a href="{{ url_for('inventario.lista', q=busqueda, filtro='bajo', tienda=tienda_id) }}"
+                       class="btn btn-sm {% if filtro_stock == 'bajo' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+                        🟡 Bajo ({{ contadores.bajo }})
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla -->
 <div class="card">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -95,12 +106,9 @@
                         </td>
                         <td class="text-end">
                             {% if puede_editar %}
-                                <button type="button"
-                                        class="btn btn-sm btn-outline-success btn-stock"
-                                        title="Actualizar stock"
-                                        data-id="{{ p.id }}"
-                                        data-nombre="{{ p.nombre }}"
-                                        data-stock="{{ stock }}">
+                                <button type="button" class="btn btn-sm btn-outline-success btn-stock"
+                                        title="Actualizar stock" data-id="{{ p.id }}"
+                                        data-nombre="{{ p.nombre }}" data-stock="{{ stock }}">
                                     <i class="bi bi-plus-slash-minus"></i>
                                 </button>
                                 <a href="{{ url_for('inventario.editar', producto_id=p.id) }}"
@@ -109,10 +117,9 @@
                                 </a>
                             {% endif %}
                             {% if current_user.es_programador() %}
-                                <form method="POST"
-                                      action="{{ url_for('inventario.eliminar', producto_id=p.id) }}"
+                                <form method="POST" action="{{ url_for('inventario.eliminar', producto_id=p.id) }}"
                                       class="d-inline"
-                                      onsubmit="return confirm('¿Eliminar {{ p.nombre }}? Esta acción es irreversible.');">
+                                      onsubmit="return confirm('¿Eliminar {{ p.nombre }}?');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
                                         <i class="bi bi-trash"></i>
@@ -125,11 +132,7 @@
                     <tr>
                         <td colspan="6" class="text-center py-5 text-muted">
                             <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                            {% if busqueda %}
-                                No hay productos que coincidan con "{{ busqueda }}".
-                            {% else %}
-                                No hay productos todavía. {% if puede_editar %}Crea el primero con el botón "Nuevo producto".{% endif %}
-                            {% endif %}
+                            No hay productos que mostrar.
                         </td>
                     </tr>
                 {% endfor %}
@@ -143,61 +146,45 @@
     <nav class="mt-3">
         <ul class="pagination justify-content-center">
             <li class="page-item {% if not paginacion.has_prev %}disabled{% endif %}">
-                <a class="page-link" href="{{ url_for('inventario.lista', page=paginacion.prev_num, q=busqueda, tienda=tienda_id) }}">
-                    &laquo; Anterior
-                </a>
+                <a class="page-link" href="{{ url_for('inventario.lista', page=paginacion.prev_num, q=busqueda, filtro=filtro_stock, tienda=tienda_id) }}">&laquo;</a>
             </li>
             {% for num in paginacion.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
                 {% if num %}
                     <li class="page-item {% if num == paginacion.page %}active{% endif %}">
-                        <a class="page-link" href="{{ url_for('inventario.lista', page=num, q=busqueda, tienda=tienda_id) }}">{{ num }}</a>
+                        <a class="page-link" href="{{ url_for('inventario.lista', page=num, q=busqueda, filtro=filtro_stock, tienda=tienda_id) }}">{{ num }}</a>
                     </li>
                 {% else %}
                     <li class="page-item disabled"><span class="page-link">…</span></li>
                 {% endif %}
             {% endfor %}
             <li class="page-item {% if not paginacion.has_next %}disabled{% endif %}">
-                <a class="page-link" href="{{ url_for('inventario.lista', page=paginacion.next_num, q=busqueda, tienda=tienda_id) }}">
-                    Siguiente &raquo;
-                </a>
+                <a class="page-link" href="{{ url_for('inventario.lista', page=paginacion.next_num, q=busqueda, filtro=filtro_stock, tienda=tienda_id) }}">&raquo;</a>
             </li>
         </ul>
         <p class="text-center text-muted small">
-            Mostrando {{ productos|length }} de {{ paginacion.total }} productos
-            (página {{ paginacion.page }} de {{ paginacion.pages }})
+            Mostrando {{ productos|length }} de {{ paginacion.total }}
         </p>
     </nav>
 {% endif %}
 
-<!-- ==================== MODAL DE STOCK ==================== -->
+<!-- Modal de stock -->
 <div class="modal fade" id="modalStock" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <form method="POST" id="form-stock" action="">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title">
-                        <i class="bi bi-plus-slash-minus"></i> Actualizar stock
-                    </h5>
+                    <h5 class="modal-title"><i class="bi bi-plus-slash-minus"></i> Actualizar stock</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-3">
-                        <strong id="stock-nombre"></strong>
-                    </p>
-                    <label class="form-label">Cantidad en stock</label>
-                    <div class="input-group input-group-lg">
-                        <span class="input-group-text"><i class="bi bi-box"></i></span>
-                        <input type="number" name="cantidad" id="stock-cantidad"
-                               class="form-control" min="0" required autofocus>
-                    </div>
-                    <small class="text-muted">Escribe la cantidad total (no la suma).</small>
+                    <p><strong id="stock-nombre"></strong></p>
+                    <label class="form-label">Cantidad</label>
+                    <input type="number" name="cantidad" id="stock-cantidad" class="form-control form-control-lg" min="0" required>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success">
-                        <i class="bi bi-check-circle"></i> Guardar
-                    </button>
+                    <button type="submit" class="btn btn-success">Guardar</button>
                 </div>
             </form>
         </div>
@@ -205,7 +192,6 @@
 </div>
 
 <script>
-// ==================== SELECTOR DE TIENDA ====================
 {% if current_user.es_programador() and tiendas|length > 1 %}
 document.getElementById('selector-tienda').addEventListener('change', function() {
     const url = new URL(window.location.href);
@@ -215,19 +201,15 @@ document.getElementById('selector-tienda').addEventListener('change', function()
 });
 {% endif %}
 
-// ==================== MODAL DE STOCK ====================
 document.querySelectorAll('.btn-stock').forEach(function(btn) {
     btn.addEventListener('click', function() {
         const id = this.dataset.id;
         const nombre = this.dataset.nombre;
         const stock = this.dataset.stock;
-
         document.getElementById('form-stock').action = '/inventario/' + id + '/stock';
         document.getElementById('stock-nombre').textContent = nombre;
         document.getElementById('stock-cantidad').value = stock;
-
-        const modal = new bootstrap.Modal(document.getElementById('modalStock'));
-        modal.show();
+        new bootstrap.Modal(document.getElementById('modalStock')).show();
     });
 });
 </script>

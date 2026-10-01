@@ -10,22 +10,17 @@ from app.models.tienda import Tienda
 from app.utils.decorators import admin_requerido, programador_requerido
 
 
-# ==================== HELPERS ====================
 def tienda_actual():
-    """Devuelve el tienda_id que el usuario está manejando actualmente."""
     if current_user.es_programador():
-        # Programador puede ver cualquier tienda (query param ?tienda=X)
         tid = request.args.get('tienda', type=int)
         if tid:
             return tid
-        # Si no especifica, ve la primera tienda
         primera = Tienda.query.filter_by(activa=True).first()
         return primera.id if primera else None
     return current_user.tienda_id
 
 
 def puede_editar():
-    """Solo admin y programador pueden editar productos."""
     return current_user.es_admin()
 
 
@@ -35,10 +30,10 @@ def puede_editar():
 def lista():
     page = request.args.get('page', 1, type=int)
     busqueda = request.args.get('q', '', type=str).strip()
+    filtro_stock = request.args.get('filtro', '', type=str).strip()  # '', 'sin_stock', 'bajo'
     tienda_id = tienda_actual()
     per_page = 20
 
-    # Query base: productos + su presentación en la tienda actual
     query = Producto.query
 
     if busqueda:
@@ -50,9 +45,21 @@ def lista():
         )
 
     query = query.order_by(Producto.nombre)
+
+    # Si hay filtro de stock, no paginamos del lado del servidor (limitamos)
+    if filtro_stock and tienda_id:
+        # Necesitamos filtrar por stock, hacer JOIN
+        sub = db.session.query(ProductoTienda.producto_id).filter(
+            ProductoTienda.tienda_id == tienda_id
+        )
+        if filtro_stock == 'sin_stock':
+            sub = sub.filter(ProductoTienda.cantidad <= 0)
+        elif filtro_stock == 'bajo':
+            sub = sub.filter(ProductoTienda.cantidad.between(1, 5))
+        query = query.filter(Producto.id.in_(sub))
+
     paginacion = query.paginate(page=page, per_page=per_page, error_out=False)
 
-    # Preparar datos de presentación (precio + stock) para la tienda actual
     productos_con_info = []
     for prod in paginacion.items:
         pres = None
@@ -69,14 +76,26 @@ def lista():
 
     tiendas = Tienda.query.filter_by(activa=True).all()
 
+    # Contadores para los filtros
+    contadores = {'total': 0, 'sin_stock': 0, 'bajo': 0}
+    if tienda_id:
+        contadores['total'] = ProductoTienda.query.filter_by(tienda_id=tienda_id).count()
+        contadores['sin_stock'] = ProductoTienda.query.filter_by(
+            tienda_id=tienda_id).filter(ProductoTienda.cantidad <= 0).count()
+        contadores['bajo'] = ProductoTienda.query.filter_by(
+            tienda_id=tienda_id).filter(
+            ProductoTienda.cantidad.between(1, 5)).count()
+
     return render_template(
         'inventario/lista.html',
         productos=productos_con_info,
         paginacion=paginacion,
         busqueda=busqueda,
+        filtro_stock=filtro_stock,
         tienda_id=tienda_id,
         tiendas=tiendas,
         puede_editar=puede_editar(),
+        contadores=contadores,
     )
 
 
@@ -87,7 +106,6 @@ def lista():
 def nuevo():
     form = ProductoForm()
     if form.validate_on_submit():
-        # Verificar duplicado
         existente = Producto.query.filter_by(nombre=form.nombre.data.strip()).first()
         if existente:
             flash('Ya existe un producto con ese nombre.', 'danger')
@@ -99,9 +117,8 @@ def nuevo():
             categoria=form.categoria.data or None,
         )
         db.session.add(producto)
-        db.session.flush()  # para obtener el id
+        db.session.flush()
 
-        # Crear presentación en TODAS las tiendas activas (con la misma config)
         for tienda in Tienda.query.filter_by(activa=True).all():
             pres = ProductoTienda(
                 producto_id=producto.id,
@@ -147,7 +164,6 @@ def editar(producto_id):
     form = ProductoForm(obj=producto)
 
     if form.validate_on_submit():
-        # Verificar que el nombre no choque con otro producto
         existe_otro = Producto.query.filter(
             Producto.nombre == form.nombre.data.strip(),
             Producto.id != producto.id
@@ -156,12 +172,10 @@ def editar(producto_id):
             flash('Ya existe otro producto con ese nombre.', 'danger')
             return render_template('inventario/form.html', form=form, producto=producto)
 
-        # Actualizar datos globales
         producto.nombre = form.nombre.data.strip()
         producto.codigo_barras = form.codigo_barras.data.strip() if form.codigo_barras.data else None
         producto.categoria = form.categoria.data or None
 
-        # Actualizar precios de la tienda actual
         pres.precio_proveedor = form.precio_proveedor.data or 0
         pres.precio_proveedor2 = form.precio_proveedor2.data or 0
         pres.precio_proveedor3 = form.precio_proveedor3.data or 0
@@ -178,7 +192,6 @@ def editar(producto_id):
         flash(f'Producto "{producto.nombre}" actualizado.', 'success')
         return redirect(url_for('inventario.lista'))
 
-    # Pre-cargar datos de la presentación actual
     if request.method == 'GET':
         form.precio_proveedor.data = float(pres.precio_proveedor) if pres.precio_proveedor else 0
         form.precio_proveedor2.data = float(pres.precio_proveedor2) if pres.precio_proveedor2 else 0
@@ -192,12 +205,7 @@ def editar(producto_id):
         form.condicion3.data = pres.condicion3 or ''
         form.precio_venta3.data = float(pres.precio_venta3) if pres.precio_venta3 else 0
 
-    return render_template(
-        'inventario/form.html',
-        form=form,
-        producto=producto,
-        presentacion=pres,
-    )
+    return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres)
 
 
 # ==================== ELIMINAR ====================
@@ -213,7 +221,7 @@ def eliminar(producto_id):
     return redirect(url_for('inventario.lista'))
 
 
-# ==================== ACTUALIZAR STOCK ====================
+# ==================== ACTUALIZAR STOCK INDIVIDUAL ====================
 @bp.route('/<int:producto_id>/stock', methods=['POST'])
 @login_required
 @admin_requerido
@@ -240,11 +248,79 @@ def actualizar_stock(producto_id):
     return redirect(url_for('inventario.lista'))
 
 
+# ==================== STOCK MASIVO (LISTA PARA EDITAR MUCHOS) ====================
+@bp.route('/stock-masivo', methods=['GET', 'POST'])
+@login_required
+@admin_requerido
+def stock_masivo():
+    tienda_id = tienda_actual()
+    if not tienda_id:
+        flash('No hay tienda activa.', 'danger')
+        return redirect(url_for('inventario.lista'))
+
+    if request.method == 'POST':
+        cambios = 0
+        for key, value in request.form.items():
+            if key.startswith('stock_'):
+                try:
+                    producto_id = int(key.replace('stock_', ''))
+                    nueva_cant = int(value)
+                    if nueva_cant < 0:
+                        continue
+                    pres = ProductoTienda.query.filter_by(
+                        producto_id=producto_id, tienda_id=tienda_id
+                    ).first()
+                    if pres and pres.cantidad != nueva_cant:
+                        pres.cantidad = nueva_cant
+                        cambios += 1
+                except (ValueError, TypeError):
+                    continue
+        db.session.commit()
+        flash(f'{cambios} productos actualizados.', 'success')
+        return redirect(url_for('inventario.stock_masivo',
+                                q=request.args.get('q', ''),
+                                filtro=request.args.get('filtro', '')))
+
+    # GET: mostrar lista
+    busqueda = request.args.get('q', '', type=str).strip()
+    filtro = request.args.get('filtro', '', type=str).strip()  # '', 'sin_stock', 'bajo'
+    page = request.args.get('page', 1, type=int)
+
+    # Query con JOIN para traer producto + presentación
+    q = db.session.query(Producto, ProductoTienda).join(
+        ProductoTienda, Producto.id == ProductoTienda.producto_id
+    ).filter(ProductoTienda.tienda_id == tienda_id)
+
+    if busqueda:
+        q = q.filter(or_(
+            Producto.nombre.ilike(f'%{busqueda}%'),
+            Producto.codigo_barras.ilike(f'%{busqueda}%')
+        ))
+
+    if filtro == 'sin_stock':
+        q = q.filter(ProductoTienda.cantidad <= 0)
+    elif filtro == 'bajo':
+        q = q.filter(ProductoTienda.cantidad.between(1, 5))
+
+    q = q.order_by(Producto.nombre)
+    paginacion = q.paginate(page=page, per_page=50, error_out=False)
+
+    tiendas = Tienda.query.filter_by(activa=True).all()
+
+    return render_template(
+        'inventario/stock_masivo.html',
+        paginacion=paginacion,
+        busqueda=busqueda,
+        filtro=filtro,
+        tienda_id=tienda_id,
+        tiendas=tiendas,
+    )
+
+
 # ==================== API: BÚSQUEDA RÁPIDA (AJAX) ====================
 @bp.route('/api/buscar')
 @login_required
 def api_buscar():
-    """Búsqueda rápida para autocompletado."""
     q = request.args.get('q', '', type=str).strip()
     if len(q) < 2:
         return jsonify([])

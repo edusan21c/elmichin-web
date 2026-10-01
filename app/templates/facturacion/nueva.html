@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+{% block titulo %}Nueva Factura{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-receipt"></i> Nueva Factura
+        {% if current_user.es_programador() and tiendas|length > 1 %}
+            <small class="text-muted">- Tienda:
+                <select id="selector-tienda" class="form-select form-select-sm d-inline-block" style="width:auto;">
+                    {% for t in tiendas %}
+                        <option value="{{ t.id }}" {% if t.id == tienda_id %}selected{% endif %}>{{ t.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </small>
+        {% endif %}
+    </h1>
+</div>
+
+<div class="row g-3">
+    <!-- ============ COLUMNA IZQUIERDA: BUSQUEDA ============ -->
+    <div class="col-lg-5">
+        <div class="card mb-3">
+            <div class="card-body">
+                <label class="form-label fw-semibold">
+                    <i class="bi bi-search"></i> Buscar producto
+                </label>
+                <div class="input-group input-group-lg">
+                    <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                    <input type="text" id="input-buscar" class="form-control"
+                           placeholder="Nombre o código de barras..."
+                           autocomplete="off" autofocus>
+                </div>
+                <div id="resultados" class="list-group mt-2" style="max-height: 400px; overflow-y: auto;"></div>
+            </div>
+        </div>
+
+        <!-- Carrito -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-cart3"></i> Carrito
+                <span id="carrito-count" class="badge bg-light text-dark ms-2">0</span>
+            </div>
+            <div class="card-body p-0">
+                <div id="carrito-vacio" class="text-center text-muted py-4">
+                    <i class="bi bi-cart-x fs-1 d-block mb-2"></i>
+                    Agrega productos para comenzar
+                </div>
+                <table class="table table-sm mb-0 d-none" id="carrito-tabla">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Producto</th>
+                            <th class="text-center" style="width: 90px;">Cant.</th>
+                            <th class="text-end" style="width: 90px;">P. Unit</th>
+                            <th class="text-end" style="width: 90px;">Subtotal</th>
+                            <th style="width: 40px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="carrito-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ COLUMNA DERECHA: CLIENTE + PAGO ============ -->
+    <div class="col-lg-7">
+
+        <!-- Cliente -->
+        <div class="card mb-3">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-person-circle"></i> Cliente
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label small">Nombre *</label>
+                        <input type="text" id="cliente-nombre" class="form-control" placeholder="Nombre del cliente">
+                        <div id="cliente-info" class="small text-muted mt-1"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Documento (opcional)</label>
+                        <input type="text" id="cliente-documento" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Teléfono (opcional)</label>
+                        <input type="text" id="cliente-telefono" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Dirección (opcional)</label>
+                        <input type="text" id="cliente-direccion" class="form-control">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Totales -->
+        <div class="card mb-3">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-cash-stack"></i> Totales
+            </div>
+            <div class="card-body">
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-md-6">
+                        <label class="form-label small mb-0">Subtotal</div>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <span id="lbl-subtotal" class="fs-5">$0</span>
+                    </div>
+                </div>
+
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-md-6">
+                        <label class="form-label small mb-0">Método de pago</label>
+                    </div>
+                    <div class="col-md-6">
+                        <select id="metodo-pago" class="form-select">
+                            <option value="efectivo">Efectivo</option>
+                            <option value="nequi">Nequi</option>
+                            <option value="daviplata">Daviplata</option>
+                            <option value="credito">Crédito</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-md-6">
+                        <label class="form-label small mb-0">Bolsas ($100 c/u)</label>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="number" id="bolsas" class="form-control" value="0" min="0" max="99">
+                    </div>
+                </div>
+
+                <div id="fila-recargo" class="row g-2 align-items-center mb-2 d-none">
+                    <div class="col-md-6">
+                        <label class="form-label small mb-0">Recargo digital</label>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <span id="lbl-recargo" class="text-muted">$0</span>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold mb-0 fs-5">TOTAL</label>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <span id="lbl-total" class="fs-3 fw-bold text-success">$0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pago (solo si no es crédito) -->
+        <div class="card mb-3" id="card-pago">
+            <div class="card-body">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-6">
+                        <label class="form-label mb-0 fw-semibold">Con cuánto paga</label>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text">$</span>
+                            <input type="number" id="valor-pagado" class="form-control" value="0" min="0" step="50">
+                        </div>
+                    </div>
+                </div>
+                <div id="lbl-vueltas" class="text-end fs-5 mt-2"></div>
+            </div>
+        </div>
+
+        <div class="alert alert-warning d-none" id="alerta-credito">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Venta a crédito:</strong> se sumará <span id="credito-monto">$0</span> al saldo del cliente.
+        </div>
+
+        <!-- Botones -->
+        <div class="d-grid gap-2">
+            <button type="button" id="btn-finalizar" class="btn btn-success btn-lg">
+                <i class="bi bi-check-circle"></i> FINALIZAR VENTA
+            </button>
+            <button type="button" id="btn-limpiar" class="btn btn-outline-danger">
+                <i class="bi bi-x-circle"></i> Limpiar todo
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Config para JS -->
+<script>
+    window.FACTURACION_CONFIG = {
+        tiendaId: {{ tienda_id or 0 }},
+        recargoPorcentaje: {{ recargo_porcentaje }},
+        valorBolsa: {{ valor_bolsa }},
+        urlBuscarProductos: "{{ url_for('facturacion.api_productos') }}",
+        urlBuscarClientes: "{{ url_for('facturacion.api_clientes') }}",
+        urlCrear: "{{ url_for('facturacion.crear') }}",
+        urlTicket: "{{ url_for('facturacion.ticket', factura_id=0) }}".replace('/0/', '/'),
+        csrfToken: "{{ csrf_token() }}",
+    };
+</script>
+<script src="{{ url_for('static', filename='js/facturacion.js') }}"></script>
+{% endblock %}
