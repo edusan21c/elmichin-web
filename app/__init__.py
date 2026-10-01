@@ -31,6 +31,8 @@ def create_app(config_class=None):
         config_class = get_config()
     app.config.from_object(config_class)
 
+    #print(f'DEBUG SYNC_KEY: "{app.config.get("SYNC_KEY", "VACIO")}"', flush=True)
+
     # ============ Inicializar extensiones ============
     db.init_app(app)
     migrate.init_app(app, db)
@@ -55,6 +57,7 @@ def create_app(config_class=None):
     from .blueprints.facturacion import bp as facturacion_bp
     from .blueprints.reportes import bp as reportes_bp
     from .blueprints.venta_rapida import bp as venta_rapida_bp
+    from .blueprints.api import bp as api_bd
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp)
@@ -62,6 +65,7 @@ def create_app(config_class=None):
     app.register_blueprint(facturacion_bp)
     app.register_blueprint(reportes_bp)
     app.register_blueprint(venta_rapida_bp)
+    app.register_blueprint(api_bd)
 
     # Si existe el módulo admin, registrarlo
     try:

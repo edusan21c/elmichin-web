@@ -46,6 +46,9 @@ class Config:
     # IA (opcional)
     DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
 
+    # Sincronizacion entre tiendas y central
+    SYNC_KEY = os.getenv('SYNC_KEY', '')
+
     # ============ CSRF / Seguridad ============
     # Desactivar chequeo estricto de HTTPS en CSRF (necesario por ProxyFix + Cloudflare)
     WTF_CSRF_SSL_STRICT = False
