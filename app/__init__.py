@@ -54,12 +54,14 @@ def create_app(config_class=None):
     from .blueprints.inventario import bp as inventario_bp
     from .blueprints.facturacion import bp as facturacion_bp
     from .blueprints.reportes import bp as reportes_bp
+    from .blueprints.venta_rapida import bp as venta_rapida_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(inventario_bp)
     app.register_blueprint(facturacion_bp)
     app.register_blueprint(reportes_bp)
+    app.register_blueprint(venta_rapida_bp)
 
     # Si existe el módulo admin, registrarlo
     try:

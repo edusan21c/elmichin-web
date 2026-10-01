@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block titulo %}Venta Rápida{% endblock %}
+
+{% block contenido %}
+<div class="row g-3">
+    <!-- ==================== COLUMNA IZQUIERDA: BUSQUEDA ==================== -->
+    <div class="col-lg-7">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-lightning-charge"></i> Venta Rápida
+                    </h5>
+                    {% if current_user.es_programador() and tiendas|length > 1 %}
+                    <select id="selector-tienda" class="form-select form-select-sm" style="width:auto;">
+                        {% for t in tiendas %}
+                        <option value="{{ t.id }}" {% if t.id == tienda_id %}selected{% endif %}>{{ t.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <label class="form-label fw-semibold">
+                    <i class="bi bi-upc-scan"></i> Escanea o escribe el código
+                </label>
+                <div class="input-group input-group-lg mb-2">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" id="input-buscar" class="form-control"
+                           placeholder="Escanea o escribe..." autocomplete="off" autofocus>
+                </div>
+                <div id="resultados" class="list-group" style="max-height: 300px; overflow-y: auto;"></div>
+            </div>
+        </div>
+
+        <!-- Carrito -->
+        <div class="card mt-3">
+            <div class="card-header bg-dark text-white d-flex justify-content-between">
+                <span><i class="bi bi-cart3"></i> Carrito</span>
+                <span id="carrito-count" class="badge bg-light text-dark">0</span>
+            </div>
+            <div class="card-body p-0">
+                <div id="carrito-vacio" class="text-center text-muted py-4">
+                    <i class="bi bi-cart-x fs-1 d-block mb-2"></i>
+                    Escanea el primer producto
+                </div>
+                <table class="table table-sm mb-0 d-none" id="carrito-tabla">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Producto</th>
+                            <th class="text-center" style="width: 90px;">Cant.</th>
+                            <th class="text-end" style="width: 90px;">P. Unit</th>
+                            <th class="text-end" style="width: 90px;">Subtotal</th>
+                            <th style="width: 40px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="carrito-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== COLUMNA DERECHA: TOTAL + COBRO ==================== -->
+    <div class="col-lg-5">
+        <div class="card border-success sticky-top" style="top: 80px;">
+            <div class="card-body text-center">
+                <div class="text-muted small">TOTAL A COBRAR</div>
+                <div id="lbl-total" class="display-3 fw-bold text-success mb-3">$0</div>
+
+                <div class="mb-3">
+                    <label class="form-label">Con cuánto paga</label>
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text">$</span>
+                        <input type="number" id="input-pagado" class="form-control text-end"
+                               placeholder="0" min="0" step="100">
+                    </div>
+                    <div id="lbl-vueltas" class="fs-4 mt-2"></div>
+                </div>
+
+                <button type="button" id="btn-finalizar" class="btn btn-success btn-lg w-100 mb-2">
+                    <i class="bi bi-check-circle"></i> COBRAR
+                </button>
+                <button type="button" id="btn-limpiar" class="btn btn-outline-danger w-100 btn-sm">
+                    Limpiar
+                </button>
+            </div>
+        </div>
+
+        <!-- Últimas ventas (mini historial) -->
+        <div class="card mt-3">
+            <div class="card-header bg-white small fw-semibold">
+                <i class="bi bi-clock-history"></i> Últimas ventas de hoy
+            </div>
+            <div class="card-body p-0">
+                <div id="historial" class="list-group list-group-flush" style="max-height: 200px; overflow-y: auto;">
+                    <div class="text-center text-muted py-3 small">Sin ventas todavía</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Config para JS -->
+<script>
+    window.VR_CONFIG = {
+        tiendaId: {{ tienda_id or 0 }},
+        urlBuscarProductos: "{{ url_for('venta_rapida.api_productos') }}",
+        urlCrear: "{{ url_for('venta_rapida.crear') }}",
+        csrfToken: "{{ csrf_token() }}",
+    };
+</script>
+<script src="{{ url_for('static', filename='js/venta_rapida.js') }}"></script>
+{% endblock %}
