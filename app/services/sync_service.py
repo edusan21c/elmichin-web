@@ -200,14 +200,30 @@ def aplicar_cambios_pull(datos):
 
 # ==================== LOG ====================
 def registrar_log(tienda_id, tipo, tabla, registros, exitoso, mensaje=''):
-    log = SyncLog(
-        tienda_id=tienda_id,
-        tipo=tipo,
-        tabla=tabla,
-        registros=registros,
-        exitoso=exitoso,
-        mensaje=mensaje[:500] if mensaje else '',
-    )
-    db.session.add(log)
-    db.session.commit()
-    return log
+    """Registra un log de sync. Ignora el error si tienda_id no existe (ej: modo central)."""
+    try:
+        # No guardar log si tienda_id es 0, negativo o None (modo central)
+        if not tienda_id or tienda_id <= 0:
+            return None
+
+        # Verificar que la tienda existe
+        from app.models.tienda import Tienda
+        existe = db.session.query(Tienda.id).filter_by(id=tienda_id).first()
+        if not existe:
+            return None
+
+        log = SyncLog(
+            tienda_id=tienda_id,
+            tipo=tipo,
+            tabla=tabla,
+            registros=registros,
+            exitoso=exitoso,
+            mensaje=mensaje[:500] if mensaje else '',
+        )
+        db.session.add(log)
+        db.session.commit()
+        return log
+    except Exception as e:
+        db.session.rollback()
+        print(f'  [log] Aviso: {type(e).__name__}')
+        return None
