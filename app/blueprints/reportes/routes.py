@@ -50,10 +50,12 @@ def ventas():
         hasta_str = hoy.strftime('%Y-%m-%d')
 
     try:
-        desde = datetime.strptime(desde_str, '%Y-%m-%d')
-        hasta = datetime.strptime(hasta_str, '%Y-%m-%d') + timedelta(days=1)
+        # Los rangos son fechas LOCALES (Colombia UTC-5)
+        # El central guarda en UTC, así que sumamos 5h para convertir a UTC
+        desde = datetime.strptime(desde_str, '%Y-%m-%d') + timedelta(hours=5)
+        hasta = datetime.strptime(hasta_str, '%Y-%m-%d') + timedelta(days=1, hours=5)
     except ValueError:
-        desde = datetime.combine(hoy, datetime.min.time())
+        desde = datetime.combine(hoy, datetime.min.time()) + timedelta(hours=5)
         hasta = desde + timedelta(days=1)
 
     # Query base
@@ -64,7 +66,6 @@ def ventas():
     )
 
     if q:
-        # Buscar por numero de factura o cliente
         query = query.join(Cliente).filter(
             or_(
                 Factura.numero_factura.ilike(f'%{q}%'),
@@ -74,7 +75,7 @@ def ventas():
 
     facturas = query.order_by(Factura.fecha_hora.desc()).limit(500).all()
 
-    # Totales del periodo
+    # Totales del periodo (usando mismo rango UTC)
     total_periodo = db.session.query(func.coalesce(func.sum(Factura.total), 0)).filter(
         Factura.tienda_id == tienda_id,
         Factura.fecha_hora >= desde,
@@ -121,7 +122,6 @@ def cuentas_por_cobrar():
     tienda_id = tienda_actual()
     tiendas = Tienda.query.filter_by(activa=True).all()
 
-    # Clientes con deuda
     clientes_deuda = (Cliente.query
                       .filter(Cliente.tienda_id == tienda_id,
                               Cliente.saldo_actual > 0.01)
@@ -182,13 +182,11 @@ def registrar_abono():
         flash(f'El abono no puede superar el saldo (${saldo_actual:,.0f})', 'danger')
         return redirect(url_for('reportes.cuentas_por_cobrar'))
 
-    # Redondear al saldo exacto si está muy cerca
     if abs(monto - saldo_actual) < 0.10:
         monto = saldo_actual
 
     nuevo_saldo = redondear(saldo_actual - monto)
 
-    # Crear pago
     pago = Pago(
         factura_id=factura.id,
         tienda_id=factura.tienda_id,
@@ -197,13 +195,11 @@ def registrar_abono():
     )
     db.session.add(pago)
 
-    # Actualizar factura
     factura.saldo_pendiente = nuevo_saldo
     if nuevo_saldo <= 0.01:
         factura.estado_credito = 'pagado'
         factura.saldo_pendiente = Decimal('0')
 
-    # Actualizar cliente
     cliente = factura.cliente
     cliente.saldo_actual = redondear(Decimal(str(cliente.saldo_actual or 0)) - Decimal(str(monto)))
 

@@ -31,7 +31,7 @@
             </div>
             <div class="col-md-4">
                 <label class="form-label small mb-0">Buscar</label>
-                <input type="text" name="q" class="form-control" 
+                <input type="text" name="q" class="form-control"
                        placeholder="N° factura o nombre cliente..." value="{{ q }}">
             </div>
             <div class="col-md-2">
@@ -45,11 +45,11 @@
             <a href="{{ url_for('reportes.ventas') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-calendar-today"></i> Hoy
             </a>
-            <a href="{{ url_for('reportes.ventas', desde=(hoy - timedelta(days=7)).strftime('%Y-%m-%d') if hoy else '', hasta=hoy.strftime('%Y-%m-%d') if hoy else '') }}" 
+            <a href="{{ url_for('reportes.ventas', desde=(hoy - timedelta(days=7)).strftime('%Y-%m-%d') if hoy else '', hasta=hoy.strftime('%Y-%m-%d') if hoy else '') }}"
                class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-calendar-week"></i> Últimos 7 días
             </a>
-            <a href="{{ url_for('reportes.ventas', desde=(hoy - timedelta(days=30)).strftime('%Y-%m-%d') if hoy else '', hasta=hoy.strftime('%Y-%m-%d') if hoy else '') }}" 
+            <a href="{{ url_for('reportes.ventas', desde=(hoy - timedelta(days=30)).strftime('%Y-%m-%d') if hoy else '', hasta=hoy.strftime('%Y-%m-%d') if hoy else '') }}"
                class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-calendar-month"></i> Últimos 30 días
             </a>
@@ -118,7 +118,7 @@
                         {% endif %}
                     </td>
                     <td class="text-end">
-                        <a href="{{ url_for('reportes.detalle', factura_id=f.id) }}" 
+                        <a href="{{ url_for('reportes.detalle', factura_id=f.id) }}"
                            class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-eye"></i> Ver
                         </a>

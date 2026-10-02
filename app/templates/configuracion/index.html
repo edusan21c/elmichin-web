@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% block titulo %}Configuración{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-gear"></i> Configuración
+        {% if current_user.es_programador() and tiendas|length > 1 %}
+            <small class="text-muted">- Editando:
+                <select id="selector-tienda" class="form-select form-select-sm d-inline-block" style="width:auto;">
+                    {% for t in tiendas %}
+                        <option value="{{ t.id }}" {% if t.id == tienda_id %}selected{% endif %}>{{ t.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </small>
+        {% endif %}
+    </h1>
+</div>
+
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i>
+    Los datos marcados como <span class="badge bg-primary">Global</span> se comparten entre todas las tiendas.
+    Los datos <span class="badge bg-success">Por tienda</span> son específicos de cada local.
+</div>
+
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="tienda_id" value="{{ tienda_id or '' }}">
+
+    <div class="row g-3">
+        <!-- ============ DATOS GLOBALES ============ -->
+        {% if current_user.es_programador() or not tienda_id %}
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-globe"></i> Datos globales
+                    <span class="badge bg-light text-primary ms-2">Compartido entre todas las tiendas</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nombre del negocio</label>
+                            <input type="text" name="negocio_nombre" class="form-control"
+                                   value="{{ config_global.negocio_nombre }}"
+                                   {% if not current_user.es_programador() %}readonly{% endif %}>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Slogan</label>
+                            <input type="text" name="negocio_slogan" class="form-control"
+                                   value="{{ config_global.negocio_slogan }}"
+                                   {% if not current_user.es_programador() %}readonly{% endif %}>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">NIT</label>
+                            <input type="text" name="negocio_nit" class="form-control"
+                                   value="{{ config_global.negocio_nit }}"
+                                   {% if not current_user.es_programador() %}readonly{% endif %}>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Recargo Nequi/Daviplata (%)</label>
+                            <div class="input-group">
+                                <input type="number" name="recargo_nequi" class="form-control"
+                                       value="{{ config_global.recargo_nequi }}" step="0.01" min="0" max="10"
+                                       {% if not current_user.es_programador() %}readonly{% endif %}>
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Valor de cada bolsa</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="valor_bolsa" class="form-control"
+                                       value="{{ config_global.valor_bolsa }}" min="0"
+                                       {% if not current_user.es_programador() %}readonly{% endif %}>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ============ DATOS POR TIENDA ============ -->
+        {% if tienda_id %}
+        <div class="col-12">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <i class="bi bi-shop"></i> Datos de esta tienda
+                    <span class="badge bg-light text-success ms-2">Solo para esta tienda</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Dirección</label>
+                            <input type="text" name="negocio_direccion" class="form-control"
+                                   value="{{ config_tienda.negocio_direccion }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Teléfono</label>
+                            <input type="text" name="negocio_telefono" class="form-control"
+                                   value="{{ config_tienda.negocio_telefono }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">IP de la impresora</label>
+                            <input type="text" name="impresora_ip" class="form-control"
+                                   value="{{ config_tienda.impresora_ip }}" placeholder="192.168.0.14">
+                            <small class="text-muted">IP en la red local de esta tienda</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Puerto de la impresora</label>
+                            <input type="number" name="impresora_puerto" class="form-control"
+                                   value="{{ config_tienda.impresora_puerto }}" min="1" max="65535">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ============ BOTONES ============ -->
+    <div class="mt-4 d-flex justify-content-end gap-2">
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary">
+            Cancelar
+        </a>
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-circle"></i> Guardar configuración
+        </button>
+    </div>
+</form>
+
+<script>
+const st = document.getElementById('selector-tienda');
+if (st) {
+    st.addEventListener('change', function() {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tienda', this.value);
+        window.location.href = url.toString();
+    });
+}
+</script>
+{% endblock %}

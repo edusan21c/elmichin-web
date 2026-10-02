@@ -74,8 +74,8 @@ class Config:
 
     # Configuración multi-tienda
     TIENDAS = {
-        1: "El Michín Lucero",
-        2: "El Michín Centro",
+        1: "El Michín Uno",
+        2: "El Michín Dos",
     }
 
     @property

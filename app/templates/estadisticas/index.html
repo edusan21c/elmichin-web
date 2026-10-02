@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block titulo %}Estadísticas{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-bar-chart"></i> Estadísticas
+        {% if current_user.es_programador() and tiendas|length > 1 %}
+            <small class="text-muted">- Tienda:
+                <select id="selector-tienda" class="form-select form-select-sm d-inline-block" style="width:auto;">
+                    {% for t in tiendas %}
+                        <option value="{{ t.id }}" {% if t.id == tienda_id %}selected{% endif %}>{{ t.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </small>
+        {% endif %}
+    </h1>
+    <div class="btn-group">
+        <a href="?periodo=7d{% if tienda_id %}&tienda={{ tienda_id }}{% endif %}"
+           class="btn btn-sm {% if periodo == '7d' %}btn-primary{% else %}btn-outline-primary{% endif %}">7 días</a>
+        <a href="?periodo=30d{% if tienda_id %}&tienda={{ tienda_id }}{% endif %}"
+           class="btn btn-sm {% if periodo == '30d' %}btn-primary{% else %}btn-outline-primary{% endif %}">30 días</a>
+        <a href="?periodo=mes{% if tienda_id %}&tienda={{ tienda_id }}{% endif %}"
+           class="btn btn-sm {% if periodo == 'mes' %}btn-primary{% else %}btn-outline-primary{% endif %}">Este mes</a>
+        <a href="?periodo=año{% if tienda_id %}&tienda={{ tienda_id }}{% endif %}"
+           class="btn btn-sm {% if periodo == 'año' %}btn-primary{% else %}btn-outline-primary{% endif %}">Este año</a>
+    </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4" id="kpis-container">
+    <div class="col-md-3">
+        <div class="card border-primary">
+            <div class="card-body">
+                <div class="text-muted small">💰 Total vendido</div>
+                <div class="fs-3 fw-bold text-primary" id="kpi-total">$0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-info">
+            <div class="card-body">
+                <div class="text-muted small">🧾 Facturas</div>
+                <div class="fs-3 fw-bold text-info" id="kpi-facturas">0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body">
+                <div class="text-muted small">🎫 Ticket promedio</div>
+                <div class="fs-3 fw-bold text-success" id="kpi-ticket">$0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body">
+                <div class="text-muted small">📦 Productos vendidos</div>
+                <div class="fs-3 fw-bold text-warning" id="kpi-productos">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos -->
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-white fw-semibold">
+                📈 Ventas por día
+            </div>
+            <div class="card-body">
+                <canvas id="chart-ventas-dia" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-white fw-semibold">
+                💳 Métodos de pago
+            </div>
+            <div class="card-body">
+                <canvas id="chart-metodos"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header bg-white fw-semibold">
+                🏆 Top 10 productos más vendidos
+            </div>
+            <div class="card-body">
+                <canvas id="chart-top" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header bg-white fw-semibold">
+                ⏰ Ventas por hora del día
+            </div>
+            <div class="card-body">
+                <canvas id="chart-horas" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    {% if current_user.es_programador() %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white fw-semibold">
+                🏪 Comparativa entre tiendas
+            </div>
+            <div class="card-body">
+                <canvas id="chart-comparativa" height="60"></canvas>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    window.EST_CONFIG = {
+        tiendaId: {{ tienda_id or 0 }},
+        periodo: "{{ periodo }}",
+        urlDatos: "{{ url_for('estadisticas.api_datos') }}",
+    };
+</script>
+<script src="{{ url_for('static', filename='js/estadisticas.js') }}"></script>
+{% endblock %}

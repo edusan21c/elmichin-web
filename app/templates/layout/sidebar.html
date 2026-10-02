@@ -46,9 +46,9 @@
 
             {% if current_user.rol in ('admin', 'programador') %}
             <li class="nav-item">
-                <a class="nav-link disabled" href="#">
+                <a class="nav-link {% if request.blueprint == 'estadisticas' %}active{% endif %}"
+                   href="{{ url_for('estadisticas.index') }}">
                     <i class="bi bi-bar-chart"></i> Estadísticas
-                    <small class="text-muted">(pronto)</small>
                 </a>
             </li>
             {% endif %}
@@ -64,9 +64,9 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link disabled" href="#">
+                <a class="nav-link {% if request.blueprint == 'configuracion' %}active{% endif %}"
+                   href="{{ url_for('configuracion.index') }}">
                     <i class="bi bi-gear"></i> Configuración
-                    <small class="text-muted">(pronto)</small>
                 </a>
             </li>
             {% endif %}
