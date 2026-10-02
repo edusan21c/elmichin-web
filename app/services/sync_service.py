@@ -227,3 +227,207 @@ def registrar_log(tienda_id, tipo, tabla, registros, exitoso, mensaje=''):
         db.session.rollback()
         print(f'  [log] Aviso: {type(e).__name__}')
         return None
+
+    # ==================== PUSH: GUARDAR EN CENTRAL ====================
+def procesar_push(tienda_id, datos):
+    """
+    Procesa los datos recibidos de una tienda y los guarda en el central.
+    Retorna dict con listas de IDs locales procesados exitosamente.
+    """
+    from app.models.usuario import Usuario
+
+    facturas_ok = []
+    pagos_ok = []
+    clientes_ok = []
+    errores = []
+
+    # ---------- 1. CLIENTES ----------
+    mapa_clientes = {}  # {id_local: id_central}
+
+    for c_data in datos.get('clientes', []):
+        try:
+            id_local = c_data.get('id')
+            nombre = (c_data.get('nombre') or '').strip()
+            documento = (c_data.get('documento') or '').strip()
+
+            if not nombre:
+                errores.append(f'Cliente {id_local}: sin nombre')
+                continue
+
+            query = Cliente.query.filter_by(tienda_id=tienda_id, nombre=nombre)
+            if documento:
+                query = query.filter_by(documento=documento)
+            existente = query.first()
+
+            if existente:
+                existente.direccion = c_data.get('direccion') or existente.direccion
+                existente.telefono = c_data.get('telefono') or existente.telefono
+                existente.email = c_data.get('email') or existente.email
+                existente.saldo_actual = Decimal(str(c_data.get('saldo_actual', 0)))
+                existente.sync_estado = 'sincronizado'
+                existente.sync_fecha = datetime.utcnow()
+                mapa_clientes[id_local] = existente.id
+            else:
+                nuevo = Cliente(
+                    tienda_id=tienda_id,
+                    nombre=nombre,
+                    documento=documento or None,
+                    direccion=c_data.get('direccion') or None,
+                    telefono=c_data.get('telefono') or None,
+                    email=c_data.get('email') or None,
+                    saldo_actual=Decimal(str(c_data.get('saldo_actual', 0))),
+                    sync_estado='sincronizado',
+                    sync_fecha=datetime.utcnow(),
+                )
+                db.session.add(nuevo)
+                db.session.flush()
+                mapa_clientes[id_local] = nuevo.id
+
+            clientes_ok.append(id_local)
+        except Exception as e:
+            errores.append(f'Cliente {c_data.get("id")}: {e}')
+
+    # ---------- 2. FACTURAS ----------
+    mapa_facturas = {}
+
+    for f_data in datos.get('facturas', []):
+        try:
+            id_local = f_data.get('id')
+            numero = f_data.get('numero_factura')
+
+            if not numero:
+                errores.append(f'Factura {id_local}: sin numero_factura')
+                continue
+
+            # Idempotencia: verificar si ya existe
+            existente = Factura.query.filter_by(
+                tienda_id=tienda_id, numero_factura=numero
+            ).first()
+
+            if existente:
+                mapa_facturas[id_local] = existente.id
+                facturas_ok.append(id_local)
+                continue
+
+            # Fecha
+            fecha_str = f_data.get('fecha_hora')
+            try:
+                fecha_hora = datetime.fromisoformat(fecha_str) if fecha_str else datetime.utcnow()
+            except (ValueError, TypeError):
+                fecha_hora = datetime.utcnow()
+
+            # Cliente mapeado
+            cliente_local_id = f_data.get('cliente_id')
+            cliente_id_central = mapa_clientes.get(cliente_local_id, cliente_local_id)
+
+            # Verificar que el cliente exista en el central
+            if cliente_id_central and not Cliente.query.get(cliente_id_central):
+                # Fallback: crear cliente genérico si no existe
+                cliente_gen = Cliente.query.filter_by(
+                    tienda_id=tienda_id, nombre='Cliente sincronizado'
+                ).first()
+                if not cliente_gen:
+                    cliente_gen = Cliente(
+                        tienda_id=tienda_id,
+                        nombre='Cliente sincronizado',
+                        saldo_actual=Decimal('0'),
+                    )
+                    db.session.add(cliente_gen)
+                    db.session.flush()
+                cliente_id_central = cliente_gen.id
+
+            # Usuario: verificar que exista en el central
+            usuario_id = f_data.get('usuario_id')
+            if usuario_id:
+                existe_user = db.session.query(Usuario.id).filter_by(id=usuario_id).first()
+                if not existe_user:
+                    usuario_id = None
+
+            factura = Factura(
+                numero_factura=numero,
+                tienda_id=tienda_id,
+                fecha_hora=fecha_hora,
+                cliente_id=cliente_id_central,
+                usuario_id=usuario_id,
+                subtotal=Decimal(str(f_data.get('subtotal', 0))),
+                total=Decimal(str(f_data.get('total', 0))),
+                metodo_pago=f_data.get('metodo_pago', ''),
+                recargo_nequi=Decimal(str(f_data.get('recargo_nequi', 0))),
+                recargo_bolsa=Decimal(str(f_data.get('recargo_bolsa', 0))),
+                valor_pagado=Decimal(str(f_data.get('valor_pagado', 0))),
+                vueltas=Decimal(str(f_data.get('vueltas', 0))),
+                tipo_pago=f_data.get('tipo_pago', 'contado'),
+                estado_credito=f_data.get('estado_credito', 'pagado'),
+                saldo_pendiente=Decimal(str(f_data.get('saldo_pendiente', 0))),
+                sync_estado='sincronizado',
+                sync_fecha=datetime.utcnow(),
+            )
+            db.session.add(factura)
+            db.session.flush()
+
+            for d in f_data.get('detalles', []):
+                detalle = DetalleFactura(
+                    factura_id=factura.id,
+                    producto_id=d.get('producto_id') or 1,
+                    producto_nombre=d.get('producto_nombre', ''),
+                    cantidad=int(d.get('cantidad', 0)),
+                    precio_unitario=Decimal(str(d.get('precio_unitario', 0))),
+                    subtotal=Decimal(str(d.get('subtotal', 0))),
+                )
+                db.session.add(detalle)
+
+            mapa_facturas[id_local] = factura.id
+            facturas_ok.append(id_local)
+        except Exception as e:
+            errores.append(f'Factura {f_data.get("id")}: {e}')
+
+    # ---------- 3. PAGOS ----------
+    for p_data in datos.get('pagos', []):
+        try:
+            id_local = p_data.get('id')
+            factura_local_id = p_data.get('factura_id')
+            factura_central_id = mapa_facturas.get(factura_local_id)
+
+            if not factura_central_id:
+                errores.append(f'Pago {id_local}: factura {factura_local_id} no mapeada')
+                continue
+
+            monto = Decimal(str(p_data.get('monto', 0)))
+
+            # Idempotencia: mismo factura + monto
+            existente = Pago.query.filter_by(
+                factura_id=factura_central_id, monto=monto
+            ).first()
+            if existente:
+                pagos_ok.append(id_local)
+                continue
+
+            fecha_str = p_data.get('fecha')
+            try:
+                fecha_pago = datetime.fromisoformat(fecha_str) if fecha_str else datetime.utcnow()
+            except (ValueError, TypeError):
+                fecha_pago = datetime.utcnow()
+
+            pago = Pago(
+                factura_id=factura_central_id,
+                tienda_id=tienda_id,
+                fecha=fecha_pago,
+                monto=monto,
+                metodo_pago=p_data.get('metodo_pago', 'efectivo'),
+                sync_estado='sincronizado',
+                sync_fecha=datetime.utcnow(),
+            )
+            db.session.add(pago)
+            db.session.flush()
+            pagos_ok.append(id_local)
+        except Exception as e:
+            errores.append(f'Pago {p_data.get("id")}: {e}')
+
+    db.session.commit()
+
+    return {
+        'facturas_ok': facturas_ok,
+        'pagos_ok': pagos_ok,
+        'clientes_ok': clientes_ok,
+        'errores': errores,
+    }

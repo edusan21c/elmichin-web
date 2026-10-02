@@ -17,46 +17,55 @@ def requiere_sync_key(f):
     return decorated
 
 
+# ==================== PUSH (TIENDA -> CENTRAL) ====================
 @bp.route('/sync/push', methods=['POST'])
 @requiere_sync_key
 def sync_push():
-    """Recibe datos de una tienda (facturas, pagos, clientes)."""
+    """Recibe datos de una tienda (facturas, pagos, clientes) y los guarda en el central."""
+    from app.services import sync_service
+
     data = request.get_json(silent=True)
     if not data:
         return jsonify({'ok': False, 'error': 'Sin datos'}), 400
 
     tienda_id = data.get('tienda_id')
-    if not tienda_id:
-        return jsonify({'ok': False, 'error': 'Falta tienda_id'}), 400
+    if not tienda_id or tienda_id <= 0:
+        return jsonify({'ok': False, 'error': 'tienda_id invalido'}), 400
 
-    facturas = data.get('facturas', [])
-    pagos = data.get('pagos', [])
-    clientes = data.get('clientes', [])
+    try:
+        resultado = sync_service.procesar_push(tienda_id, data)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': f'Error procesando: {e}'}), 500
 
-    resultado = {
+    return jsonify({
         'ok': True,
-        'facturas_ok': [f['id'] for f in facturas],
-        'pagos_ok': [p['id'] for p in pagos],
-        'clientes_ok': [c['id'] for c in clientes],
+        'facturas_ok': resultado['facturas_ok'],
+        'pagos_ok': resultado['pagos_ok'],
+        'clientes_ok': resultado['clientes_ok'],
+        'errores': resultado['errores'],
         'recibidas': {
-            'facturas': len(facturas),
-            'pagos': len(pagos),
-            'clientes': len(clientes),
-        }
-    }
-    return jsonify(resultado)
+            'facturas': len(resultado['facturas_ok']),
+            'pagos': len(resultado['pagos_ok']),
+            'clientes': len(resultado['clientes_ok']),
+        },
+    })
 
 
+# ==================== PULL (CENTRAL -> TIENDA) ====================
 @bp.route('/sync/pull', methods=['GET'])
 @requiere_sync_key
 def sync_pull():
     """Devuelve cambios (productos, precios) para que la tienda actualice."""
-    from app.services import sync_service  # IMPORT DIFERIDO
+    from app.services import sync_service
+
     desde = request.args.get('desde', '')
     datos = sync_service.obtener_cambios_pull(desde)
     return jsonify(datos)
 
 
+# ==================== PING (HEALTHCHECK) ====================
 @bp.route('/sync/ping', methods=['GET'])
 def sync_ping():
     """Healthcheck sin autenticacion."""
