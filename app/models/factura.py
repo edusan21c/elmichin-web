@@ -36,6 +36,12 @@ class Factura(db.Model):
     sync_fecha = db.Column(db.DateTime)
     sync_hash = db.Column(db.String(64))
 
+    # Origen: 'local' | 'remota' | 'remota_recibida'
+    #   local            → creada en la tienda (cajera)
+    #   remota           → creada en central (dueño), pendiente de bajar
+    #   remota_recibida  → ya bajó a la tienda
+    origen = db.Column(db.String(20), default='local', index=True)
+
     # Relaciones
     tienda = db.relationship('Tienda', back_populates='facturas')
     cliente = db.relationship('Cliente', back_populates='facturas')

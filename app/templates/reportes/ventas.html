@@ -103,7 +103,14 @@
             <tbody>
                 {% for f in facturas %}
                 <tr>
-                    <td class="fw-semibold">{{ f.numero_factura }}</td>
+                    <td class="fw-semibold">
+    {{ f.numero_factura }}
+    {% if f.origen == 'remota_recibida' %}
+        <span class="badge bg-info text-dark ms-1" title="Pedido hecho desde central">
+            📥 Remota
+        </span>
+    {% endif %}
+</td>
                     <td class="text-muted small">{{ f.fecha_hora | fecha_local }}</td>
                     <td>{{ f.cliente.nombre }}</td>
                     <td class="text-end fw-semibold">${{ "{:,.0f}".format(f.total) }}</td>

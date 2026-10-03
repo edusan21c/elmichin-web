@@ -16,6 +16,14 @@
     </div>
 </div>
 
+<!-- ============ AVISO DE PEDIDO REMOTO ============ -->
+{% if factura.origen == 'remota_recibida' %}
+<div class="alert alert-info">
+    <i class="bi bi-shop"></i>
+    <strong>Pedido remoto</strong> — el cliente lo encargó por celular y viene a recogerlo aquí.
+</div>
+{% endif %}
+
 <div class="row g-3">
     <div class="col-lg-8">
         <div class="card mb-3">
@@ -91,6 +99,11 @@
                 </p>
                 {% if factura.usuario %}
                 <p class="mb-1 small"><strong>Atendido por:</strong> {{ factura.usuario.nombre }}</p>
+                {% endif %}
+                {% if factura.origen == 'remota_recibida' %}
+                <p class="mb-1 small"><strong>Origen:</strong> 
+                    <span class="badge bg-info text-dark">📥 Pedido remoto</span>
+                </p>
                 {% endif %}
             </div>
         </div>

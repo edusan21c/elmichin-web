@@ -5,13 +5,14 @@
 
 import os
 import sys
-import warnings
-warnings.filterwarnings('ignore', category=UserWarning, module='requests')
 import json
 import socket
+import warnings
 from datetime import datetime, timedelta
 
 import requests
+
+warnings.filterwarnings('ignore', category=UserWarning, module='requests')
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RAIZ)
@@ -55,7 +56,7 @@ def hay_internet(url):
 
 
 def hacer_push(app, central_url, sync_key, tienda_id):
-    """Envia datos pendientes al central."""
+    """Envia datos pendientes al central (facturas, pagos, clientes)."""
     with app.app_context():
         pendientes = sync_service.obtener_pendientes_push(tienda_id)
 
@@ -115,13 +116,12 @@ def hacer_push(app, central_url, sync_key, tienda_id):
 
 
 def hacer_pull(app, central_url, sync_key, tienda_id):
-    """Recibe cambios del central."""
+    """Recibe cambios del central (productos Y facturas)."""
     with app.app_context():
-        # Ultima sincronizacion (por ahora, ultimas 24h)
-        desde = (datetime.utcnow() - timedelta(days=1)).isoformat()
+        desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
-        log(f'  PULL: solicitando cambios desde {desde[:10]}...')
-
+        # ============ 1. PULL PRODUCTOS ============
+        log(f'  PULL productos desde {desde[:10]}...')
         try:
             r = requests.get(
                 central_url.rstrip('/') + '/api/sync/pull',
@@ -129,35 +129,52 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 headers={'X-Sync-Key': sync_key},
                 timeout=TIMEOUT_REQUEST,
             )
-
             if r.status_code == 200:
                 datos = r.json()
                 productos = datos.get('productos', [])
-
                 if productos:
-                    # Filtrar solo los de esta tienda
                     productos_tienda = [
                         p for p in productos if p.get('tienda_id') == tienda_id
                     ]
                     actualizados = sync_service.aplicar_cambios_pull(
                         {'productos': productos_tienda}
                     )
-                    log(f'  PULL: {actualizados} productos actualizados')
+                    log(f'  PULL productos: {actualizados} actualizados')
+                else:
+                    log('  PULL productos: sin cambios')
+        except requests.RequestException as e:
+            log(f'  PULL productos: fallo red - {e}')
+
+        # ============ 2. PULL FACTURAS REMOTAS ============
+        log(f'  PULL facturas desde {desde[:10]}...')
+        try:
+            r = requests.get(
+                central_url.rstrip('/') + '/api/sync/pull-facturas',
+                params={'tienda_id': tienda_id, 'desde': desde},
+                headers={'X-Sync-Key': sync_key},
+                timeout=TIMEOUT_REQUEST,
+            )
+            if r.status_code == 200:
+                datos = r.json()
+                facturas = datos.get('facturas', [])
+                if facturas:
+                    insertadas = sync_service.aplicar_facturas_recibidas(
+                        tienda_id, facturas
+                    )
+                    log(f'  PULL facturas: {insertadas} nuevas '
+                        f'(recibidas {len(facturas)})')
                     sync_service.registrar_log(
-                        tienda_id, 'pull', 'productos',
-                        actualizados, True, ''
+                        tienda_id, 'pull', 'facturas',
+                        insertadas, True, ''
                     )
                 else:
-                    log('  PULL: sin cambios')
-
-                return True
+                    log('  PULL facturas: sin cambios')
             else:
-                log(f'  PULL: HTTP {r.status_code}')
-                return False
-
+                log(f'  PULL facturas: HTTP {r.status_code}')
         except requests.RequestException as e:
-            log(f'  PULL: fallo de red - {e}')
-            return False
+            log(f'  PULL facturas: fallo red - {e}')
+
+        return True
 
 
 def main():

@@ -17,12 +17,17 @@ def redondear(v):
     return Decimal(str(v or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
 
-def generar_numero_factura(tienda_id):
-    """Genera numero unico: FAC-T{tienda}-0001."""
+def generar_numero_factura(tienda_id, origen='local'):
+    """Genera numero unico. Central usa REM-, tienda usa FAC-."""
+    prefijo = 'REM' if origen == 'remota' else 'FAC'
+    patron = f'{prefijo}-T{tienda_id}-%'
+
     ultima = (Factura.query
-              .filter_by(tienda_id=tienda_id)
+              .filter(Factura.tienda_id == tienda_id)
+              .filter(Factura.numero_factura.like(patron))
               .order_by(Factura.id.desc())
               .first())
+
     if ultima:
         try:
             num = int(ultima.numero_factura.split('-')[-1])
@@ -31,7 +36,8 @@ def generar_numero_factura(tienda_id):
             siguiente = 1
     else:
         siguiente = 1
-    return f'FAC-T{tienda_id}-{siguiente:04d}'
+
+    return f'{prefijo}-T{tienda_id}-{siguiente:04d}'
 
 
 def obtener_o_crear_cliente(tienda_id, nombre, documento='', direccion='', telefono='', email=''):
@@ -77,10 +83,17 @@ def crear_factura_completa(
     bolsas_cantidad=0,
     valor_bolsa=Decimal('100'),
     valor_pagado=Decimal('0'),
+    origen=None,                     # None = autodetectar por MODO
 ):
     """Crea factura completa con validaciones y actualizaciones."""
     if not carrito:
         return None, 'El carrito esta vacio'
+
+    # Autodetectar origen según MODO si no viene explícito
+    if origen is None:
+        from flask import current_app
+        modo = (current_app.config.get('MODO', '') or '').lower()
+        origen = 'remota' if modo == 'central' else 'local'
 
     items_procesados = []
     subtotal = Decimal('0')
@@ -143,7 +156,13 @@ def crear_factura_completa(
         cliente_data.get('email', ''),
     )
 
-    numero = generar_numero_factura(tienda_id)
+    # Si es remota, el cliente nace en central (no re-subir por push)
+    if origen == 'remota':
+        cliente.sync_estado = 'sincronizado'
+        cliente.sync_fecha = datetime.utcnow()
+
+    numero = generar_numero_factura(tienda_id, origen=origen)
+    
     tipo_pago = 'credito' if saldo_pendiente > 0 else 'contado'
     estado_credito = 'pendiente' if saldo_pendiente > 0 else 'pagado'
 
@@ -162,6 +181,7 @@ def crear_factura_completa(
         tipo_pago=tipo_pago,
         estado_credito=estado_credito,
         saldo_pendiente=saldo_pendiente,
+        origen=origen,
     )
     db.session.add(factura)
     db.session.flush()

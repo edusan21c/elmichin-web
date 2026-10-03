@@ -27,3 +27,9 @@ Thumbs.db
 
 # Migraciones locales (opcional)
 # migrations/versions/*.pyc
+
+# Estado temporal del updater
+.update_status.json
+
+# Documentos personales
+docs/CONTEXTO.md

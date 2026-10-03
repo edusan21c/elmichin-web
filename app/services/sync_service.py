@@ -431,3 +431,204 @@ def procesar_push(tienda_id, datos):
         'clientes_ok': clientes_ok,
         'errores': errores,
     }
+
+
+
+# ==================== PULL FACTURAS (CENTRAL → TIENDA) ====================
+def obtener_facturas_para_tienda(tienda_id, desde=None):
+    """
+    Devuelve SOLO las facturas remotas pendientes para esa tienda.
+    Filtra por origen='remota' (las 'remota_recibida' ya se enviaron).
+    """
+    query = Factura.query.filter(
+        Factura.tienda_id == tienda_id,
+        Factura.origen == 'remota',
+    )
+
+    if desde:
+        try:
+            if isinstance(desde, str):
+                desde = datetime.fromisoformat(desde)
+            query = query.filter(Factura.fecha_hora >= desde)
+        except (ValueError, TypeError):
+            pass
+
+    facturas = query.order_by(Factura.fecha_hora.asc()).limit(100).all()
+
+    resultado = []
+    for f in facturas:
+        cliente_data = None
+        if f.cliente:
+            cliente_data = {
+                'nombre': f.cliente.nombre,
+                'documento': f.cliente.documento or '',
+                'direccion': f.cliente.direccion or '',
+                'telefono': f.cliente.telefono or '',
+                'email': f.cliente.email or '',
+                'saldo_actual': float(f.cliente.saldo_actual or 0),
+            }
+
+        detalles = []
+        for d in f.detalles.all():
+            detalles.append({
+                'producto_id': d.producto_id,
+                'producto_nombre': d.producto_nombre,
+                'cantidad': d.cantidad,
+                'precio_unitario': float(d.precio_unitario or 0),
+                'subtotal': float(d.subtotal or 0),
+            })
+
+        resultado.append({
+            'id': f.id,
+            'numero_factura': f.numero_factura,
+            'tienda_id': f.tienda_id,
+            'fecha_hora': f.fecha_hora.isoformat() if f.fecha_hora else None,
+            'cliente': cliente_data,
+            'usuario_nombre': f.usuario.nombre if f.usuario else None,
+            'subtotal': float(f.subtotal or 0),
+            'total': float(f.total or 0),
+            'metodo_pago': f.metodo_pago or '',
+            'recargo_nequi': float(f.recargo_nequi or 0),
+            'recargo_bolsa': float(f.recargo_bolsa or 0),
+            'valor_pagado': float(f.valor_pagado or 0),
+            'vueltas': float(f.vueltas or 0),
+            'tipo_pago': f.tipo_pago or 'contado',
+            'estado_credito': f.estado_credito or 'pagado',
+            'saldo_pendiente': float(f.saldo_pendiente or 0),
+            'detalles': detalles,
+        })
+
+    return resultado
+
+
+def marcar_facturas_enviadas(ids):
+    """Marca facturas remotas como ya enviadas (evita reenvíos)."""
+    if not ids:
+        return 0
+
+    n = (Factura.query
+         .filter(Factura.id.in_(ids))
+         .update({
+             'origen': 'remota_recibida',
+             'sync_fecha': datetime.utcnow(),
+         }, synchronize_session=False))
+    db.session.commit()
+    return n
+
+
+def aplicar_facturas_recibidas(tienda_id, facturas):
+    """
+    Aplica las facturas recibidas del central en la BD local de la tienda.
+    - Si ya existe (mismo numero_factura), se omite.
+    - Si no existe, la crea con cliente y detalles.
+    - Marca la factura como origen='remota_recibida'.
+    Devuelve cuántas facturas nuevas se insertaron.
+    """
+    insertadas = 0
+    omitidas = 0
+
+    for f_data in facturas:
+        numero = f_data.get('numero_factura')
+        if not numero:
+            continue
+
+        # ¿Ya existe localmente?
+        existente = Factura.query.filter_by(
+            tienda_id=tienda_id, numero_factura=numero
+        ).first()
+        if existente:
+            omitidas += 1
+            continue
+
+        # Buscar o crear cliente local
+        cliente_local_id = None
+        c_data = f_data.get('cliente')
+        if c_data and c_data.get('nombre'):
+            nombre = c_data['nombre'].strip()
+            documento = (c_data.get('documento') or '').strip()
+
+            query = Cliente.query.filter_by(tienda_id=tienda_id, nombre=nombre)
+            if documento:
+                query = query.filter_by(documento=documento)
+            cliente_local = query.first()
+
+            if not cliente_local:
+                cliente_local = Cliente(
+                    tienda_id=tienda_id,
+                    nombre=nombre,
+                    documento=documento or None,
+                    direccion=c_data.get('direccion') or None,
+                    telefono=c_data.get('telefono') or None,
+                    email=c_data.get('email') or None,
+                    saldo_actual=Decimal(str(c_data.get('saldo_actual', 0))),
+                    sync_estado='sincronizado',
+                    sync_fecha=datetime.utcnow(),
+                )
+                db.session.add(cliente_local)
+                db.session.flush()
+
+            cliente_local_id = cliente_local.id
+
+        # Si no hay cliente, usar/crear genérico
+        if not cliente_local_id:
+            cliente_gen = Cliente.query.filter_by(
+                tienda_id=tienda_id, nombre='Cliente remoto'
+            ).first()
+            if not cliente_gen:
+                cliente_gen = Cliente(
+                    tienda_id=tienda_id,
+                    nombre='Cliente remoto',
+                    saldo_actual=Decimal('0'),
+                )
+                db.session.add(cliente_gen)
+                db.session.flush()
+            cliente_local_id = cliente_gen.id
+
+        # Parsear fecha
+        fecha_hora = datetime.utcnow()
+        if f_data.get('fecha_hora'):
+            try:
+                fecha_hora = datetime.fromisoformat(f_data['fecha_hora'])
+            except (ValueError, TypeError):
+                pass
+
+        # Crear factura
+        factura = Factura(
+            numero_factura=numero,
+            tienda_id=tienda_id,
+            fecha_hora=fecha_hora,
+            cliente_id=cliente_local_id,
+            usuario_id=None,
+            subtotal=Decimal(str(f_data.get('subtotal', 0))),
+            total=Decimal(str(f_data.get('total', 0))),
+            metodo_pago=f_data.get('metodo_pago', ''),
+            recargo_nequi=Decimal(str(f_data.get('recargo_nequi', 0))),
+            recargo_bolsa=Decimal(str(f_data.get('recargo_bolsa', 0))),
+            valor_pagado=Decimal(str(f_data.get('valor_pagado', 0))),
+            vueltas=Decimal(str(f_data.get('vueltas', 0))),
+            tipo_pago=f_data.get('tipo_pago', 'contado'),
+            estado_credito=f_data.get('estado_credito', 'pagado'),
+            saldo_pendiente=Decimal(str(f_data.get('saldo_pendiente', 0))),
+            origen='remota_recibida',           # ← NUEVO
+            sync_estado='sincronizado',
+            sync_fecha=datetime.utcnow(),
+        )
+        db.session.add(factura)
+        db.session.flush()
+
+        # Detalles
+        for d in f_data.get('detalles', []):
+            detalle = DetalleFactura(
+                factura_id=factura.id,
+                producto_id=d.get('producto_id') or 1,
+                producto_nombre=d.get('producto_nombre', ''),
+                cantidad=int(d.get('cantidad', 0)),
+                precio_unitario=Decimal(str(d.get('precio_unitario', 0))),
+                subtotal=Decimal(str(d.get('subtotal', 0))),
+            )
+            db.session.add(detalle)
+
+        insertadas += 1
+
+    db.session.commit()
+    return insertadas

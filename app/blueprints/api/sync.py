@@ -53,7 +53,7 @@ def sync_push():
     })
 
 
-# ==================== PULL (CENTRAL -> TIENDA) ====================
+# ==================== PULL PRODUCTOS (CENTRAL -> TIENDA) ====================
 @bp.route('/sync/pull', methods=['GET'])
 @requiere_sync_key
 def sync_pull():
@@ -63,6 +63,44 @@ def sync_pull():
     desde = request.args.get('desde', '')
     datos = sync_service.obtener_cambios_pull(desde)
     return jsonify(datos)
+
+
+# ==================== PULL FACTURAS REMOTAS (CENTRAL -> TIENDA) ====================
+@bp.route('/sync/pull-facturas', methods=['GET'])
+@requiere_sync_key
+def sync_pull_facturas():
+    """
+    Devuelve facturas remotas (dueño->tienda) pendientes de enviar.
+    Después de servirlas, las marca como 'remota_recibida' para no reenviarlas.
+    """
+    from app.services import sync_service
+
+    tienda_id = request.args.get('tienda_id', type=int)
+    desde = request.args.get('desde', '')
+
+    if not tienda_id or tienda_id <= 0:
+        return jsonify({'ok': False, 'error': 'tienda_id invalido'}), 400
+
+    try:
+        # 1. Obtener las facturas remotas pendientes
+        facturas = sync_service.obtener_facturas_para_tienda(tienda_id, desde)
+
+        # 2. Marcar como enviadas para no reenviarlas en el próximo ciclo
+        ids = [f['id'] for f in facturas]
+        enviadas = sync_service.marcar_facturas_enviadas(ids)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+    return jsonify({
+        'ok': True,
+        'tienda_id': tienda_id,
+        'total': len(facturas),
+        'facturas': facturas,
+        'enviadas': enviadas,
+        'timestamp': datetime.utcnow().isoformat(),
+    })
 
 
 # ==================== PING (HEALTHCHECK) ====================
