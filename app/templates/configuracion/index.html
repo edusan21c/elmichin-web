@@ -17,6 +17,46 @@
     </h1>
 </div>
 
+<!-- ============ CARD DE VERSION (solo programador) ============ -->
+{% if current_user.es_programador() %}
+<div class="card border-info mb-3" id="card-version">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-box-seam"></i> Versión del sistema</span>
+        <button class="btn btn-sm btn-light" id="btn-buscar-version">
+            <i class="bi bi-arrow-clockwise"></i> Buscar
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <div class="mb-1">
+                    <small class="text-muted">Versión actual:</small>
+                    <span class="fs-5 fw-bold" id="version-local">{{ version_local }}</span>
+                </div>
+                <div class="mb-1" id="info-remota" style="display:none;">
+                    <small class="text-muted">Última disponible:</small>
+                    <span class="fs-5 fw-bold text-success" id="version-remota"></span>
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <div id="estado-version">
+                    <span class="text-muted"><i class="bi bi-hourglass-split"></i> Verificando...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Barra de progreso (oculta por defecto) -->
+        <div id="progreso-update" class="mt-3" style="display:none;">
+            <div class="progress" style="height: 25px;">
+                <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated"
+                     role="progressbar" style="width: 0%;">0%</div>
+            </div>
+            <small class="text-muted" id="paso-actual">Iniciando...</small>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="alert alert-info">
     <i class="bi bi-info-circle"></i>
     Los datos marcados como <span class="badge bg-primary">Global</span> se comparten entre todas las tiendas.
@@ -28,7 +68,6 @@
     <input type="hidden" name="tienda_id" value="{{ tienda_id or '' }}">
 
     <div class="row g-3">
-        <!-- ============ DATOS GLOBALES ============ -->
         {% if current_user.es_programador() or not tienda_id %}
         <div class="col-12">
             <div class="card border-primary">
@@ -80,7 +119,6 @@
         </div>
         {% endif %}
 
-        <!-- ============ DATOS POR TIENDA ============ -->
         {% if tienda_id %}
         <div class="col-12">
             <div class="card border-success">
@@ -118,7 +156,6 @@
         {% endif %}
     </div>
 
-    <!-- ============ BOTONES ============ -->
     <div class="mt-4 d-flex justify-content-end gap-2">
         <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary">
             Cancelar
@@ -130,6 +167,7 @@
 </form>
 
 <script>
+// Selector de tienda
 const st = document.getElementById('selector-tienda');
 if (st) {
     st.addEventListener('change', function() {
@@ -138,5 +176,122 @@ if (st) {
         window.location.href = url.toString();
     });
 }
+
+// ============ SISTEMA DE ACTUALIZACION ============
+{% if current_user.es_programador() %}
+(function() {
+    const btnBuscar = document.getElementById('btn-buscar-version');
+    const estadoDiv = document.getElementById('estado-version');
+    const infoRemota = document.getElementById('info-remota');
+    const versionRemota = document.getElementById('version-remota');
+    const progresoDiv = document.getElementById('progreso-update');
+    const barraProgreso = document.getElementById('barra-progreso');
+    const pasoActual = document.getElementById('paso-actual');
+
+    let hayUpdate = false;
+    let updateEnProgreso = false;
+
+    // ==================== BUSCAR VERSION ====================
+    async function buscarVersion() {
+        estadoDiv.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split"></i> Consultando GitHub...</span>';
+        infoRemota.style.display = 'none';
+
+        try {
+            const r = await fetch('/configuracion/api/version');
+            const data = await r.json();
+
+            if (!data.ok) {
+                estadoDiv.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> ${data.error || 'Error'}</span>`;
+                return;
+            }
+
+            if (data.hay_actualizacion) {
+                hayUpdate = true;
+                infoRemota.style.display = 'block';
+                versionRemota.textContent = data.version_remota;
+                estadoDiv.innerHTML = `
+                    <div class="alert alert-success mb-0">
+                        <i class="bi bi-arrow-up-circle"></i> <strong>Actualizacion disponible</strong>
+                    </div>
+                    <button class="btn btn-success btn-lg mt-2" id="btn-actualizar">
+                        <i class="bi bi-cloud-arrow-down"></i> Actualizar ahora
+                    </button>`;
+                document.getElementById('btn-actualizar').addEventListener('click', actualizar);
+            } else {
+                hayUpdate = false;
+                estadoDiv.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> Estas en la ultima version</span>`;
+            }
+        } catch (e) {
+            estadoDiv.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> Error: ${e.message}</span>`;
+        }
+    }
+
+    // ==================== ACTUALIZAR ====================
+    async function actualizar() {
+        if (!confirm('¿Actualizar el sistema ahora? El servicio se reiniciara por 5-10 segundos.')) {
+            return;
+        }
+
+        const btn = document.getElementById('btn-actualizar');
+        if (btn) btn.disabled = true;
+
+        try {
+            const r = await fetch('/configuracion/api/actualizar', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+            });
+            const data = await r.json();
+
+            if (!data.ok) {
+                alert('Error: ' + data.mensaje);
+                if (btn) btn.disabled = false;
+                return;
+            }
+
+            // Mostrar progreso
+            updateEnProgreso = true;
+            progresoDiv.style.display = 'block';
+
+            // Empezar polling
+            polling();
+        } catch (e) {
+            alert('Error: ' + e.message);
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    // ==================== POLLING DEL ESTADO ====================
+    async function polling() {
+        try {
+            const r = await fetch('/configuracion/api/estado-actualizacion');
+            const data = await r.json();
+
+            if (data.en_progreso) {
+                barraProgreso.style.width = data.progreso + '%';
+                barraProgreso.textContent = data.progreso + '%';
+                pasoActual.textContent = data.paso || 'Procesando...';
+                setTimeout(polling, 3000);
+            } else if (data.estado === 'completado') {
+                barraProgreso.style.width = '100%';
+                barraProgreso.textContent = '100%';
+                pasoActual.textContent = 'Actualizacion completada!';
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                pasoActual.textContent = 'Esperando servicio...';
+                setTimeout(polling, 3000);
+            }
+        } catch (e) {
+            // Servicio reiniciandose, seguir intentando
+            pasoActual.textContent = 'Reiniciando servicio...';
+            setTimeout(polling, 3000);
+        }
+    }
+
+    btnBuscar.addEventListener('click', buscarVersion);
+
+    // Buscar automaticamente al cargar
+    setTimeout(buscarVersion, 500);
+})();
+{% endif %}
 </script>
 {% endblock %}

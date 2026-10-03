@@ -1,11 +1,12 @@
 # app/blueprints/configuracion/routes.py
-from flask import render_template, request, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from . import bp
 from app.extensions import db
 from app.models.configuracion import Configuracion
 from app.models.tienda import Tienda
-from app.utils.decorators import admin_requerido
+from app.utils.decorators import admin_requerido, programador_requerido
+from app.services import updater_service
 
 
 # Parametros: (clave, valor_default, es_global)
@@ -25,7 +26,6 @@ PARAMETROS = [
 
 
 def get_valor(clave, tienda_id=None):
-    """Lee un valor de la BD. Si no existe, devuelve el default."""
     q = Configuracion.query.filter_by(clave=clave)
     if tienda_id:
         q = q.filter_by(tienda_id=tienda_id)
@@ -34,7 +34,6 @@ def get_valor(clave, tienda_id=None):
     conf = q.first()
     if conf:
         return conf.valor
-    # Default
     for k, v, is_global in PARAMETROS:
         if k == clave:
             return v
@@ -42,7 +41,6 @@ def get_valor(clave, tienda_id=None):
 
 
 def set_valor(clave, valor, tienda_id=None):
-    """Guarda un valor. Actualiza si existe, crea si no."""
     q = Configuracion.query.filter_by(clave=clave)
     if tienda_id:
         q = q.filter_by(tienda_id=tienda_id)
@@ -58,14 +56,12 @@ def set_valor(clave, valor, tienda_id=None):
 
 
 def cargar_config(tienda_id=None):
-    """Devuelve dict con los valores de una tienda o globales."""
     resultado = {}
     for clave, default, es_global in PARAMETROS:
         if es_global:
             resultado[clave] = get_valor(clave, None)
         else:
             if tienda_id:
-                # Buscar valor de la tienda, si no existe usar default
                 valor = get_valor(clave, tienda_id)
                 resultado[clave] = valor if valor else default
             else:
@@ -79,16 +75,15 @@ def cargar_config(tienda_id=None):
 def index():
     tiendas = Tienda.query.filter_by(activa=True).order_by(Tienda.id).all()
 
-    # Determinar tienda seleccionada
     if current_user.es_programador():
         tienda_id = request.args.get('tienda', type=int)
+        if not tienda_id and tiendas:
+            tienda_id = tiendas[0].id
     else:
         tienda_id = current_user.tienda_id
 
-    # Si es POST: guardar
     if request.method == 'POST':
         tienda_post = request.form.get('tienda_id', type=int)
-        # Validar permiso: programador puede todo, admin solo su tienda
         if not current_user.es_programador():
             tienda_post = current_user.tienda_id
 
@@ -105,7 +100,6 @@ def index():
                     if tienda_post:
                         set_valor(clave, valor, tienda_post)
 
-            # Validaciones numericas
             try:
                 float(request.form.get('recargo_nequi', 0.4))
                 int(request.form.get('valor_bolsa', 100))
@@ -123,9 +117,11 @@ def index():
             flash(f'Error guardando: {e}', 'danger')
             return redirect(url_for('configuracion.index', tienda=tienda_post))
 
-    # GET: mostrar
     config_global = cargar_config(None)
     config_tienda = cargar_config(tienda_id) if tienda_id else {}
+
+    # Version actual
+    version_local = updater_service.get_version_local()
 
     return render_template(
         'configuracion/index.html',
@@ -133,4 +129,53 @@ def index():
         config_tienda=config_tienda,
         tiendas=tiendas,
         tienda_id=tienda_id,
+        version_local=version_local,
     )
+
+
+# ==================== API VERSION / UPDATE ====================
+@bp.route('/api/version', methods=['GET'])
+@login_required
+@programador_requerido
+def api_version():
+    """Devuelve la version local y si hay actualizacion disponible."""
+    try:
+        hay, local, remota = updater_service.hay_actualizacion()
+        return jsonify({
+            'ok': True,
+            'version_local': local,
+            'version_remota': remota,
+            'hay_actualizacion': hay,
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/actualizar', methods=['POST'])
+@login_required
+@programador_requerido
+def api_actualizar():
+    """Lanza la actualizacion."""
+    exito, mensaje = updater_service.lanzar_actualizacion()
+    return jsonify({'ok': exito, 'mensaje': mensaje})
+
+
+@bp.route('/api/estado-actualizacion', methods=['GET'])
+@login_required
+@programador_requerido
+def api_estado_actualizacion():
+    """Consulta el estado actual de la actualizacion."""
+    estado = updater_service.leer_estado()
+    if not estado:
+        return jsonify({
+            'ok': True,
+            'en_progreso': False,
+        })
+    return jsonify({
+        'ok': True,
+        'en_progreso': estado.get('estado') == 'en_progreso',
+        'estado': estado.get('estado'),
+        'paso': estado.get('paso', ''),
+        'progreso': estado.get('progreso', 0),
+        'mensaje': estado.get('mensaje', ''),
+    })
