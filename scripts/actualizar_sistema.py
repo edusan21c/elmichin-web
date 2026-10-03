@@ -86,7 +86,7 @@ def main():
 
     # ============ 1. GIT PULL ============
     guardar_estado('Descargando cambios de GitHub...', 10)
-    log('[1/4] git pull origin main')
+    log('[1/5] git pull origin main')
 
     ok, out, err = ejecutar('git pull origin main', timeout=120)
     if not ok:
@@ -97,8 +97,8 @@ def main():
     log(f'git pull OK: {out.strip()[:200]}')
 
     # ============ 2. PIP INSTALL ============
-    guardar_estado('Instalando dependencias...', 40)
-    log('[2/4] pip install -r requirements.txt')
+    guardar_estado('Instalando dependencias...', 30)
+    log('[2/5] pip install -r requirements.txt')
 
     python_exe = os.path.join(RAIZ, 'venv', 'Scripts', 'python.exe')
     if not os.path.exists(python_exe):
@@ -113,8 +113,8 @@ def main():
         # No es fatal, continuamos
 
     # ============ 3. FLASK DB UPGRADE ============
-    guardar_estado('Aplicando cambios a la base de datos...', 70)
-    log('[3/4] flask db upgrade')
+    guardar_estado('Aplicando cambios a la base de datos...', 55)
+    log('[3/5] flask db upgrade')
 
     ok, out, err = ejecutar(
         [python_exe, '-m', 'flask', 'db', 'upgrade'],
@@ -124,9 +124,34 @@ def main():
         log(f'Aviso en flask db upgrade: {err}')
         # No es fatal, continuamos
 
+    # ============ 3.5. MIGRACIONES ADICIONALES (idempotentes) ============
+    # Corre scripts de migración manual que agregan columnas/tablas.
+    # Cada script es idempotente: si ya está aplicado, no rompe.
+    guardar_estado('Aplicando migraciones adicionales...', 70)
+    log('[3.5/5] Migraciones manuales')
+
+    script_origen = os.path.join(RAIZ, 'scripts', 'agregar_origen.py')
+    if os.path.exists(script_origen):
+        log('  -> python scripts/agregar_origen.py')
+        ok, out, err = ejecutar(
+            [python_exe, script_origen],
+            timeout=120,
+        )
+        if ok:
+            log('  Migracion de origen OK')
+            # Loguear las líneas relevantes del output
+            for linea in (out or '').splitlines():
+                if any(k in linea for k in ('===', '✅', '⚠️', 'MIGRACIÓN', '📊')):
+                    log(f'     {linea.strip()}')
+        else:
+            log(f'  Aviso en migracion de origen: {err[:200]}')
+            # No es fatal: si la columna ya existe, el script no hace nada
+    else:
+        log('  (scripts/agregar_origen.py no existe, saltando)')
+
     # ============ 4. REINICIAR SERVICIO ============
     guardar_estado('Reiniciando servicio...', 90)
-    log('[4/4] Reiniciando servicio Flask')
+    log('[4/5] Reiniciando servicio Flask')
 
     ok = reiniciar_servicio()
     if not ok:
