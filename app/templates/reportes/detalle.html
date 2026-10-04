@@ -24,6 +24,14 @@
 </div>
 {% endif %}
 
+<!-- ============ AVISO DE PRECIO MANUAL ============ -->
+{% if factura.precio_manual %}
+<div class="alert alert-warning">
+    <i class="bi bi-pencil-square"></i>
+    <strong>Precio manual</strong> — esta factura incluye productos con precio editado.
+</div>
+{% endif %}
+
 <div class="row g-3">
     <div class="col-lg-8">
         <div class="card mb-3">
@@ -103,6 +111,11 @@
                 {% if factura.origen == 'remota_recibida' %}
                 <p class="mb-1 small"><strong>Origen:</strong> 
                     <span class="badge bg-info text-dark">📥 Pedido remoto</span>
+                </p>
+                {% endif %}
+                {% if factura.precio_manual %}
+                <p class="mb-1 small"><strong>Precio:</strong> 
+                    <span class="badge bg-warning text-dark">✏️ Manual</span>
                 </p>
                 {% endif %}
             </div>

@@ -14,6 +14,14 @@ ARCHIVO_ESTADO = os.path.join(RAIZ, '.update_status.json')
 ARCHIVO_LOG = os.path.join(RAIZ, 'logs', 'update.log')
 NOMBRE_SERVICIO = 'MichinFlask'
 
+# Scripts de migración manual que se corren en cada actualización.
+# Cada uno debe ser idempotente (si ya está aplicado, no rompe).
+# Se ejecutan en orden.
+MIGRACIONES_MANUALES = [
+    'agregar_origen.py',
+    'agregar_precio_manual.py',
+]
+
 
 def log(msg):
     """Registra en consola y en archivo."""
@@ -76,6 +84,28 @@ def reiniciar_servicio():
     return True
 
 
+def correr_migraciones_manuales(python_exe):
+    """Corre los scripts de migración manual en orden. Idempotentes."""
+    for nombre_script in MIGRACIONES_MANUALES:
+        ruta = os.path.join(RAIZ, 'scripts', nombre_script)
+        if not os.path.exists(ruta):
+            log(f'  ({nombre_script} no existe, saltando)')
+            continue
+
+        log(f'  -> python scripts/{nombre_script}')
+        ok, out, err = ejecutar([python_exe, ruta], timeout=120)
+
+        if ok:
+            log(f'  OK {nombre_script}')
+            # Loguear las líneas relevantes del output
+            for linea in (out or '').splitlines():
+                if any(k in linea for k in ('===', '✅', '⚠️', 'MIGRACIÓN', '📊')):
+                    log(f'     {linea.strip()}')
+        else:
+            log(f'  Aviso en {nombre_script}: {(err or "")[:200]}')
+            # No es fatal: si el script no aplica, no rompe el sistema
+
+
 def main():
     log('=' * 60)
     log('INICIANDO ACTUALIZACION DEL SISTEMA')
@@ -129,25 +159,7 @@ def main():
     # Cada script es idempotente: si ya está aplicado, no rompe.
     guardar_estado('Aplicando migraciones adicionales...', 70)
     log('[3.5/5] Migraciones manuales')
-
-    script_origen = os.path.join(RAIZ, 'scripts', 'agregar_origen.py')
-    if os.path.exists(script_origen):
-        log('  -> python scripts/agregar_origen.py')
-        ok, out, err = ejecutar(
-            [python_exe, script_origen],
-            timeout=120,
-        )
-        if ok:
-            log('  Migracion de origen OK')
-            # Loguear las líneas relevantes del output
-            for linea in (out or '').splitlines():
-                if any(k in linea for k in ('===', '✅', '⚠️', 'MIGRACIÓN', '📊')):
-                    log(f'     {linea.strip()}')
-        else:
-            log(f'  Aviso en migracion de origen: {err[:200]}')
-            # No es fatal: si la columna ya existe, el script no hace nada
-    else:
-        log('  (scripts/agregar_origen.py no existe, saltando)')
+    correr_migraciones_manuales(python_exe)
 
     # ============ 4. REINICIAR SERVICIO ============
     guardar_estado('Reiniciando servicio...', 90)

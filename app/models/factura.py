@@ -42,6 +42,9 @@ class Factura(db.Model):
     #   remota_recibida  → ya bajó a la tienda
     origen = db.Column(db.String(20), default='local', index=True)
 
+    # True si al menos un producto se vendió con precio manual (factura informal)
+    precio_manual = db.Column(db.Boolean, default=False, index=True)
+
     # Relaciones
     tienda = db.relationship('Tienda', back_populates='facturas')
     cliente = db.relationship('Cliente', back_populates='facturas')

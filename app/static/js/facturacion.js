@@ -21,6 +21,7 @@
             metodoPago: 'efectivo',
             bolsas: 0,
             valorPagado: 0,
+            modoPrecioLibre: false,
         };
     }
 
@@ -52,6 +53,12 @@
                 if (estado.activa >= estado.pestanas.length) {
                     estado.activa = 0;
                 }
+                // Asegurar que cada pestaña tenga todos los campos
+                estado.pestanas.forEach(p => {
+                    if (typeof p.modoPrecioLibre === 'undefined') p.modoPrecioLibre = false;
+                    if (!p.cliente) p.cliente = { nombre: '', documento: '', telefono: '', direccion: '' };
+                    if (!Array.isArray(p.carrito)) p.carrito = [];
+                });
             }
         } catch (e) {
             console.warn('No se pudo cargar de localStorage:', e);
@@ -98,7 +105,6 @@
             btn.innerHTML = contenidoHTML;
 
             btn.addEventListener('click', function(e) {
-                // Si clickearon la X, no cambiar de pestaña
                 if (e.target.dataset.cerrar !== undefined) return;
                 cambiarPestana(idx);
             });
@@ -142,7 +148,6 @@
     function crearPestana() {
         if (estado.pestanas.length >= MAX_PESTANAS) return;
 
-        // Buscar la primera letra libre
         const usadas = new Set(estado.pestanas.map(p => p.id));
         const letraLibre = LETRAS.find(l => !usadas.has(l));
         if (!letraLibre) return;
@@ -172,7 +177,6 @@
 
         estado.pestanas.splice(idx, 1);
 
-        // Ajustar índice activo
         if (estado.activa >= estado.pestanas.length) {
             estado.activa = estado.pestanas.length - 1;
         } else if (estado.activa > idx) {
@@ -199,6 +203,10 @@
         $('#metodo-pago').value = p.metodoPago || 'efectivo';
         $('#bolsas').value = p.bolsas || 0;
         $('#valor-pagado').value = p.valorPagado || 0;
+
+        // Switch Precio Libre
+        const sw = $('#switch-precio-libre');
+        if (sw) sw.checked = !!p.modoPrecioLibre;
 
         // Carrito
         renderCarrito();
@@ -279,7 +287,7 @@
         });
     }
 
-    // ==================== CARRITO (SOBRE PESTAÑA ACTIVA) ====================
+    // ==================== AGREGAR AL CARRITO ====================
     function agregarAlCarrito(prod) {
         if (prod.stock <= 0) {
             alert('Producto sin stock');
@@ -309,7 +317,9 @@
                 return;
             }
             existente.cantidad = nuevaCant;
-            existente.precio_unitario = calcularPrecioProducto(prod, nuevaCant);
+            if (!existente.precio_editado) {
+                existente.precio_unitario = calcularPrecioProducto(prod, nuevaCant);
+            }
             existente.subtotal = existente.precio_unitario * nuevaCant;
         } else {
             p.carrito.push({
@@ -320,10 +330,10 @@
                 subtotal: calcularPrecioProducto(prod, cantidad) * cantidad,
                 stock_max: prod.stock,
                 prod_data: prod,
+                precio_editado: false,
             });
         }
 
-        // Limpiar busqueda
         inputBuscar.value = '';
         resultados.innerHTML = '';
         inputBuscar.focus();
@@ -333,9 +343,11 @@
         renderCarrito();
     }
 
+    // ==================== RENDER CARRITO ====================
     function renderCarrito() {
         const p = pestanaActual();
         const carrito = p.carrito;
+        const modoLibre = !!p.modoPrecioLibre;
 
         const body = $('#carrito-body');
         const tabla = $('#carrito-tabla');
@@ -352,17 +364,26 @@
             tabla.classList.remove('d-none');
             vacio.classList.add('d-none');
             carrito.forEach((item, idx) => {
+                // Celda de precio: input si modo libre, texto si no
+                const celdaPrecio = modoLibre
+                    ? `<input type="number" class="form-control form-control-sm text-end"
+                              value="${item.precio_unitario}" min="0" step="50"
+                              data-idx="${idx}" data-accion="precio"
+                              style="width: 95px; display: inline-block;">`
+                    : fmt(item.precio_unitario);
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>
                         <div class="fw-semibold small">${item.nombre}</div>
+                        ${item.precio_editado ? '<small class="text-warning">✏️ precio editado</small>' : ''}
                     </td>
                     <td class="text-center">
                         <input type="number" class="form-control form-control-sm text-center"
                                value="${item.cantidad}" min="1" max="${item.stock_max}"
                                data-idx="${idx}" data-accion="cantidad" style="width: 65px;">
                     </td>
-                    <td class="text-end small">${fmt(item.precio_unitario)}</td>
+                    <td class="text-end small">${celdaPrecio}</td>
                     <td class="text-end small fw-semibold">${fmt(item.subtotal)}</td>
                     <td>
                         <button type="button" class="btn btn-sm btn-outline-danger" data-idx="${idx}" data-accion="eliminar">
@@ -373,6 +394,7 @@
                 body.appendChild(tr);
             });
 
+            // Listener: cambio de cantidad
             body.querySelectorAll('input[data-accion="cantidad"]').forEach(inp => {
                 inp.addEventListener('change', function() {
                     const idx = parseInt(this.dataset.idx);
@@ -384,7 +406,9 @@
                         alert(`Máximo ${item.stock_max} unidades`);
                     }
                     item.cantidad = cant;
-                    item.precio_unitario = calcularPrecioProducto(item.prod_data, cant);
+                    if (!item.precio_editado) {
+                        item.precio_unitario = calcularPrecioProducto(item.prod_data, cant);
+                    }
                     item.subtotal = item.precio_unitario * cant;
                     guardarEstado();
                     renderPestanas();
@@ -392,6 +416,25 @@
                 });
             });
 
+            // Listener: cambio de precio (solo en modo libre)
+            body.querySelectorAll('input[data-accion="precio"]').forEach(inp => {
+                inp.addEventListener('change', function() {
+                    const idx = parseInt(this.dataset.idx);
+                    let nuevoPrecio = parseFloat(this.value);
+                    if (isNaN(nuevoPrecio) || nuevoPrecio < 0) nuevoPrecio = 0;
+                    const item = carrito[idx];
+                    item.precio_unitario = nuevoPrecio;
+                    item.subtotal = nuevoPrecio * item.cantidad;
+                    // Marcar como editado si difiere del original calculado
+                    const precioOriginal = calcularPrecioProducto(item.prod_data, item.cantidad);
+                    item.precio_editado = (nuevoPrecio !== precioOriginal);
+                    guardarEstado();
+                    renderPestanas();
+                    renderCarrito();
+                });
+            });
+
+            // Listener: eliminar
             body.querySelectorAll('button[data-accion="eliminar"]').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const idx = parseInt(this.dataset.idx);
@@ -476,6 +519,16 @@
         renderTotales();
     });
 
+    // Switch Precio Libre
+    const switchPrecio = $('#switch-precio-libre');
+    if (switchPrecio) {
+        switchPrecio.addEventListener('change', function() {
+            pestanaActual().modoPrecioLibre = this.checked;
+            guardarEstado();
+            renderCarrito();
+        });
+    }
+
     // Cliente
     $('#cliente-nombre').addEventListener('input', function() {
         pestanaActual().cliente.nombre = this.value;
@@ -530,6 +583,9 @@
             }
         }
 
+        // Detectar si hay algún producto con precio manual
+        const tienePrecioManual = carrito.some(it => it.precio_editado === true);
+
         const payload = {
             cliente: {
                 nombre: nombre,
@@ -546,6 +602,7 @@
             recargo_porcentaje: CFG.recargoPorcentaje,
             bolsas: bolsas,
             valor_pagado: valorPagado,
+            precio_manual: tienePrecioManual,
         };
 
         const btn = this;
@@ -570,6 +627,7 @@
                 p.metodoPago = 'efectivo';
                 p.bolsas = 0;
                 p.valorPagado = 0;
+                p.modoPrecioLibre = false;
                 guardarEstado();
 
                 window.location.href = data.redirect;
@@ -595,6 +653,7 @@
         p.metodoPago = 'efectivo';
         p.bolsas = 0;
         p.valorPagado = 0;
+        p.modoPrecioLibre = false;
         guardarEstado();
         renderPestanas();
         cargarPestanaEnUI();
@@ -630,7 +689,6 @@
     const selectorTienda = $('#selector-tienda');
     if (selectorTienda) {
         selectorTienda.addEventListener('change', function() {
-            // Ojo: si cambia la tienda, hay que limpiar pestañas porque los datos son de otra tienda
             if (confirm('Cambiar de tienda cerrará las pestañas actuales. ¿Continuar?')) {
                 localStorage.removeItem(STORAGE_KEY);
                 const url = new URL(window.location.href);

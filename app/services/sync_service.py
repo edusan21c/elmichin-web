@@ -62,6 +62,8 @@ def _factura_to_dict(f):
         'tipo_pago': f.tipo_pago,
         'estado_credito': f.estado_credito,
         'saldo_pendiente': float(f.saldo_pendiente or 0),
+        'origen': getattr(f, 'origen', 'local'),
+        'precio_manual': bool(getattr(f, 'precio_manual', False)),
         'detalles': [_detalle_to_dict(d) for d in f.detalles],
     }
 
@@ -202,12 +204,9 @@ def aplicar_cambios_pull(datos):
 def registrar_log(tienda_id, tipo, tabla, registros, exitoso, mensaje=''):
     """Registra un log de sync. Ignora el error si tienda_id no existe (ej: modo central)."""
     try:
-        # No guardar log si tienda_id es 0, negativo o None (modo central)
         if not tienda_id or tienda_id <= 0:
             return None
 
-        # Verificar que la tienda existe
-        from app.models.tienda import Tienda
         existe = db.session.query(Tienda.id).filter_by(id=tienda_id).first()
         if not existe:
             return None
@@ -231,10 +230,7 @@ def registrar_log(tienda_id, tipo, tabla, registros, exitoso, mensaje=''):
 
 # ==================== PUSH: GUARDAR EN CENTRAL ====================
 def procesar_push(tienda_id, datos):
-    """
-    Procesa los datos recibidos de una tienda y los guarda en el central.
-    Retorna dict con listas de IDs locales procesados exitosamente.
-    """
+    """Procesa los datos recibidos de una tienda y los guarda en el central."""
     from app.models.usuario import Usuario
 
     facturas_ok = []
@@ -243,7 +239,7 @@ def procesar_push(tienda_id, datos):
     errores = []
 
     # ---------- 1. CLIENTES ----------
-    mapa_clientes = {}  # {id_local: id_central}
+    mapa_clientes = {}
 
     for c_data in datos.get('clientes', []):
         try:
@@ -300,7 +296,6 @@ def procesar_push(tienda_id, datos):
                 errores.append(f'Factura {id_local}: sin numero_factura')
                 continue
 
-            # Idempotencia: verificar si ya existe
             existente = Factura.query.filter_by(
                 tienda_id=tienda_id, numero_factura=numero
             ).first()
@@ -310,20 +305,16 @@ def procesar_push(tienda_id, datos):
                 facturas_ok.append(id_local)
                 continue
 
-            # Fecha
             fecha_str = f_data.get('fecha_hora')
             try:
                 fecha_hora = datetime.fromisoformat(fecha_str) if fecha_str else datetime.utcnow()
             except (ValueError, TypeError):
                 fecha_hora = datetime.utcnow()
 
-            # Cliente mapeado
             cliente_local_id = f_data.get('cliente_id')
             cliente_id_central = mapa_clientes.get(cliente_local_id, cliente_local_id)
 
-            # Verificar que el cliente exista en el central
             if cliente_id_central and not Cliente.query.get(cliente_id_central):
-                # Fallback: crear cliente genérico si no existe
                 cliente_gen = Cliente.query.filter_by(
                     tienda_id=tienda_id, nombre='Cliente sincronizado'
                 ).first()
@@ -337,7 +328,6 @@ def procesar_push(tienda_id, datos):
                     db.session.flush()
                 cliente_id_central = cliente_gen.id
 
-            # Usuario: verificar que exista en el central
             usuario_id = f_data.get('usuario_id')
             if usuario_id:
                 existe_user = db.session.query(Usuario.id).filter_by(id=usuario_id).first()
@@ -360,6 +350,8 @@ def procesar_push(tienda_id, datos):
                 tipo_pago=f_data.get('tipo_pago', 'contado'),
                 estado_credito=f_data.get('estado_credito', 'pagado'),
                 saldo_pendiente=Decimal(str(f_data.get('saldo_pendiente', 0))),
+                origen='local',
+                precio_manual=bool(f_data.get('precio_manual', False)),
                 sync_estado='sincronizado',
                 sync_fecha=datetime.utcnow(),
             )
@@ -395,7 +387,6 @@ def procesar_push(tienda_id, datos):
 
             monto = Decimal(str(p_data.get('monto', 0)))
 
-            # Idempotencia: mismo factura + monto
             existente = Pago.query.filter_by(
                 factura_id=factura_central_id, monto=monto
             ).first()
@@ -436,10 +427,7 @@ def procesar_push(tienda_id, datos):
 
 # ==================== PULL FACTURAS (CENTRAL → TIENDA) ====================
 def obtener_facturas_para_tienda(tienda_id, desde=None):
-    """
-    Devuelve SOLO las facturas remotas pendientes para esa tienda.
-    Filtra por origen='remota' (las 'remota_recibida' ya se enviaron).
-    """
+    """Devuelve SOLO las facturas remotas pendientes para esa tienda."""
     query = Factura.query.filter(
         Factura.tienda_id == tienda_id,
         Factura.origen == 'remota',
@@ -495,6 +483,7 @@ def obtener_facturas_para_tienda(tienda_id, desde=None):
             'tipo_pago': f.tipo_pago or 'contado',
             'estado_credito': f.estado_credito or 'pagado',
             'saldo_pendiente': float(f.saldo_pendiente or 0),
+            'precio_manual': bool(getattr(f, 'precio_manual', False)),
             'detalles': detalles,
         })
 
@@ -517,13 +506,7 @@ def marcar_facturas_enviadas(ids):
 
 
 def aplicar_facturas_recibidas(tienda_id, facturas):
-    """
-    Aplica las facturas recibidas del central en la BD local de la tienda.
-    - Si ya existe (mismo numero_factura), se omite.
-    - Si no existe, la crea con cliente y detalles.
-    - Marca la factura como origen='remota_recibida'.
-    Devuelve cuántas facturas nuevas se insertaron.
-    """
+    """Aplica las facturas recibidas del central en la BD local."""
     insertadas = 0
     omitidas = 0
 
@@ -532,7 +515,6 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
         if not numero:
             continue
 
-        # ¿Ya existe localmente?
         existente = Factura.query.filter_by(
             tienda_id=tienda_id, numero_factura=numero
         ).first()
@@ -540,7 +522,6 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
             omitidas += 1
             continue
 
-        # Buscar o crear cliente local
         cliente_local_id = None
         c_data = f_data.get('cliente')
         if c_data and c_data.get('nombre'):
@@ -569,7 +550,6 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
 
             cliente_local_id = cliente_local.id
 
-        # Si no hay cliente, usar/crear genérico
         if not cliente_local_id:
             cliente_gen = Cliente.query.filter_by(
                 tienda_id=tienda_id, nombre='Cliente remoto'
@@ -584,7 +564,6 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
                 db.session.flush()
             cliente_local_id = cliente_gen.id
 
-        # Parsear fecha
         fecha_hora = datetime.utcnow()
         if f_data.get('fecha_hora'):
             try:
@@ -592,7 +571,6 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
             except (ValueError, TypeError):
                 pass
 
-        # Crear factura
         factura = Factura(
             numero_factura=numero,
             tienda_id=tienda_id,
@@ -610,13 +588,13 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
             estado_credito=f_data.get('estado_credito', 'pagado'),
             saldo_pendiente=Decimal(str(f_data.get('saldo_pendiente', 0))),
             origen='remota_recibida',
+            precio_manual=bool(f_data.get('precio_manual', False)),
             sync_estado='sincronizado',
             sync_fecha=datetime.utcnow(),
         )
         db.session.add(factura)
         db.session.flush()
 
-        # Detalles
         for d in f_data.get('detalles', []):
             detalle = DetalleFactura(
                 factura_id=factura.id,
@@ -673,18 +651,15 @@ def _factura_to_dict_extendida(f):
         'tipo_pago': f.tipo_pago or 'contado',
         'estado_credito': f.estado_credito or 'pagado',
         'saldo_pendiente': float(f.saldo_pendiente or 0),
+        'origen': getattr(f, 'origen', 'local'),
+        'precio_manual': bool(getattr(f, 'precio_manual', False)),
         'detalles': detalles,
     }
 
 
-
 # ==================== PUSH INMEDIATO (TIENDA → CENTRAL) ====================
 def push_factura_individual(tienda_id, factura_id):
-    """
-    Empuja UNA factura (y su cliente) al central inmediatamente.
-    No espera al worker. Si falla, el worker la sube en el próximo ciclo.
-    Retorna True si se sincronizó OK.
-    """
+    """Empuja UNA factura (y su cliente) al central inmediatamente."""
     import requests
     from flask import current_app
 
@@ -697,7 +672,6 @@ def push_factura_individual(tienda_id, factura_id):
     if not central_url or not sync_key:
         return False
 
-    # Construir payload con esta única factura + su cliente
     payload = {
         'tienda_id': tienda_id,
         'facturas': [_factura_to_dict(factura)],
@@ -717,7 +691,6 @@ def push_factura_individual(tienda_id, factura_id):
         data = r.json()
         if not data.get('ok'):
             return False
-        # Marcar como sincronizado para que el worker no la reenvíe
         marcar_sincronizados(tienda_id, data)
         return True
     except requests.RequestException:

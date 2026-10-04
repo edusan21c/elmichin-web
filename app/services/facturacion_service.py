@@ -84,6 +84,7 @@ def crear_factura_completa(
     valor_bolsa=Decimal('100'),
     valor_pagado=Decimal('0'),
     origen=None,                     # None = autodetectar por MODO
+    precio_manual=False,
 ):
     """Crea factura completa con validaciones y actualizaciones."""
     if not carrito:
@@ -182,6 +183,7 @@ def crear_factura_completa(
         estado_credito=estado_credito,
         saldo_pendiente=saldo_pendiente,
         origen=origen,
+        precio_manual=bool(precio_manual),
     )
     db.session.add(factura)
     db.session.flush()
