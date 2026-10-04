@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% block titulo %}Monitor en vivo{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-broadcast"></i> Monitor en vivo
+        {% if current_user.es_programador() and tiendas %}
+            <small class="text-muted">- Tienda:
+                <select id="selector-tienda" class="form-select form-select-sm d-inline-block" style="width:auto;">
+                    <option value="">Todas</option>
+                    {% for t in tiendas %}
+                        <option value="{{ t.id }}">{{ t.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </small>
+        {% endif %}
+    </h1>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="badge bg-secondary" id="hora-actual">--:--:--</span>
+        <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="switch-autorefresh" checked>
+            <label class="form-check-label small" for="switch-autorefresh">Auto-refresh (30s)</label>
+        </div>
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="cargarDatos()">
+            <i class="bi bi-arrow-clockwise"></i> Actualizar
+        </button>
+    </div>
+</div>
+
+<!-- KPIs del día -->
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="card border-success">
+            <div class="card-body py-3">
+                <div class="text-muted small">💰 Total vendido hoy</div>
+                <div class="fs-4 fw-bold text-success" id="kpi-total">$0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-info">
+            <div class="card-body py-3">
+                <div class="text-muted small">🧾 Facturas hoy</div>
+                <div class="fs-4 fw-bold text-info" id="kpi-facturas">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Usuarios activos -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+                <span><i class="bi bi-people"></i> Usuarios activos</span>
+                <span class="badge bg-success" id="badge-activos">0</span>
+            </div>
+            <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                <div id="lista-usuarios">
+                    <div class="text-center text-muted py-4 small">Cargando...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Facturas últimas 2h -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+                <span><i class="bi bi-receipt"></i> Facturas últimas 2 horas</span>
+                <span class="badge bg-primary" id="badge-facturas">0</span>
+            </div>
+            <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th style="width: 60px;">Hora</th>
+                            <th>N° Factura</th>
+                            <th>Cliente</th>
+                            <th class="text-end">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbl-facturas">
+                        <tr><td colspan="4" class="text-center text-muted py-4 small">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Eventos recientes -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-activity"></i> Actividad reciente
+            </div>
+            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th style="width: 80px;">Hora</th>
+                            <th style="width: 130px;">Usuario</th>
+                            <th style="width: 150px;">Acción</th>
+                            <th>Detalle</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbl-eventos">
+                        <tr><td colspan="4" class="text-center text-muted py-4 small">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    let timeoutRefresh = null;
+    let autoRefreshOn = true;
+
+    function fmt(n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); }
+
+    function colorAccion(accion) {
+        if (accion === 'login') return 'bg-success';
+        if (accion === 'logout') return 'bg-secondary';
+        if (accion === 'login_fallido') return 'bg-danger';
+        if (accion === 'factura_crear') return 'bg-primary';
+        if (accion === 'abono_registrar') return 'bg-warning text-dark';
+        if (accion.startsWith('producto_')) return 'bg-info text-dark';
+        if (accion.startsWith('usuario_')) return 'bg-dark';
+        if (accion.startsWith('config_')) return 'bg-warning text-dark';
+        return 'bg-secondary';
+    }
+
+    function iconoAccion(accion) {
+        if (accion === 'login') return '🔓';
+        if (accion === 'logout') return '🔒';
+        if (accion === 'login_fallido') return '⚠️';
+        if (accion === 'factura_crear') return '🧾';
+        if (accion === 'abono_registrar') return '💰';
+        if (accion.startsWith('producto_')) return '📦';
+        if (accion.startsWith('usuario_')) return '👤';
+        if (accion.startsWith('config_')) return '⚙️';
+        return '📌';
+    }
+
+    async function cargarDatos() {
+        const tienda = document.getElementById('selector-tienda');
+        const tiendaVal = tienda ? tienda.value : '';
+        const url = '/admin/api/monitor' + (tiendaVal ? '?tienda=' + tiendaVal : '');
+
+        try {
+            const r = await fetch(url);
+            const data = await r.json();
+            if (!data.ok) return;
+            render(data);
+        } catch (e) {
+            console.warn('Error:', e);
+        }
+    }
+
+    function render(data) {
+        document.getElementById('hora-actual').textContent = data.hora_actual;
+        document.getElementById('kpi-total').textContent = fmt(data.resumen_dia.total_hoy);
+        document.getElementById('kpi-facturas').textContent = data.resumen_dia.num_facturas;
+
+        // Usuarios activos
+        const lu = document.getElementById('lista-usuarios');
+        document.getElementById('badge-activos').textContent = data.usuarios_activos.length;
+        if (data.usuarios_activos.length === 0) {
+            lu.innerHTML = '<div class="text-center text-muted py-4 small">Nadie activo en los últimos 5 min</div>';
+        } else {
+            lu.innerHTML = data.usuarios_activos.map(u => `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-semibold small">🟢 ${u.nombre}</div>
+                        <small class="text-muted">${u.username}</small>
+                    </div>
+                    <small class="text-muted">${u.hace}</small>
+                </div>
+            `).join('');
+        }
+
+        // Facturas recientes
+        const tf = document.getElementById('tbl-facturas');
+        document.getElementById('badge-facturas').textContent = data.facturas_recientes.length;
+        if (data.facturas_recientes.length === 0) {
+            tf.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4 small">Sin facturas en las últimas 2 horas</td></tr>';
+        } else {
+            tf.innerHTML = data.facturas_recientes.map(f => {
+                let badges = '';
+                if (f.es_remota) badges += ' <span class="badge bg-info text-dark">📥</span>';
+                if (f.precio_manual) badges += ' <span class="badge bg-warning text-dark">✏️</span>';
+                return `<tr>
+                    <td class="small text-muted">${f.hora}</td>
+                    <td class="fw-semibold small">${f.numero}${badges}</td>
+                    <td class="small">${f.cliente}</td>
+                    <td class="text-end fw-bold text-success small">${fmt(f.total)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // Eventos
+        const te = document.getElementById('tbl-eventos');
+        if (data.eventos.length === 0) {
+            te.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4 small">Sin eventos</td></tr>';
+        } else {
+            te.innerHTML = data.eventos.map(e => {
+                const bg = colorAccion(e.accion);
+                const ico = iconoAccion(e.accion);
+                return `<tr>
+                    <td class="small text-muted">${e.hora}</td>
+                    <td class="small fw-semibold">${e.username}</td>
+                    <td><span class="badge ${bg} small">${ico} ${e.accion}</span></td>
+                    <td class="small">${e.detalle || '—'}</td>
+                </tr>`;
+            }).join('');
+        }
+    }
+
+    function programarRefresh() {
+        if (timeoutRefresh) clearTimeout(timeoutRefresh);
+        if (!autoRefreshOn) return;
+        timeoutRefresh = setTimeout(() => {
+            cargarDatos();
+            programarRefresh();
+        }, 30000);
+    }
+
+    // Selector de tienda
+    const st = document.getElementById('selector-tienda');
+    if (st) st.addEventListener('change', cargarDatos);
+
+    // Toggle auto-refresh
+    document.getElementById('switch-autorefresh').addEventListener('change', function() {
+        autoRefreshOn = this.checked;
+        programarRefresh();
+    });
+
+    // Init
+    cargarDatos();
+    programarRefresh();
+})();
+</script>
+{% endblock %}

@@ -26,9 +26,17 @@ SIZE_BIG = GS + b'!' + b'\x22'          # Triple
 
 
 def _texto(s):
-    """Convierte string a bytes CP850 (compatible con la impresora)."""
+    """Convierte string a bytes CP850 (compatible con la impresora).
+    Reemplaza caracteres problemáticos que la impresora muestra mal."""
     if isinstance(s, bytes):
         return s
+    # La impresora muestra mal la Í mayúscula → la cambiamos por I
+    reemplazos = {
+        'Í': 'I', 'Á': 'A', 'É': 'E', 'Ó': 'O', 'Ú': 'U',
+        'Ü': 'U', 'Ñ': 'N',
+    }
+    for viejo, nuevo in reemplazos.items():
+        s = s.replace(viejo, nuevo)
     return s.encode('cp850', errors='replace')
 
 
@@ -157,6 +165,10 @@ def generar_ticket_escpos(factura, detalles, cliente, tienda, config, config_tie
         partes.append(_texto(slogan[:W]))
         partes.append(b'\n')
     partes.append(_texto('@elmichin'))
+    partes.append(b'\n')
+
+    # Disclaimer legal
+    partes.append(_texto('No se aceptan reclamos sin factura'))
     partes.append(b'\n')
 
     # Feed final + corte + beep

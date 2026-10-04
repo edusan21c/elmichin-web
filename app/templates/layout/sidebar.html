@@ -80,6 +80,12 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'admin.monitor' %}active{% endif %}"
+                   href="{{ url_for('admin.monitor') }}">
+                    <i class="bi bi-broadcast"></i> Monitor
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link {% if request.endpoint == 'admin.auditoria' %}active{% endif %}"
                    href="{{ url_for('admin.auditoria') }}">
                     <i class="bi bi-shield-check"></i> Auditoría
