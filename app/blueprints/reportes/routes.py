@@ -103,15 +103,26 @@ def ventas():
 @bp.route('/<int:factura_id>')
 @login_required
 def detalle(factura_id):
+    from app.models.configuracion import Configuracion
+    
     factura = Factura.query.get_or_404(factura_id)
     detalles = DetalleFactura.query.filter_by(factura_id=factura_id).all()
     pagos = Pago.query.filter_by(factura_id=factura_id).order_by(Pago.fecha.desc()).all()
+
+    # Obtener % recargo de config
+    conf = Configuracion.query.filter(
+        Configuracion.clave == 'recargo_nequi',
+        Configuracion.tienda_id.is_(None)
+    ).first()
+    recargo_porcentaje = float(conf.valor) if conf else 0.4
+
     return render_template(
         'reportes/detalle.html',
         factura=factura,
         detalles=detalles,
         pagos=pagos,
         cliente=factura.cliente,
+        recargo_porcentaje=recargo_porcentaje,
     )
 
 
@@ -163,9 +174,13 @@ def api_facturas_pendientes(cliente_id):
 @bp.route('/abono', methods=['POST'])
 @login_required
 def registrar_abono():
+    from app.models.configuracion import Configuracion
+
     factura_id = request.form.get('factura_id', type=int)
     monto = request.form.get('monto', type=float)
     metodo = request.form.get('metodo', 'efectivo', type=str)
+    aplicar_recargo = request.form.get('aplicar_recargo') == 'on'
+    recibido = request.form.get('recibido', type=float)
 
     if not factura_id or not monto or monto <= 0:
         flash('Datos inválidos', 'danger')
@@ -178,32 +193,68 @@ def registrar_abono():
 
     saldo_actual = float(factura.saldo_pendiente)
 
+    # Cap automático: si el monto supera el saldo, se ajusta
     if monto > saldo_actual + 0.01:
-        flash(f'El abono no puede superar el saldo (${saldo_actual:,.0f})', 'danger')
-        return redirect(url_for('reportes.cuentas_por_cobrar'))
+        flash(f'Monto ajustado al saldo pendiente (${saldo_actual:,.0f}).', 'info')
+        monto = saldo_actual
 
+    # Redondear al saldo exacto si está muy cerca
     if abs(monto - saldo_actual) < 0.10:
         monto = saldo_actual
 
-    nuevo_saldo = redondear(saldo_actual - monto)
+    monto_base = redondear(monto)
 
+    # Calcular recargo digital
+    recargo = Decimal('0')
+    if metodo in ('nequi', 'daviplata') and aplicar_recargo:
+        conf = Configuracion.query.filter(
+            Configuracion.clave == 'recargo_nequi',
+            Configuracion.tienda_id.is_(None)
+        ).first()
+        porcentaje = Decimal(conf.valor) if conf else Decimal('0.4')
+        recargo = redondear(monto_base * (porcentaje / Decimal('100')))
+
+    total_cobrado = monto_base + recargo
+
+    # Calcular vueltas si el cliente dio más
+    vueltas = Decimal('0')
+    if recibido and recibido > 0:
+        recibido_dec = redondear(recibido)
+        if recibido_dec > total_cobrado:
+            vueltas = redondear(recibido_dec - total_cobrado)
+
+    # Crear pago con recargo
     pago = Pago(
         factura_id=factura.id,
         tienda_id=factura.tienda_id,
-        monto=Decimal(str(monto)),
+        monto=monto_base,
+        recargo=recargo,
         metodo_pago=metodo,
     )
     db.session.add(pago)
 
+    # Actualizar factura
+    nuevo_saldo = redondear(Decimal(str(saldo_actual)) - monto_base)
     factura.saldo_pendiente = nuevo_saldo
     if nuevo_saldo <= 0.01:
         factura.estado_credito = 'pagado'
         factura.saldo_pendiente = Decimal('0')
 
+    # Actualizar cliente
     cliente = factura.cliente
-    cliente.saldo_actual = redondear(Decimal(str(cliente.saldo_actual or 0)) - Decimal(str(monto)))
+    cliente.saldo_actual = redondear(
+        Decimal(str(cliente.saldo_actual or 0)) - monto_base
+    )
 
     db.session.commit()
 
-    flash(f'Abono de ${monto:,.0f} registrado. Nuevo saldo: ${float(factura.saldo_pendiente):,.0f}', 'success')
+    # Mensaje con desglose
+    msg = f'Abono de ${float(monto_base):,.0f}'
+    if recargo > 0:
+        msg += f' + recargo ${float(recargo):,.0f}'
+    msg += f'. Nuevo saldo: ${float(factura.saldo_pendiente):,.0f}'
+    if vueltas > 0:
+        msg += f'. Vueltas: ${float(vueltas):,.0f}'
+    flash(msg, 'success')
+
     return redirect(url_for('reportes.detalle', factura_id=factura.id))

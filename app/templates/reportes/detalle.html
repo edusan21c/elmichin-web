@@ -128,29 +128,102 @@
             </div>
             <div class="card-body">
                 <div class="fs-3 fw-bold text-danger mb-3">${{ "{:,.0f}".format(factura.saldo_pendiente) }}</div>
-                <form method="POST" action="{{ url_for('reportes.registrar_abono') }}">
+                <form method="POST" action="{{ url_for('reportes.registrar_abono') }}" id="form-abono">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="factura_id" value="{{ factura.id }}">
+
                     <div class="mb-2">
-                        <label class="form-label small">Monto a abonar</label>
-                        <div class="input-group">
+                        <label class="form-label small">Monto a abonar (a la deuda)</label>
+                        <div class="input-group input-group-sm">
                             <span class="input-group-text">$</span>
-                            <input type="number" name="monto" class="form-control" 
-                                   max="{{ factura.saldo_pendiente }}" min="1" required>
+                            <input type="number" name="monto" id="abono-monto" class="form-control"
+                                   value="{{ factura.saldo_pendiente|int }}" min="1" required>
                         </div>
+                        <small class="text-muted">Se ajusta automáticamente al saldo</small>
                     </div>
+
                     <div class="mb-2">
                         <label class="form-label small">Método</label>
-                        <select name="metodo" class="form-select form-select-sm">
+                        <select name="metodo" id="abono-metodo" class="form-select form-select-sm">
                             <option value="efectivo">Efectivo</option>
                             <option value="nequi">Nequi</option>
                             <option value="daviplata">Daviplata</option>
                         </select>
                     </div>
+
+                    <div class="mb-2 form-check" id="abono-check-recargo" style="display: none;">
+                        <input type="checkbox" name="aplicar_recargo" id="abono-aplicar-recargo"
+                               class="form-check-input" checked>
+                        <label class="form-check-label small" for="abono-aplicar-recargo">
+                            Cobrar recargo digital
+                        </label>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small">Recibido del cliente (opcional)</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">$</span>
+                            <input type="number" name="recibido" id="abono-recibido" class="form-control"
+                                   min="0" placeholder="Dejar en blanco si es exacto">
+                        </div>
+                    </div>
+
+                    <div class="alert alert-light py-2 px-2 mb-2 small" id="abono-resumen"></div>
+
                     <button type="submit" class="btn btn-warning w-100">
                         <i class="bi bi-check-circle"></i> Registrar abono
                     </button>
                 </form>
+
+                <script>
+                (function() {
+                    const RECARGO_PCT = {{ recargo_porcentaje }};
+                    const SALDO = {{ factura.saldo_pendiente|float }};
+                    const inputMonto = document.getElementById('abono-monto');
+                    const selectMetodo = document.getElementById('abono-metodo');
+                    const checkRecargoBox = document.getElementById('abono-check-recargo');
+                    const checkRecargo = document.getElementById('abono-aplicar-recargo');
+                    const inputRecibido = document.getElementById('abono-recibido');
+                    const resumen = document.getElementById('abono-resumen');
+
+                    function fmt(n) { return '$' + Math.round(n).toLocaleString('es-CO'); }
+
+                    function calcular() {
+                        let monto = parseFloat(inputMonto.value) || 0;
+                        if (monto > SALDO) monto = SALDO;
+
+                        const metodo = selectMetodo.value;
+                        const esDigital = (metodo === 'nequi' || metodo === 'daviplata');
+                        const aplicar = esDigital && checkRecargo.checked;
+
+                        let recargo = 0;
+                        if (aplicar) recargo = monto * (RECARGO_PCT / 100);
+                        const total = monto + recargo;
+
+                        const recibido = parseFloat(inputRecibido.value) || 0;
+                        const vueltas = recibido > total ? (recibido - total) : 0;
+
+                        let html = '<div class="d-flex justify-content-between"><span>Abono:</span><strong>' + fmt(monto) + '</strong></div>';
+                        if (recargo > 0) {
+                            html += '<div class="d-flex justify-content-between text-warning"><span>Recargo (' + RECARGO_PCT + '%):</span><strong>' + fmt(recargo) + '</strong></div>';
+                        }
+                        html += '<div class="d-flex justify-content-between border-top mt-1 pt-1"><span><strong>Total:</strong></span><strong class="text-success">' + fmt(total) + '</strong></div>';
+                        if (vueltas > 0) {
+                            html += '<div class="d-flex justify-content-between text-info"><span>Vueltas:</span><strong>' + fmt(vueltas) + '</strong></div>';
+                        }
+                        resumen.innerHTML = html;
+
+                        checkRecargoBox.style.display = esDigital ? 'block' : 'none';
+                    }
+
+                    inputMonto.addEventListener('input', calcular);
+                    selectMetodo.addEventListener('change', calcular);
+                    checkRecargo.addEventListener('change', calcular);
+                    inputRecibido.addEventListener('input', calcular);
+
+                    calcular();
+                })();
+                </script>
             </div>
         </div>
         {% endif %}
@@ -165,16 +238,28 @@
                     <thead class="table-light">
                         <tr>
                             <th>Fecha</th>
-                            <th class="text-end">Monto</th>
                             <th>Método</th>
+                            <th class="text-end">Monto</th>
+                            <th class="text-end">Recargo</th>
+                            <th class="text-end">Total</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for p in pagos %}
                         <tr>
                             <td class="small">{{ p.fecha | fecha_local }}</td>
-                            <td class="text-end small">${{ "{:,.0f}".format(p.monto) }}</td>
                             <td class="small">{{ p.metodo_pago }}</td>
+                            <td class="text-end small">${{ "{:,.0f}".format(p.monto) }}</td>
+                            <td class="text-end small">
+                                {% if p.recargo and p.recargo > 0 %}
+                                    <span class="text-warning">+${{ "{:,.0f}".format(p.recargo) }}</span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end small fw-semibold">
+                                ${{ "{:,.0f}".format(p.monto + (p.recargo or 0)) }}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>

@@ -16,6 +16,7 @@ class Pago(db.Model):
     tienda_id = db.Column(db.Integer, db.ForeignKey('tiendas.id'), nullable=False)
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
     monto = db.Column(db.Numeric(12, 2), nullable=False)
+    recargo = db.Column(db.Numeric(12, 2), default=0)
     metodo_pago = db.Column(db.String(20), default='efectivo')
 
     # Sync
