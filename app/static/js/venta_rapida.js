@@ -123,7 +123,7 @@
     }
 
     // ==================== AGREGAR AL CARRITO ====================
-    function agregarAlCarrito(prod) {
+        async function agregarAlCarrito(prod) {
         const carrito = estado.carrito;
         const existente = carrito.find(it => it.producto_id === prod.id);
 
@@ -140,14 +140,9 @@
             let cantidad = 1;
             const input = inputBuscar.value.trim();
             if (input !== prod.codigo) {
-                const resp = prompt(`¿Cuántas unidades de "${prod.nombre}"?`, '1');
+                const resp = await window.michinPedirCantidad(prod.nombre, prod.stock, 1);
                 if (resp === null) return;
-                cantidad = parseInt(resp);
-                if (isNaN(cantidad) || cantidad <= 0) return;
-                if (cantidad > prod.stock) {
-                    alert(`Solo hay ${prod.stock} unidades`);
-                    return;
-                }
+                cantidad = resp;
             }
 
             carrito.push({
@@ -168,7 +163,6 @@
         guardarEstado();
         renderCarrito();
     }
-
     // ==================== RENDER CARRITO ====================
     function renderCarrito() {
         const carrito = estado.carrito;

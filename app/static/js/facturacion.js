@@ -288,24 +288,14 @@
     }
 
     // ==================== AGREGAR AL CARRITO ====================
-    function agregarAlCarrito(prod) {
+       async function agregarAlCarrito(prod) {
         if (prod.stock <= 0) {
             alert('Producto sin stock');
             return;
         }
 
-        const cantStr = prompt(`¿Cuántas unidades de "${prod.nombre}"?\n(Máximo disponible: ${prod.stock})`, '1');
-        if (cantStr === null) return;
-
-        const cantidad = parseInt(cantStr);
-        if (isNaN(cantidad) || cantidad <= 0) {
-            alert('Cantidad invalida');
-            return;
-        }
-        if (cantidad > prod.stock) {
-            alert(`Solo hay ${prod.stock} unidades disponibles`);
-            return;
-        }
+        const cantidad = await window.michinPedirCantidad(prod.nombre, prod.stock, 1);
+        if (cantidad === null) return;  // Canceló
 
         const p = pestanaActual();
         const existente = p.carrito.find(it => it.producto_id === prod.id);
@@ -342,7 +332,6 @@
         renderPestanas();
         renderCarrito();
     }
-
     // ==================== RENDER CARRITO ====================
     function renderCarrito() {
         const p = pestanaActual();
