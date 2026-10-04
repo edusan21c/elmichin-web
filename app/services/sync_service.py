@@ -228,7 +228,8 @@ def registrar_log(tienda_id, tipo, tabla, registros, exitoso, mensaje=''):
         print(f'  [log] Aviso: {type(e).__name__}')
         return None
 
-    # ==================== PUSH: GUARDAR EN CENTRAL ====================
+
+# ==================== PUSH: GUARDAR EN CENTRAL ====================
 def procesar_push(tienda_id, datos):
     """
     Procesa los datos recibidos de una tienda y los guarda en el central.
@@ -433,7 +434,6 @@ def procesar_push(tienda_id, datos):
     }
 
 
-
 # ==================== PULL FACTURAS (CENTRAL → TIENDA) ====================
 def obtener_facturas_para_tienda(tienda_id, desde=None):
     """
@@ -609,7 +609,7 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
             tipo_pago=f_data.get('tipo_pago', 'contado'),
             estado_credito=f_data.get('estado_credito', 'pagado'),
             saldo_pendiente=Decimal(str(f_data.get('saldo_pendiente', 0))),
-            origen='remota_recibida',           # ← NUEVO
+            origen='remota_recibida',
             sync_estado='sincronizado',
             sync_fecha=datetime.utcnow(),
         )
@@ -632,3 +632,46 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
 
     db.session.commit()
     return insertadas
+
+
+# ==================== HELPERS DE FORMATO ====================
+def _factura_to_dict_extendida(f):
+    """Convierte una factura a dict CON cliente y detalles (formato pull-facturas)."""
+    cliente_data = None
+    if f.cliente:
+        cliente_data = {
+            'nombre': f.cliente.nombre,
+            'documento': f.cliente.documento or '',
+            'direccion': f.cliente.direccion or '',
+            'telefono': f.cliente.telefono or '',
+            'email': f.cliente.email or '',
+            'saldo_actual': float(f.cliente.saldo_actual or 0),
+        }
+    detalles = []
+    for d in f.detalles.all():
+        detalles.append({
+            'producto_id': d.producto_id,
+            'producto_nombre': d.producto_nombre,
+            'cantidad': d.cantidad,
+            'precio_unitario': float(d.precio_unitario or 0),
+            'subtotal': float(d.subtotal or 0),
+        })
+    return {
+        'id': f.id,
+        'numero_factura': f.numero_factura,
+        'tienda_id': f.tienda_id,
+        'fecha_hora': f.fecha_hora.isoformat() if f.fecha_hora else None,
+        'cliente': cliente_data,
+        'usuario_nombre': f.usuario.nombre if f.usuario else None,
+        'subtotal': float(f.subtotal or 0),
+        'total': float(f.total or 0),
+        'metodo_pago': f.metodo_pago or '',
+        'recargo_nequi': float(f.recargo_nequi or 0),
+        'recargo_bolsa': float(f.recargo_bolsa or 0),
+        'valor_pagado': float(f.valor_pagado or 0),
+        'vueltas': float(f.vueltas or 0),
+        'tipo_pago': f.tipo_pago or 'contado',
+        'estado_credito': f.estado_credito or 'pagado',
+        'saldo_pendiente': float(f.saldo_pendiente or 0),
+        'detalles': detalles,
+    }
