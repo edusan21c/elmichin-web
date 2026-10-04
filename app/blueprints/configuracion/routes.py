@@ -136,7 +136,7 @@ def index():
 # ==================== API VERSION / UPDATE ====================
 @bp.route('/api/version', methods=['GET'])
 @login_required
-@programador_requerido
+@admin_requerido
 def api_version():
     """Devuelve la version local y si hay actualizacion disponible."""
     try:
@@ -153,7 +153,7 @@ def api_version():
 
 @bp.route('/api/actualizar', methods=['POST'])
 @login_required
-@programador_requerido
+@admin_requerido
 def api_actualizar():
     """Lanza la actualizacion."""
     exito, mensaje = updater_service.lanzar_actualizacion()
@@ -162,7 +162,7 @@ def api_actualizar():
 
 @bp.route('/api/estado-actualizacion', methods=['GET'])
 @login_required
-@programador_requerido
+@admin_requerido
 def api_estado_actualizacion():
     """Consulta el estado actual de la actualizacion."""
     estado = updater_service.leer_estado()

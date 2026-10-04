@@ -17,8 +17,8 @@
     </h1>
 </div>
 
-<!-- ============ CARD DE VERSION (solo programador) ============ -->
-{% if current_user.es_programador() %}
+<!-- ============ CARD DE VERSION (admin + programador) ============ -->
+{% if current_user.es_admin() %}
 <div class="card border-info mb-3" id="card-version">
     <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
         <span><i class="bi bi-box-seam"></i> Versión del sistema</span>
@@ -40,7 +40,7 @@
             </div>
             <div class="col-md-6 text-end">
                 <div id="estado-version">
-                    <span class="text-muted"><i class="bi bi-hourglass-split"></i> Verificando...</span>
+                    <span class="text-muted"><i class="bi bi-info-circle"></i> Presioná Buscar</span>
                 </div>
             </div>
         </div>
@@ -178,9 +178,11 @@ if (st) {
 }
 
 // ============ SISTEMA DE ACTUALIZACION ============
-{% if current_user.es_programador() %}
+{% if current_user.es_admin() %}
 (function() {
     const btnBuscar = document.getElementById('btn-buscar-version');
+    if (!btnBuscar) return;  // admin no tiene la card: salir
+
     const estadoDiv = document.getElementById('estado-version');
     const infoRemota = document.getElementById('info-remota');
     const versionRemota = document.getElementById('version-remota');
@@ -195,9 +197,13 @@ if (st) {
     async function buscarVersion() {
         estadoDiv.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split"></i> Consultando GitHub...</span>';
         infoRemota.style.display = 'none';
+        btnBuscar.disabled = true;
 
         try {
-            const r = await fetch('/configuracion/api/version');
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 seg
+            const r = await fetch('/configuracion/api/version', { signal: controller.signal });
+            clearTimeout(timeoutId);
             const data = await r.json();
 
             if (!data.ok) {
@@ -211,7 +217,7 @@ if (st) {
                 versionRemota.textContent = data.version_remota;
                 estadoDiv.innerHTML = `
                     <div class="alert alert-success mb-0">
-                        <i class="bi bi-arrow-up-circle"></i> <strong>Actualizacion disponible</strong>
+                        <i class="bi bi-arrow-up-circle"></i> <strong>Actualización disponible</strong>
                     </div>
                     <button class="btn btn-success btn-lg mt-2" id="btn-actualizar">
                         <i class="bi bi-cloud-arrow-down"></i> Actualizar ahora
@@ -219,16 +225,22 @@ if (st) {
                 document.getElementById('btn-actualizar').addEventListener('click', actualizar);
             } else {
                 hayUpdate = false;
-                estadoDiv.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> Estas en la ultima version</span>`;
+                estadoDiv.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> Estás en la última versión</span>`;
             }
         } catch (e) {
-            estadoDiv.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> Error: ${e.message}</span>`;
+            if (e.name === 'AbortError') {
+                estadoDiv.innerHTML = `<span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Tiempo de espera agotado</span>`;
+            } else {
+                estadoDiv.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> Error: ${e.message}</span>`;
+            }
+        } finally {
+            btnBuscar.disabled = false;
         }
     }
 
     // ==================== ACTUALIZAR ====================
     async function actualizar() {
-        if (!confirm('¿Actualizar el sistema ahora? El servicio se reiniciara por 5-10 segundos.')) {
+        if (!confirm('¿Actualizar el sistema ahora? El servicio se reiniciará por 5-10 segundos.')) {
             return;
         }
 
@@ -248,11 +260,8 @@ if (st) {
                 return;
             }
 
-            // Mostrar progreso
             updateEnProgreso = true;
             progresoDiv.style.display = 'block';
-
-            // Empezar polling
             polling();
         } catch (e) {
             alert('Error: ' + e.message);
@@ -274,23 +283,19 @@ if (st) {
             } else if (data.estado === 'completado') {
                 barraProgreso.style.width = '100%';
                 barraProgreso.textContent = '100%';
-                pasoActual.textContent = 'Actualizacion completada!';
+                pasoActual.textContent = '¡Actualización completada!';
                 setTimeout(() => window.location.reload(), 2000);
             } else {
                 pasoActual.textContent = 'Esperando servicio...';
                 setTimeout(polling, 3000);
             }
         } catch (e) {
-            // Servicio reiniciandose, seguir intentando
             pasoActual.textContent = 'Reiniciando servicio...';
             setTimeout(polling, 3000);
         }
     }
 
     btnBuscar.addEventListener('click', buscarVersion);
-
-    // Buscar automaticamente al cargar
-    setTimeout(buscarVersion, 500);
 })();
 {% endif %}
 </script>
