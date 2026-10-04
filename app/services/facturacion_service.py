@@ -215,6 +215,17 @@ def crear_factura_completa(
 
     db.session.commit()
 
+    # Auditoría: factura creada
+    try:
+        from app.services.auditoria_service import registrar_auditoria
+        registrar_auditoria(
+            'factura_crear',
+            f'{numero} | Cliente: {cliente.nombre} | Total: ${float(total_final):,.0f} | Método: {metodo_pago}',
+            tienda_id=tienda_id,
+        )
+    except Exception as e:
+        print(f'[auditoria factura] aviso: {e}')
+
     # Push inmediato al central (best-effort, no fatal si falla)
     try:
         from flask import current_app

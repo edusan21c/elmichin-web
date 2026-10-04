@@ -22,10 +22,20 @@ def login():
                 return render_template('auth/login.html', form=form)
 
             login_user(user, remember=form.remember.data)
+
+            # Auditoría: login exitoso
+            from app.services.auditoria_service import registrar_auditoria
+            registrar_auditoria('login', f'Login OK: {user.username}')
+
             next_page = request.args.get('next')
             if next_page and not next_page.startswith('/'):
                 next_page = None
             return redirect(next_page or url_for('dashboard.index'))
+
+        # Auditoría: login fallido
+        from app.services.auditoria_service import registrar_auditoria
+        intento = form.username.data.strip() if form.username.data else 'sin username'
+        registrar_auditoria('login_fallido', f'Intento con usuario: {intento}')
 
         flash('Usuario o contraseña incorrectos.', 'danger')
 
@@ -35,6 +45,10 @@ def login():
 @bp.route('/logout')
 @login_required
 def logout():
+    # Auditoría: logout (antes de logout_user para capturar current_user)
+    from app.services.auditoria_service import registrar_auditoria
+    registrar_auditoria('logout', f'Logout: {current_user.username}')
+
     logout_user()
     flash('Sesión cerrada correctamente.', 'info')
     return redirect(url_for('auth.login'))

@@ -38,7 +38,6 @@ def ventas():
     tienda_id = tienda_actual()
     tiendas = Tienda.query.filter_by(activa=True).all()
 
-    # Filtros
     desde_str = request.args.get('desde', '', type=str).strip()
     hasta_str = request.args.get('hasta', '', type=str).strip()
     q = request.args.get('q', '', type=str).strip()
@@ -50,15 +49,12 @@ def ventas():
         hasta_str = hoy.strftime('%Y-%m-%d')
 
     try:
-        # Los rangos son fechas LOCALES (Colombia UTC-5)
-        # El central guarda en UTC, así que sumamos 5h para convertir a UTC
         desde = datetime.strptime(desde_str, '%Y-%m-%d') + timedelta(hours=5)
         hasta = datetime.strptime(hasta_str, '%Y-%m-%d') + timedelta(days=1, hours=5)
     except ValueError:
         desde = datetime.combine(hoy, datetime.min.time()) + timedelta(hours=5)
         hasta = desde + timedelta(days=1)
 
-    # Query base
     query = Factura.query.filter(
         Factura.tienda_id == tienda_id,
         Factura.fecha_hora >= desde,
@@ -75,7 +71,6 @@ def ventas():
 
     facturas = query.order_by(Factura.fecha_hora.desc()).limit(500).all()
 
-    # Totales del periodo (usando mismo rango UTC)
     total_periodo = db.session.query(func.coalesce(func.sum(Factura.total), 0)).filter(
         Factura.tienda_id == tienda_id,
         Factura.fecha_hora >= desde,
@@ -104,12 +99,11 @@ def ventas():
 @login_required
 def detalle(factura_id):
     from app.models.configuracion import Configuracion
-    
+
     factura = Factura.query.get_or_404(factura_id)
     detalles = DetalleFactura.query.filter_by(factura_id=factura_id).all()
     pagos = Pago.query.filter_by(factura_id=factura_id).order_by(Pago.fecha.desc()).all()
 
-    # Obtener % recargo de config
     conf = Configuracion.query.filter(
         Configuracion.clave == 'recargo_nequi',
         Configuracion.tienda_id.is_(None)
@@ -180,7 +174,6 @@ def registrar_abono():
     monto = request.form.get('monto', type=float)
     metodo = request.form.get('metodo', 'efectivo', type=str)
     aplicar_recargo = request.form.get('aplicar_recargo') == 'on'
-    recibido = request.form.get('recibido', type=float)
 
     if not factura_id or not monto or monto <= 0:
         flash('Datos inválidos', 'danger')
@@ -214,14 +207,8 @@ def registrar_abono():
         porcentaje = Decimal(conf.valor) if conf else Decimal('0.4')
         recargo = redondear(monto_base * (porcentaje / Decimal('100')))
 
-    total_cobrado = monto_base + recargo
-
-    # Calcular vueltas si el cliente dio más
+    # Vueltas: el form ya no las pide. Siempre 0.
     vueltas = Decimal('0')
-    if recibido and recibido > 0:
-        recibido_dec = redondear(recibido)
-        if recibido_dec > total_cobrado:
-            vueltas = redondear(recibido_dec - total_cobrado)
 
     # Crear pago con recargo
     pago = Pago(
@@ -248,16 +235,32 @@ def registrar_abono():
 
     db.session.commit()
 
+    # Auditoría: abono registrado
+    try:
+        from app.services.auditoria_service import registrar_auditoria
+        detalle_audit = (
+            f'{factura.numero_factura} | {factura.cliente.nombre} | '
+            f'Abono: ${float(monto_base):,.0f} | Método: {metodo}'
+        )
+        if recargo > 0:
+            detalle_audit += f' | Recargo: ${float(recargo):,.0f}'
+        registrar_auditoria(
+            'abono_registrar',
+            detalle_audit,
+            tienda_id=factura.tienda_id,
+        )
+    except Exception as e:
+        print(f'[auditoria abono] aviso: {e}')
+
     # Mensaje con desglose
     msg = f'Abono de ${float(monto_base):,.0f}'
     if recargo > 0:
         msg += f' + recargo ${float(recargo):,.0f}'
     msg += f'. Nuevo saldo: ${float(factura.saldo_pendiente):,.0f}'
-    if vueltas > 0:
-        msg += f'. Vueltas: ${float(vueltas):,.0f}'
     flash(msg, 'success')
 
     return redirect(url_for('reportes.detalle', factura_id=factura.id))
+
 
 # ==================== ESTADÍSTICAS DE CLIENTES ====================
 @bp.route('/clientes')
@@ -266,22 +269,14 @@ def clientes():
     tienda_id = tienda_actual()
     tiendas = Tienda.query.filter_by(activa=True).all()
 
-    # Filtros de fecha
     desde_str = request.args.get('desde', '', type=str).strip()
     hasta_str = request.args.get('hasta', '', type=str).strip()
 
     hoy = hora_local().date()
     if not desde_str:
-        desde_str = (hoy - timedelta(days=365)).strftime('%Y-%m-%d')  # últimos 12 meses
+        desde_str = (hoy - timedelta(days=365)).strftime('%Y-%m-%d')
     if not hasta_str:
         hasta_str = hoy.strftime('%Y-%m-%d')
-
-    try:
-        desde = datetime.strptime(desde_str, '%Y-%m-%d') + timedelta(hours=5)
-        hasta = datetime.strptime(hasta_str, '%Y-%m-%d') + timedelta(days=1, hours=5)
-    except ValueError:
-        desde = datetime.combine(hoy - timedelta(days=365), datetime.min.time()) + timedelta(hours=5)
-        hasta = datetime.combine(hoy, datetime.min.time()) + timedelta(days=1, hours=5)
 
     return render_template(
         'reportes/clientes.html',
@@ -344,7 +339,6 @@ def api_clientes_stats():
         .all()
     )
 
-    # Para cada moroso, obtener antigüedad de la deuda más vieja
     morosos_data = []
     for c in top_morosos:
         factura_mas_vieja = (Factura.query

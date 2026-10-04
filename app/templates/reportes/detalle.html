@@ -16,7 +16,6 @@
     </div>
 </div>
 
-<!-- ============ AVISO DE PEDIDO REMOTO ============ -->
 {% if factura.origen == 'remota_recibida' %}
 <div class="alert alert-info">
     <i class="bi bi-shop"></i>
@@ -24,7 +23,6 @@
 </div>
 {% endif %}
 
-<!-- ============ AVISO DE PRECIO MANUAL ============ -->
 {% if factura.precio_manual %}
 <div class="alert alert-warning">
     <i class="bi bi-pencil-square"></i>
@@ -98,7 +96,7 @@
             <div class="card-body">
                 <p class="mb-1 small"><strong>Fecha:</strong> {{ factura.fecha_hora | fecha_local }}</p>
                 <p class="mb-1 small"><strong>Método:</strong> {{ factura.metodo_pago | upper }}</p>
-                <p class="mb-1 small"><strong>Estado:</strong> 
+                <p class="mb-1 small"><strong>Estado:</strong>
                     {% if factura.estado_credito == 'pendiente' %}
                         <span class="badge bg-warning text-dark">Pendiente</span>
                     {% else %}
@@ -109,12 +107,12 @@
                 <p class="mb-1 small"><strong>Atendido por:</strong> {{ factura.usuario.nombre }}</p>
                 {% endif %}
                 {% if factura.origen == 'remota_recibida' %}
-                <p class="mb-1 small"><strong>Origen:</strong> 
+                <p class="mb-1 small"><strong>Origen:</strong>
                     <span class="badge bg-info text-dark">📥 Pedido remoto</span>
                 </p>
                 {% endif %}
                 {% if factura.precio_manual %}
-                <p class="mb-1 small"><strong>Precio:</strong> 
+                <p class="mb-1 small"><strong>Precio:</strong>
                     <span class="badge bg-warning text-dark">✏️ Manual</span>
                 </p>
                 {% endif %}
@@ -133,13 +131,18 @@
                     <input type="hidden" name="factura_id" value="{{ factura.id }}">
 
                     <div class="mb-2">
-                        <label class="form-label small">Monto a abonar (a la deuda)</label>
+                        <label class="form-label small fw-semibold">
+                            ¿Cuánto abona el cliente a la deuda?
+                        </label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text">$</span>
                             <input type="number" name="monto" id="abono-monto" class="form-control"
-                                   value="{{ factura.saldo_pendiente|int }}" min="1" required>
+                                   placeholder="0" min="1" required autofocus>
                         </div>
-                        <small class="text-muted">Se ajusta automáticamente al saldo</small>
+                        <button type="button" class="btn btn-outline-secondary btn-sm mt-1 py-0 px-2"
+                                onclick="document.getElementById('abono-monto').value = {{ factura.saldo_pendiente|int }}">
+                            Pagar todo ({{ "{:,.0f}".format(factura.saldo_pendiente) }})
+                        </button>
                     </div>
 
                     <div class="mb-2">
@@ -159,15 +162,6 @@
                         </label>
                     </div>
 
-                    <div class="mb-2">
-                        <label class="form-label small">Recibido del cliente (opcional)</label>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text">$</span>
-                            <input type="number" name="recibido" id="abono-recibido" class="form-control"
-                                   min="0" placeholder="Dejar en blanco si es exacto">
-                        </div>
-                    </div>
-
                     <div class="alert alert-light py-2 px-2 mb-2 small" id="abono-resumen"></div>
 
                     <button type="submit" class="btn btn-warning w-100">
@@ -183,7 +177,6 @@
                     const selectMetodo = document.getElementById('abono-metodo');
                     const checkRecargoBox = document.getElementById('abono-check-recargo');
                     const checkRecargo = document.getElementById('abono-aplicar-recargo');
-                    const inputRecibido = document.getElementById('abono-recibido');
                     const resumen = document.getElementById('abono-resumen');
 
                     function fmt(n) { return '$' + Math.round(n).toLocaleString('es-CO'); }
@@ -200,16 +193,20 @@
                         if (aplicar) recargo = monto * (RECARGO_PCT / 100);
                         const total = monto + recargo;
 
-                        const recibido = parseFloat(inputRecibido.value) || 0;
-                        const vueltas = recibido > total ? (recibido - total) : 0;
+                        let html = '';
+                        if (monto > 0) {
+                            html += '<div class="d-flex justify-content-between"><span>Abono a la deuda:</span><strong>' + fmt(monto) + '</strong></div>';
+                            if (recargo > 0) {
+                                html += '<div class="d-flex justify-content-between text-warning"><span>Recargo (' + RECARGO_PCT + '%):</span><strong>' + fmt(recargo) + '</strong></div>';
+                            }
+                            html += '<div class="d-flex justify-content-between border-top mt-1 pt-1"><span><strong>Cliente debe entregar:</strong></span><strong class="text-success">' + fmt(total) + '</strong></div>';
 
-                        let html = '<div class="d-flex justify-content-between"><span>Abono:</span><strong>' + fmt(monto) + '</strong></div>';
-                        if (recargo > 0) {
-                            html += '<div class="d-flex justify-content-between text-warning"><span>Recargo (' + RECARGO_PCT + '%):</span><strong>' + fmt(recargo) + '</strong></div>';
-                        }
-                        html += '<div class="d-flex justify-content-between border-top mt-1 pt-1"><span><strong>Total:</strong></span><strong class="text-success">' + fmt(total) + '</strong></div>';
-                        if (vueltas > 0) {
-                            html += '<div class="d-flex justify-content-between text-info"><span>Vueltas:</span><strong>' + fmt(vueltas) + '</strong></div>';
+                            const nuevoSaldo = SALDO - monto;
+                            if (nuevoSaldo > 0) {
+                                html += '<div class="d-flex justify-content-between text-muted"><span>Saldo que quedará:</span><strong>' + fmt(nuevoSaldo) + '</strong></div>';
+                            } else {
+                                html += '<div class="d-flex justify-content-between text-success"><span>✅ Se cancela la deuda</span></div>';
+                            }
                         }
                         resumen.innerHTML = html;
 
@@ -219,7 +216,6 @@
                     inputMonto.addEventListener('input', calcular);
                     selectMetodo.addEventListener('change', calcular);
                     checkRecargo.addEventListener('change', calcular);
-                    inputRecibido.addEventListener('input', calcular);
 
                     calcular();
                 })();

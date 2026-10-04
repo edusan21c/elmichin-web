@@ -9,6 +9,7 @@ from .venta import Venta
 from .borrador import Borrador
 from .configuracion import Configuracion
 from .sync_log import SyncLog
+from .audit_log import AuditLog
 
 __all__ = [
     'Tienda', 'Usuario',
