@@ -20,6 +20,8 @@ NOMBRE_SERVICIO = 'MichinFlask'
 MIGRACIONES_MANUALES = [
     'agregar_origen.py',
     'agregar_precio_manual.py',
+    'agregar_recargo_pago.py',
+    'agregar_audit_log.py',
 ]
 
 
