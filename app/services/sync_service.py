@@ -675,3 +675,50 @@ def _factura_to_dict_extendida(f):
         'saldo_pendiente': float(f.saldo_pendiente or 0),
         'detalles': detalles,
     }
+
+
+
+# ==================== PUSH INMEDIATO (TIENDA → CENTRAL) ====================
+def push_factura_individual(tienda_id, factura_id):
+    """
+    Empuja UNA factura (y su cliente) al central inmediatamente.
+    No espera al worker. Si falla, el worker la sube en el próximo ciclo.
+    Retorna True si se sincronizó OK.
+    """
+    import requests
+    from flask import current_app
+
+    factura = db.session.get(Factura, factura_id)
+    if not factura:
+        return False
+
+    central_url = (current_app.config.get('CENTRAL_URL') or '').rstrip('/')
+    sync_key = current_app.config.get('SYNC_KEY') or ''
+    if not central_url or not sync_key:
+        return False
+
+    # Construir payload con esta única factura + su cliente
+    payload = {
+        'tienda_id': tienda_id,
+        'facturas': [_factura_to_dict(factura)],
+        'pagos': [],
+        'clientes': [_cliente_to_dict(factura.cliente)] if factura.cliente else [],
+    }
+
+    try:
+        r = requests.post(
+            central_url + '/api/sync/push',
+            json=payload,
+            headers={'X-Sync-Key': sync_key},
+            timeout=8,
+        )
+        if r.status_code != 200:
+            return False
+        data = r.json()
+        if not data.get('ok'):
+            return False
+        # Marcar como sincronizado para que el worker no la reenvíe
+        marcar_sincronizados(tienda_id, data)
+        return True
+    except requests.RequestException:
+        return False

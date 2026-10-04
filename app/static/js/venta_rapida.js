@@ -3,9 +3,48 @@
     'use strict';
 
     const CFG = window.VR_CONFIG || {};
-    const carrito = [];
-    const historial = [];
+    const STORAGE_KEY = 'michin_venta_rapida';
 
+    let historial = [];  // Historial NO se persiste (solo sesión)
+    let saliendoIntencionalmente = false;
+
+    // ==================== ESTADO PERSISTENTE ====================
+    let estado = {
+        carrito: [],
+        valorPagado: '',
+    };
+
+    function guardarEstado() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+        } catch (e) {
+            console.warn('No se pudo guardar en localStorage:', e);
+        }
+    }
+
+    function cargarEstado() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (data && Array.isArray(data.carrito)) {
+                estado = {
+                    carrito: data.carrito || [],
+                    valorPagado: data.valorPagado || '',
+                };
+            }
+        } catch (e) {
+            console.warn('No se pudo cargar de localStorage:', e);
+        }
+    }
+
+    function limpiarEstado() {
+        estado.carrito = [];
+        estado.valorPagado = '';
+        guardarEstado();
+    }
+
+    // ==================== HELPERS ====================
     function fmt(n) {
         return '$' + Math.round(n || 0).toLocaleString('es-CO');
     }
@@ -43,11 +82,8 @@
     inputBuscar.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            // Si hay resultado único, agregarlo
             const items = resultados.querySelectorAll('.list-group-item');
-            if (items.length >= 1) {
-                items[0].click();
-            }
+            if (items.length >= 1) items[0].click();
         }
     });
 
@@ -88,7 +124,7 @@
 
     // ==================== AGREGAR AL CARRITO ====================
     function agregarAlCarrito(prod) {
-        // Verificar si ya existe
+        const carrito = estado.carrito;
         const existente = carrito.find(it => it.producto_id === prod.id);
 
         if (existente) {
@@ -101,9 +137,7 @@
             existente.precio_unitario = calcularPrecio(prod, nuevaCant);
             existente.subtotal = existente.precio_unitario * nuevaCant;
         } else {
-            // Preguntar cantidad (default 1 si es por codigo de barras)
             let cantidad = 1;
-            // Si no es codigo exacto (múltiples resultados), pedir cantidad
             const input = inputBuscar.value.trim();
             if (input !== prod.codigo) {
                 const resp = prompt(`¿Cuántas unidades de "${prod.nombre}"?`, '1');
@@ -127,16 +161,17 @@
             });
         }
 
-        // Limpiar búsqueda y volver a enfocar
         inputBuscar.value = '';
         resultados.innerHTML = '';
         inputBuscar.focus();
 
+        guardarEstado();
         renderCarrito();
     }
 
     // ==================== RENDER CARRITO ====================
     function renderCarrito() {
+        const carrito = estado.carrito;
         const body = $('#carrito-body');
         const tabla = $('#carrito-tabla');
         const vacio = $('#carrito-vacio');
@@ -185,6 +220,7 @@
                     item.cantidad = cant;
                     item.precio_unitario = calcularPrecio(item.prod_data, cant);
                     item.subtotal = item.precio_unitario * cant;
+                    guardarEstado();
                     renderCarrito();
                 });
             });
@@ -193,6 +229,7 @@
                 btn.addEventListener('click', function() {
                     const idx = parseInt(this.dataset.idx);
                     carrito.splice(idx, 1);
+                    guardarEstado();
                     renderCarrito();
                 });
             });
@@ -203,10 +240,10 @@
 
     // ==================== TOTAL + VUELTAS ====================
     function renderTotal() {
-        const total = carrito.reduce((s, it) => s + it.subtotal, 0);
+        const total = estado.carrito.reduce((s, it) => s + it.subtotal, 0);
         $('#lbl-total').textContent = fmt(total);
 
-        const pagado = parseFloat($('#input-pagado').value) || 0;
+        const pagado = parseFloat(estado.valorPagado) || 0;
         if (pagado > 0) {
             const vueltas = pagado - total;
             if (vueltas >= 0) {
@@ -219,17 +256,24 @@
         }
     }
 
-    $('#input-pagado').addEventListener('input', renderTotal);
+    // ==================== EVENTOS ====================
+    $('#input-pagado').addEventListener('input', function() {
+        estado.valorPagado = this.value;
+        guardarEstado();
+        renderTotal();
+    });
 
     // ==================== COBRAR ====================
     $('#btn-finalizar').addEventListener('click', async function() {
+        const carrito = estado.carrito;
+
         if (carrito.length === 0) {
             alert('El carrito está vacío');
             return;
         }
 
         const total = carrito.reduce((s, it) => s + it.subtotal, 0);
-        const pagado = parseFloat($('#input-pagado').value) || 0;
+        const pagado = parseFloat(estado.valorPagado) || 0;
 
         if (pagado < total - 0.01) {
             alert(`Faltan ${fmt(total - pagado)} para completar el pago`);
@@ -260,7 +304,6 @@
             const data = await r.json();
 
             if (data.ok) {
-                // Guardar en historial
                 historial.unshift({
                     factura: data.factura_id,
                     total: total,
@@ -269,21 +312,18 @@
                 });
                 renderHistorial();
 
-                // Limpiar carrito
-                carrito.length = 0;
-                renderCarrito();
-                $('#input-pagado').value = '';
-                $('#lbl-vueltas').innerHTML = '';
-                inputBuscar.focus();
+                // Limpiar estado + permitir navegación
+                limpiarEstado();
+                saliendoIntencionalmente = true;
 
-                // Feedback visual
-                mostrarAlerta('✅ Venta registrada', 'success');
+                window.location.href = data.redirect;
             } else {
                 alert('Error: ' + (data.error || 'Desconocido'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-circle"></i> COBRAR';
             }
         } catch (e) {
             alert('Error de conexión: ' + e.message);
-        } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-check-circle"></i> COBRAR';
         }
@@ -291,10 +331,9 @@
 
     // ==================== LIMPIAR ====================
     $('#btn-limpiar').addEventListener('click', function() {
-        if (carrito.length > 0 && !confirm('¿Limpiar toda la venta?')) return;
-        carrito.length = 0;
+        if (estado.carrito.length > 0 && !confirm('¿Limpiar toda la venta?')) return;
+        limpiarEstado();
         renderCarrito();
-        $('#input-pagado').value = '';
         $('#lbl-vueltas').innerHTML = '';
         inputBuscar.focus();
     });
@@ -327,19 +366,76 @@
         setTimeout(() => div.remove(), 2000);
     }
 
+    // ==================== PROTECCIÓN ANTES DE SALIR ====================
+    // 1. Interceptar clics en links internos
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+        if (link.href.startsWith('javascript:')) return;
+        if (link.target === '_blank') return;
+        if (link.dataset.noWarn === 'true') return;
+        if (saliendoIntencionalmente) return;
+        if (estado.carrito.length === 0) return;
+
+        e.preventDefault();
+
+        const total = estado.carrito.reduce((s, it) => s + it.subtotal, 0);
+        const items = estado.carrito.length;
+
+        const msg = `🚨 ATENCIÓN: VENTA SIN COBRAR\n\n` +
+                    `Tienes ${items} producto(s) por un total de ${fmt(total)}.\n\n` +
+                    `Si sales AHORA, esta venta NO se registrará en el sistema.\n` +
+                    `La caja no cuadrará al final del día.\n\n` +
+                    `Recomendación: cobra ahora o aprieta "Limpiar" para descartar.\n\n` +
+                    `¿Seguro que quieres salir sin cobrar?`;
+
+        if (confirm(msg)) {
+            // Registrar en consola (para auditoría futura)
+            console.warn(`[VENTA_NO_COBRADA] ${new Date().toISOString()} - ` +
+                         `Items: ${items} - Total: ${total}`);
+
+            saliendoIntencionalmente = true;
+            window.location.href = link.href;
+        }
+    });
+
+    // 2. Interceptar cierre/refresh del navegador
+    window.addEventListener('beforeunload', function(e) {
+        if (saliendoIntencionalmente) return;
+        if (estado.carrito.length === 0) return;
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+    });
+
     // ==================== SELECTOR DE TIENDA ====================
     const st = $('#selector-tienda');
     if (st) {
         st.addEventListener('change', function() {
+            if (estado.carrito.length > 0) {
+                if (!confirm('Cambiar de tienda limpiará el carrito. ¿Continuar?')) {
+                    // Revertir
+                    this.value = this.dataset.original || this.options[0].value;
+                    return;
+                }
+                limpiarEstado();
+            }
             const url = new URL(window.location.href);
             url.searchParams.set('tienda', this.value);
             window.location.href = url.toString();
         });
     }
 
-    // ==================== INICIALIZACION ====================
-    inputBuscar.focus();
+    // ==================== INIT ====================
+    cargarEstado();
+
+    // Restaurar valor pagado en el input
+    if (estado.valorPagado !== '' && estado.valorPagado !== undefined) {
+        $('#input-pagado').value = estado.valorPagado;
+    }
+
     renderCarrito();
     renderHistorial();
+    inputBuscar.focus();
 
 })();

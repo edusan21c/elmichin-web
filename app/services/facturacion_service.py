@@ -212,4 +212,16 @@ def crear_factura_completa(
         cliente.saldo_actual = redondear(Decimal(str(cliente.saldo_actual or 0)) + saldo_pendiente)
 
     db.session.commit()
+
+    # Push inmediato al central (best-effort, no fatal si falla)
+    try:
+        from flask import current_app
+        modo = (current_app.config.get('MODO') or '').lower()
+        if modo == 'tienda_local':
+            from app.services import sync_service
+            sync_service.push_factura_individual(tienda_id, factura.id)
+    except Exception as e:
+        # No es fatal — el worker lo sube en el próximo ciclo (≤2 min)
+        print(f'[push inmediato] aviso: {e}')
+
     return factura.id, None
