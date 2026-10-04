@@ -31,7 +31,7 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if request.blueprint == 'reportes' and request.endpoint != 'reportes.cuentas_por_cobrar' %}active{% endif %}"
+                <a class="nav-link {% if request.endpoint == 'reportes.ventas' %}active{% endif %}"
                    href="{{ url_for('reportes.ventas') }}">
                     <i class="bi bi-graph-up"></i> Reportes
                 </a>
@@ -46,9 +46,24 @@
 
             {% if current_user.rol in ('admin', 'programador') %}
             <li class="nav-item">
-                <a class="nav-link {% if request.blueprint == 'estadisticas' %}active{% endif %}"
+                <a class="nav-link {% if request.endpoint == 'reportes.clientes' %}active{% endif %}"
+                   href="{{ url_for('reportes.clientes') }}">
+                    <i class="bi bi-people"></i> Clientes
+                </a>
+            </li>
+            {% endif %}
+
+            {% if current_user.rol in ('admin', 'programador') %}
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'estadisticas.index' %}active{% endif %}"
                    href="{{ url_for('estadisticas.index') }}">
                     <i class="bi bi-bar-chart"></i> Estadísticas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'estadisticas.analisis' %}active{% endif %}"
+                   href="{{ url_for('estadisticas.analisis') }}">
+                    <i class="bi bi-graph-up-arrow"></i> Análisis
                 </a>
             </li>
             {% endif %}

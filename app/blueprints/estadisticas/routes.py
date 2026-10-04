@@ -7,6 +7,8 @@ from . import bp
 from app.extensions import db
 from app.models.tienda import Tienda
 from app.models.factura import Factura, DetalleFactura
+from app.models.tienda import Tienda
+from app.models.producto import Producto, ProductoTienda
 
 
 def hora_local():
@@ -159,4 +161,207 @@ def api_datos():
             'datos': [por_hora[str(h)] for h in range(24)],
         },
         'comparativa': comparativa,
+    })
+# ==================== ANÁLISIS AVANZADO ====================
+@bp.route('/analisis')
+@login_required
+def analisis():
+    tienda_id = tienda_actual()
+    tiendas = Tienda.query.filter_by(activa=True).all()
+    return render_template(
+        'estadisticas/analisis.html',
+        tienda_id=tienda_id,
+        tiendas=tiendas,
+    )
+
+
+@bp.route('/api/analisis')
+@login_required
+def api_analisis():
+    """Devuelve todos los análisis avanzados en una sola llamada."""
+    from app.models.cliente import Cliente
+
+    tienda_id = tienda_actual()
+    if not tienda_id:
+        return jsonify({'ok': False, 'error': 'Sin tienda'}), 400
+
+    hoy_local = hora_local()  # UTC-5
+
+    # ============ 1. PRODUCTOS POR AGOTARSE ============
+    productos_agotar = (db.session.query(
+            Producto.id,
+            Producto.nombre,
+            Producto.codigo_barras,
+            ProductoTienda.cantidad,
+            ProductoTienda.precio_venta,
+        )
+        .join(ProductoTienda, ProductoTienda.producto_id == Producto.id)
+        .filter(
+            ProductoTienda.tienda_id == tienda_id,
+            ProductoTienda.cantidad > 0,
+            ProductoTienda.cantidad <= 5,
+        )
+        .order_by(ProductoTienda.cantidad.asc())
+        .limit(20)
+        .all()
+    )
+
+    agotar_data = [{
+        'id': r.id,
+        'nombre': r.nombre,
+        'codigo': r.codigo_barras or '',
+        'stock': int(r.cantidad),
+        'precio': float(r.precio_venta or 0),
+    } for r in productos_agotar]
+
+    # Productos agotados (cantidad = 0)
+    agotados_count = (ProductoTienda.query
+        .filter(ProductoTienda.tienda_id == tienda_id)
+        .filter(ProductoTienda.cantidad <= 0)
+        .count())
+
+    # ============ 2. COMPARATIVA MES ACTUAL VS ANTERIOR ============
+    # Mes actual: desde el día 1 hasta hoy (local)
+    inicio_mes_actual_local = hoy_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    # Mes anterior: desde el día 1 del mes pasado hasta el último día del mes pasado
+    if inicio_mes_actual_local.month == 1:
+        inicio_mes_ant_local = inicio_mes_actual_local.replace(year=inicio_mes_actual_local.year - 1, month=12)
+    else:
+        inicio_mes_ant_local = inicio_mes_actual_local.replace(month=inicio_mes_actual_local.month - 1)
+    fin_mes_ant_local = inicio_mes_actual_local  # El fin del mes anterior es el inicio del actual
+
+    # Convertir a UTC (+5h)
+    desde_actual_utc = inicio_mes_actual_local + timedelta(hours=5)
+    hasta_actual_utc = hoy_local + timedelta(hours=5)
+
+    desde_ant_utc = inicio_mes_ant_local + timedelta(hours=5)
+    hasta_ant_utc = fin_mes_ant_local + timedelta(hours=5)
+
+    total_mes_actual = float(db.session.query(
+        func.coalesce(func.sum(Factura.total), 0)
+    ).filter(
+        Factura.tienda_id == tienda_id,
+        Factura.fecha_hora >= desde_actual_utc,
+        Factura.fecha_hora < hasta_actual_utc,
+    ).scalar() or 0)
+
+    total_mes_anterior = float(db.session.query(
+        func.coalesce(func.sum(Factura.total), 0)
+    ).filter(
+        Factura.tienda_id == tienda_id,
+        Factura.fecha_hora >= desde_ant_utc,
+        Factura.fecha_hora < hasta_ant_utc,
+    ).scalar() or 0)
+
+    num_fact_actual = Factura.query.filter(
+        Factura.tienda_id == tienda_id,
+        Factura.fecha_hora >= desde_actual_utc,
+        Factura.fecha_hora < hasta_actual_utc,
+    ).count()
+
+    num_fact_anterior = Factura.query.filter(
+        Factura.tienda_id == tienda_id,
+        Factura.fecha_hora >= desde_ant_utc,
+        Factura.fecha_hora < hasta_ant_utc,
+    ).count()
+
+    if total_mes_anterior > 0:
+        variacion_pct = ((total_mes_actual - total_mes_anterior) / total_mes_anterior) * 100
+    else:
+        variacion_pct = 0
+
+    # ============ 3. VENTAS POR DÍA DE LA SEMANA ============
+    # Últimos 90 días
+    desde_90d_local = hoy_local - timedelta(days=90)
+    desde_90d_utc = desde_90d_local + timedelta(hours=5)
+
+    facturas_90d = Factura.query.filter(
+        Factura.tienda_id == tienda_id,
+        Factura.fecha_hora >= desde_90d_utc,
+    ).all()
+
+    dias_semana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+    ventas_por_dia = {d: 0 for d in dias_semana}
+    for f in facturas_90d:
+        fecha_local = f.fecha_hora - timedelta(hours=5)
+        # weekday(): 0=lunes, 6=domingo
+        dia = dias_semana[fecha_local.weekday()]
+        ventas_por_dia[dia] += float(f.total or 0)
+
+    # ============ 4. TOP 10 PRODUCTOS POR GANANCIA ============
+    # Ganancia = (precio_venta - precio_proveedor) * cantidad vendida
+    desde_90d_query = db.session.query(
+            DetalleFactura.producto_id,
+            DetalleFactura.producto_nombre,
+            func.sum(DetalleFactura.cantidad).label('cantidad_vendida'),
+            func.sum(DetalleFactura.subtotal).label('total_vendido'),
+        ).join(
+            Factura, Factura.id == DetalleFactura.factura_id
+        ).filter(
+            Factura.tienda_id == tienda_id,
+            Factura.fecha_hora >= desde_90d_utc,
+        ).group_by(
+            DetalleFactura.producto_id,
+            DetalleFactura.producto_nombre,
+        ).order_by(
+            func.sum(DetalleFactura.subtotal).desc()
+        ).limit(30).all()
+
+    top_ganancia = []
+    for r in desde_90d_query:
+        pres = ProductoTienda.query.filter_by(
+            producto_id=r.producto_id, tienda_id=tienda_id
+        ).first()
+        if not pres:
+            continue
+        precio_prov = float(pres.precio_proveedor or 0)
+        cant = int(r.cantidad_vendida)
+        total_vend = float(r.total_vendido)
+        # Ganancia estimada = total_vendido - (precio_prov * cant)
+        ganancia = total_vend - (precio_prov * cant)
+        top_ganancia.append({
+            'nombre': r.producto_nombre,
+            'cantidad': cant,
+            'total_vendido': total_vend,
+            'ganancia': ganancia,
+        })
+
+    # Ordenar por ganancia y quedarnos con 10
+    top_ganancia.sort(key=lambda x: x['ganancia'], reverse=True)
+    top_ganancia = top_ganancia[:10]
+
+    # ============ 5. VALOR DEL INVENTARIO ============
+    inventario_query = (db.session.query(
+            func.count(ProductoTienda.producto_id).label('total_items'),
+            func.coalesce(func.sum(ProductoTienda.cantidad), 0).label('unidades'),
+            func.coalesce(func.sum(ProductoTienda.cantidad * ProductoTienda.precio_proveedor), 0).label('valor_costo'),
+            func.coalesce(func.sum(ProductoTienda.cantidad * ProductoTienda.precio_venta), 0).label('valor_venta'),
+        )
+        .filter(ProductoTienda.tienda_id == tienda_id)
+        .first()
+    )
+
+    return jsonify({
+        'ok': True,
+        'agotar': {
+            'productos': agotar_data,
+            'total_agotados': agotados_count,
+            'total_bajos': len(agotar_data),
+        },
+        'comparativa': {
+            'mes_actual': total_mes_actual,
+            'mes_anterior': total_mes_anterior,
+            'variacion_pct': variacion_pct,
+            'fact_actual': num_fact_actual,
+            'fact_anterior': num_fact_anterior,
+        },
+        'por_dia_semana': ventas_por_dia,
+        'top_ganancia': top_ganancia,
+        'inventario': {
+            'total_items': int(inventario_query.total_items or 0),
+            'unidades': int(inventario_query.unidades or 0),
+            'valor_costo': float(inventario_query.valor_costo or 0),
+            'valor_venta': float(inventario_query.valor_venta or 0),
+            'ganancia_potencial': float((inventario_query.valor_venta or 0) - (inventario_query.valor_costo or 0)),
+        },
     })

@@ -258,3 +258,169 @@ def registrar_abono():
     flash(msg, 'success')
 
     return redirect(url_for('reportes.detalle', factura_id=factura.id))
+
+# ==================== ESTADÍSTICAS DE CLIENTES ====================
+@bp.route('/clientes')
+@login_required
+def clientes():
+    tienda_id = tienda_actual()
+    tiendas = Tienda.query.filter_by(activa=True).all()
+
+    # Filtros de fecha
+    desde_str = request.args.get('desde', '', type=str).strip()
+    hasta_str = request.args.get('hasta', '', type=str).strip()
+
+    hoy = hora_local().date()
+    if not desde_str:
+        desde_str = (hoy - timedelta(days=365)).strftime('%Y-%m-%d')  # últimos 12 meses
+    if not hasta_str:
+        hasta_str = hoy.strftime('%Y-%m-%d')
+
+    try:
+        desde = datetime.strptime(desde_str, '%Y-%m-%d') + timedelta(hours=5)
+        hasta = datetime.strptime(hasta_str, '%Y-%m-%d') + timedelta(days=1, hours=5)
+    except ValueError:
+        desde = datetime.combine(hoy - timedelta(days=365), datetime.min.time()) + timedelta(hours=5)
+        hasta = datetime.combine(hoy, datetime.min.time()) + timedelta(days=1, hours=5)
+
+    return render_template(
+        'reportes/clientes.html',
+        tiendas=tiendas,
+        tienda_id=tienda_id,
+        desde=desde_str,
+        hasta=hasta_str,
+    )
+
+
+@bp.route('/api/clientes-stats')
+@login_required
+def api_clientes_stats():
+    """Devuelve las estadísticas de clientes en formato JSON."""
+    tienda_id = tienda_actual()
+    desde_str = request.args.get('desde', '', type=str).strip()
+    hasta_str = request.args.get('hasta', '', type=str).strip()
+
+    hoy = hora_local().date()
+    if not desde_str:
+        desde_str = (hoy - timedelta(days=365)).strftime('%Y-%m-%d')
+    if not hasta_str:
+        hasta_str = hoy.strftime('%Y-%m-%d')
+
+    try:
+        desde = datetime.strptime(desde_str, '%Y-%m-%d') + timedelta(hours=5)
+        hasta = datetime.strptime(hasta_str, '%Y-%m-%d') + timedelta(days=1, hours=5)
+    except ValueError:
+        desde = datetime.combine(hoy - timedelta(days=365), datetime.min.time()) + timedelta(hours=5)
+        hasta = datetime.combine(hoy, datetime.min.time()) + timedelta(days=1, hours=5)
+
+    # ============ TOP 10 QUE MÁS COMPRAN ============
+    top_compradores = (db.session.query(
+            Cliente.id,
+            Cliente.nombre,
+            Cliente.telefono,
+            func.count(Factura.id).label('num_facturas'),
+            func.coalesce(func.sum(Factura.total), 0).label('total_comprado'),
+        )
+        .join(Factura, Factura.cliente_id == Cliente.id)
+        .filter(
+            Factura.tienda_id == tienda_id,
+            Factura.fecha_hora >= desde,
+            Factura.fecha_hora < hasta,
+        )
+        .group_by(Cliente.id, Cliente.nombre, Cliente.telefono)
+        .order_by(func.sum(Factura.total).desc())
+        .limit(10)
+        .all()
+    )
+
+    # ============ TOP 10 MOROSOS ============
+    top_morosos = (Cliente.query
+        .filter(
+            Cliente.tienda_id == tienda_id,
+            Cliente.saldo_actual > 0.01,
+        )
+        .order_by(Cliente.saldo_actual.desc())
+        .limit(10)
+        .all()
+    )
+
+    # Para cada moroso, obtener antigüedad de la deuda más vieja
+    morosos_data = []
+    for c in top_morosos:
+        factura_mas_vieja = (Factura.query
+            .filter(
+                Factura.cliente_id == c.id,
+                Factura.estado_credito == 'pendiente',
+                Factura.saldo_pendiente > 0.01,
+            )
+            .order_by(Factura.fecha_hora.asc())
+            .first()
+        )
+        dias = 0
+        if factura_mas_vieja:
+            delta = datetime.utcnow() - factura_mas_vieja.fecha_hora
+            dias = delta.days
+
+        morosos_data.append({
+            'id': c.id,
+            'nombre': c.nombre,
+            'telefono': c.telefono or '',
+            'saldo': float(c.saldo_actual or 0),
+            'dias': dias,
+        })
+
+    # ============ TOP 10 QUE MÁS PIDEN CRÉDITO ============
+    top_credito = (db.session.query(
+            Cliente.id,
+            Cliente.nombre,
+            Cliente.telefono,
+            func.count(Factura.id).label('num_facturas'),
+            func.coalesce(func.sum(Factura.total), 0).label('total_credito'),
+        )
+        .join(Factura, Factura.cliente_id == Cliente.id)
+        .filter(
+            Factura.tienda_id == tienda_id,
+            Factura.fecha_hora >= desde,
+            Factura.fecha_hora < hasta,
+            Factura.tipo_pago == 'credito',
+        )
+        .group_by(Cliente.id, Cliente.nombre, Cliente.telefono)
+        .order_by(func.sum(Factura.total).desc())
+        .limit(10)
+        .all()
+    )
+
+    # ============ RESUMEN GENERAL ============
+    total_clientes = Cliente.query.filter_by(tienda_id=tienda_id).count()
+    clientes_con_deuda = Cliente.query.filter(
+        Cliente.tienda_id == tienda_id,
+        Cliente.saldo_actual > 0.01,
+    ).count()
+    deuda_total = db.session.query(
+        func.coalesce(func.sum(Cliente.saldo_actual), 0)
+    ).filter(Cliente.tienda_id == tienda_id).scalar() or 0
+
+    return jsonify({
+        'ok': True,
+        'resumen': {
+            'total_clientes': total_clientes,
+            'clientes_con_deuda': clientes_con_deuda,
+            'deuda_total': float(deuda_total),
+        },
+        'top_compradores': [{
+            'id': r.id,
+            'nombre': r.nombre,
+            'telefono': r.telefono or '',
+            'num_facturas': int(r.num_facturas),
+            'total_comprado': float(r.total_comprado),
+            'ticket_promedio': float(r.total_comprado) / int(r.num_facturas) if r.num_facturas > 0 else 0,
+        } for r in top_compradores],
+        'top_morosos': morosos_data,
+        'top_credito': [{
+            'id': r.id,
+            'nombre': r.nombre,
+            'telefono': r.telefono or '',
+            'num_facturas': int(r.num_facturas),
+            'total_credito': float(r.total_credito),
+        } for r in top_credito],
+    })

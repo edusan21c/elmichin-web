@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+{% block titulo %}Estadísticas de Clientes{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-people"></i> Estadísticas de Clientes
+        {% if current_user.es_programador() and tiendas|length > 1 %}
+            <small class="text-muted">- Tienda:
+                <select id="selector-tienda" class="form-select form-select-sm d-inline-block" style="width:auto;">
+                    {% for t in tiendas %}
+                        <option value="{{ t.id }}" {% if t.id == tienda_id %}selected{% endif %}>{{ t.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </small>
+        {% endif %}
+    </h1>
+</div>
+
+<!-- Filtros de fecha -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Desde</label>
+                <input type="date" id="filtro-desde" class="form-control form-control-sm" value="{{ desde }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Hasta</label>
+                <input type="date" id="filtro-hasta" class="form-control form-control-sm" value="{{ hasta }}">
+            </div>
+            <div class="col-md-3">
+                <button type="button" id="btn-aplicar" class="btn btn-primary btn-sm">
+                    <i class="bi bi-search"></i> Aplicar
+                </button>
+                <button type="button" id="btn-ano" class="btn btn-outline-secondary btn-sm">
+                    Último año
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumen KPIs -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-primary">
+            <div class="card-body">
+                <div class="text-muted small">👥 Total clientes</div>
+                <div class="fs-3 fw-bold text-primary" id="kpi-total">0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-warning">
+            <div class="card-body">
+                <div class="text-muted small">⚠️ Clientes con deuda</div>
+                <div class="fs-3 fw-bold text-warning" id="kpi-con-deuda">0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-danger">
+            <div class="card-body">
+                <div class="text-muted small">💰 Deuda total</div>
+                <div class="fs-3 fw-bold text-danger" id="kpi-deuda">$0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" id="tabs-clientes" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-compradores-btn" data-bs-toggle="tab" data-bs-target="#tab-compradores" type="button">
+            🏆 Top 10 compradores
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-morosos-btn" data-bs-toggle="tab" data-bs-target="#tab-morosos" type="button">
+            💸 Top 10 morosos
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-credito-btn" data-bs-toggle="tab" data-bs-target="#tab-credito" type="button">
+            💳 Top 10 crédito
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="tabs-content">
+    <!-- Compradores -->
+    <div class="tab-pane fade show active" id="tab-compradores">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>Cliente</th>
+                            <th>Teléfono</th>
+                            <th class="text-center">Facturas</th>
+                            <th class="text-end">Total comprado</th>
+                            <th class="text-end">Ticket prom.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbl-compradores"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Morosos -->
+    <div class="tab-pane fade" id="tab-morosos">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>Cliente</th>
+                            <th>Teléfono</th>
+                            <th class="text-end">Saldo adeudado</th>
+                            <th class="text-center">Días de deuda</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbl-morosos"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Crédito -->
+    <div class="tab-pane fade" id="tab-credito">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>Cliente</th>
+                            <th>Teléfono</th>
+                            <th class="text-center">Facturas a crédito</th>
+                            <th class="text-end">Total a crédito</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbl-credito"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    function fmt(n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); }
+
+    function cargarDatos() {
+        const desde = document.getElementById('filtro-desde').value;
+        const hasta = document.getElementById('filtro-hasta').value;
+        const tiendaId = {{ tienda_id or 0 }};
+
+        const url = `/reportes/api/clientes-stats?desde=${desde}&hasta=${hasta}&tienda=${tiendaId}`;
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ok) {
+                    alert('Error: ' + (data.error || 'desconocido'));
+                    return;
+                }
+                render(data);
+            })
+            .catch(e => alert('Error de red: ' + e.message));
+    }
+
+    function render(data) {
+        // KPIs
+        document.getElementById('kpi-total').textContent = data.resumen.total_clientes;
+        document.getElementById('kpi-con-deuda').textContent = data.resumen.clientes_con_deuda;
+        document.getElementById('kpi-deuda').textContent = fmt(data.resumen.deuda_total);
+
+        // Top compradores
+        const tbodyC = document.getElementById('tbl-compradores');
+        if (data.top_compradores.length === 0) {
+            tbodyC.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Sin datos en este período</td></tr>';
+        } else {
+            tbodyC.innerHTML = data.top_compradores.map((c, i) => {
+                const medalla = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+                return `<tr>
+                    <td class="fw-bold">${medalla}</td>
+                    <td class="fw-semibold">${c.nombre}</td>
+                    <td class="text-muted small">${c.telefono || '—'}</td>
+                    <td class="text-center">${c.num_facturas}</td>
+                    <td class="text-end fw-bold text-success">${fmt(c.total_comprado)}</td>
+                    <td class="text-end text-muted">${fmt(c.ticket_promedio)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // Top morosos
+        const tbodyM = document.getElementById('tbl-morosos');
+        if (data.top_morosos.length === 0) {
+            tbodyM.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">🎉 No hay clientes con deuda</td></tr>';
+        } else {
+            tbodyM.innerHTML = data.top_morosos.map((c, i) => {
+                let diasBadge = '';
+                if (c.dias >= 90) diasBadge = `<span class="badge bg-danger">${c.dias} días 🔴</span>`;
+                else if (c.dias >= 30) diasBadge = `<span class="badge bg-warning text-dark">${c.dias} días 🟡</span>`;
+                else diasBadge = `<span class="badge bg-success">${c.dias} días 🟢</span>`;
+
+                return `<tr>
+                    <td class="fw-bold">${i+1}</td>
+                    <td class="fw-semibold">${c.nombre}</td>
+                    <td class="text-muted small">${c.telefono || '—'}</td>
+                    <td class="text-end fw-bold text-danger">${fmt(c.saldo)}</td>
+                    <td class="text-center">${diasBadge}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // Top crédito
+        const tbodyCr = document.getElementById('tbl-credito');
+        if (data.top_credito.length === 0) {
+            tbodyCr.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Sin ventas a crédito en este período</td></tr>';
+        } else {
+            tbodyCr.innerHTML = data.top_credito.map((c, i) => {
+                return `<tr>
+                    <td class="fw-bold">${i+1}</td>
+                    <td class="fw-semibold">${c.nombre}</td>
+                    <td class="text-muted small">${c.telefono || '—'}</td>
+                    <td class="text-center">${c.num_facturas}</td>
+                    <td class="text-end fw-bold text-warning">${fmt(c.total_credito)}</td>
+                </tr>`;
+            }).join('');
+        }
+    }
+
+    document.getElementById('btn-aplicar').addEventListener('click', cargarDatos);
+
+    document.getElementById('btn-ano').addEventListener('click', function() {
+        const hoy = new Date();
+        const hace1año = new Date();
+        hace1año.setFullYear(hoy.getFullYear() - 1);
+
+        document.getElementById('filtro-desde').value = hace1año.toISOString().slice(0, 10);
+        document.getElementById('filtro-hasta').value = hoy.toISOString().slice(0, 10);
+        cargarDatos();
+    });
+
+    // Selector de tienda (solo programador)
+    const st = document.getElementById('selector-tienda');
+    if (st) {
+        st.addEventListener('change', function() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tienda', this.value);
+            window.location.href = url.toString();
+        });
+    }
+
+    // Cargar al inicio
+    cargarDatos();
+})();
+</script>
+{% endblock %}
