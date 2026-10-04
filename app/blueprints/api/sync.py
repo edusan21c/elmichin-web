@@ -103,6 +103,33 @@ def sync_pull_facturas():
     })
 
 
+# ==================== RECUPERAR FACTURA INDIVIDUAL (SIN MARCAR) ====================
+@bp.route('/sync/factura/<numero_factura>', methods=['GET'])
+@requiere_sync_key
+def sync_factura_individual(numero_factura):
+    """
+    Devuelve una factura específica SIN marcarla como enviada.
+    Útil para recuperar facturas que quedaron marcadas como 'remota_recibida'
+    por error (por ejemplo, cuando se probó el endpoint desde un navegador).
+    """
+    from app.services import sync_service
+    from app.models.factura import Factura
+
+    tienda_id = request.args.get('tienda_id', type=int)
+    if not tienda_id or tienda_id <= 0:
+        return jsonify({'ok': False, 'error': 'tienda_id requerido'}), 400
+
+    factura = Factura.query.filter_by(
+        tienda_id=tienda_id, numero_factura=numero_factura
+    ).first()
+
+    if not factura:
+        return jsonify({'ok': False, 'error': f'Factura {numero_factura} no encontrada'}), 404
+
+    data = sync_service._factura_to_dict_extendida(factura)
+    return jsonify({'ok': True, 'factura': data})
+
+
 # ==================== PING (HEALTHCHECK) ====================
 @bp.route('/sync/ping', methods=['GET'])
 def sync_ping():
