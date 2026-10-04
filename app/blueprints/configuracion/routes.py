@@ -109,6 +109,20 @@ def index():
                 return redirect(url_for('configuracion.index', tienda=tienda_post))
 
             db.session.commit()
+
+            # Auditoría
+            try:
+                from app.services.auditoria_service import registrar_auditoria
+                claves_cambiadas = [k for k, _, _ in PARAMETROS
+                                    if request.form.get(k, '').strip()]
+                registrar_auditoria(
+                    'config_actualizar',
+                    f'Tienda: {tienda_post or "global"} | Claves: {", ".join(claves_cambiadas)}',
+                    tienda_id=tienda_post,
+                )
+            except Exception as e:
+                print(f'[auditoria config] aviso: {e}')
+
             flash('Configuracion guardada correctamente.', 'success')
             return redirect(url_for('configuracion.index', tienda=tienda_post))
 

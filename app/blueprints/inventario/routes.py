@@ -24,13 +24,21 @@ def puede_editar():
     return current_user.es_admin()
 
 
+def _audit(accion, detalle, tienda_id=None):
+    try:
+        from app.services.auditoria_service import registrar_auditoria
+        registrar_auditoria(accion, detalle, tienda_id=tienda_id)
+    except Exception as e:
+        print(f'[auditoria {accion}] aviso: {e}')
+
+
 # ==================== LISTA ====================
 @bp.route('/')
 @login_required
 def lista():
     page = request.args.get('page', 1, type=int)
     busqueda = request.args.get('q', '', type=str).strip()
-    filtro_stock = request.args.get('filtro', '', type=str).strip()  # '', 'sin_stock', 'bajo'
+    filtro_stock = request.args.get('filtro', '', type=str).strip()
     tienda_id = tienda_actual()
     per_page = 20
 
@@ -46,9 +54,7 @@ def lista():
 
     query = query.order_by(Producto.nombre)
 
-    # Si hay filtro de stock, no paginamos del lado del servidor (limitamos)
     if filtro_stock and tienda_id:
-        # Necesitamos filtrar por stock, hacer JOIN
         sub = db.session.query(ProductoTienda.producto_id).filter(
             ProductoTienda.tienda_id == tienda_id
         )
@@ -76,7 +82,6 @@ def lista():
 
     tiendas = Tienda.query.filter_by(activa=True).all()
 
-    # Contadores para los filtros
     contadores = {'total': 0, 'sin_stock': 0, 'bajo': 0}
     if tienda_id:
         contadores['total'] = ProductoTienda.query.filter_by(tienda_id=tienda_id).count()
@@ -139,6 +144,12 @@ def nuevo():
             db.session.add(pres)
 
         db.session.commit()
+
+        _audit(
+            'producto_crear',
+            f'{producto.nombre} (ID {producto.id}) | Precio venta: ${float(form.precio_venta.data or 0):,.0f}'
+        )
+
         flash(f'Producto "{producto.nombre}" creado correctamente.', 'success')
         return redirect(url_for('inventario.lista'))
 
@@ -172,6 +183,10 @@ def editar(producto_id):
             flash('Ya existe otro producto con ese nombre.', 'danger')
             return render_template('inventario/form.html', form=form, producto=producto)
 
+        viejo_nombre = producto.nombre
+        viejo_precio = float(pres.precio_venta or 0)
+        viejo_prov = float(pres.precio_proveedor or 0)
+
         producto.nombre = form.nombre.data.strip()
         producto.codigo_barras = form.codigo_barras.data.strip() if form.codigo_barras.data else None
         producto.categoria = form.categoria.data or None
@@ -189,6 +204,25 @@ def editar(producto_id):
         pres.precio_venta3 = form.precio_venta3.data or 0
 
         db.session.commit()
+
+        cambios = []
+        if viejo_nombre != producto.nombre:
+            cambios.append(f'nombre: "{viejo_nombre}" -> "{producto.nombre}"')
+        nuevo_precio = float(pres.precio_venta or 0)
+        if viejo_precio != nuevo_precio:
+            cambios.append(f'precio: ${viejo_precio:,.0f} -> ${nuevo_precio:,.0f}')
+        nuevo_prov = float(pres.precio_proveedor or 0)
+        if viejo_prov != nuevo_prov:
+            cambios.append(f'costo: ${viejo_prov:,.0f} -> ${nuevo_prov:,.0f}')
+
+        detalle = f'{producto.nombre} (ID {producto.id}, tienda {tienda_id})'
+        if cambios:
+            detalle += ' | ' + ' | '.join(cambios)
+        else:
+            detalle += ' (sin cambios significativos)'
+
+        _audit('producto_editar', detalle, tienda_id=tienda_id)
+
         flash(f'Producto "{producto.nombre}" actualizado.', 'success')
         return redirect(url_for('inventario.lista'))
 
@@ -215,13 +249,17 @@ def editar(producto_id):
 def eliminar(producto_id):
     producto = Producto.query.get_or_404(producto_id)
     nombre = producto.nombre
+    pid = producto.id
     db.session.delete(producto)
     db.session.commit()
+
+    _audit('producto_eliminar', f'{nombre} (ID {pid})')
+
     flash(f'Producto "{nombre}" eliminado.', 'success')
     return redirect(url_for('inventario.lista'))
 
 
-# ==================== ACTUALIZAR STOCK INDIVIDUAL ====================
+# ==================== ACTUALIZAR STOCK ====================
 @bp.route('/<int:producto_id>/stock', methods=['POST'])
 @login_required
 @admin_requerido
@@ -242,13 +280,21 @@ def actualizar_stock(producto_id):
         pres = ProductoTienda(producto_id=producto_id, tienda_id=tienda_id, cantidad=0)
         db.session.add(pres)
 
+    cantidad_vieja = pres.cantidad
     pres.cantidad = cantidad
     db.session.commit()
+
+    _audit(
+        'producto_stock',
+        f'{producto.nombre} (ID {producto.id}, tienda {tienda_id}) | Stock: {cantidad_vieja} -> {cantidad}',
+        tienda_id=tienda_id,
+    )
+
     flash(f'Stock de "{producto.nombre}" actualizado a {cantidad}.', 'success')
     return redirect(url_for('inventario.lista'))
 
 
-# ==================== STOCK MASIVO (LISTA PARA EDITAR MUCHOS) ====================
+# ==================== STOCK MASIVO ====================
 @bp.route('/stock-masivo', methods=['GET', 'POST'])
 @login_required
 @admin_requerido
@@ -260,6 +306,7 @@ def stock_masivo():
 
     if request.method == 'POST':
         cambios = 0
+        cambios_detalle = []
         for key, value in request.form.items():
             if key.startswith('stock_'):
                 try:
@@ -271,22 +318,35 @@ def stock_masivo():
                         producto_id=producto_id, tienda_id=tienda_id
                     ).first()
                     if pres and pres.cantidad != nueva_cant:
+                        producto = Producto.query.get(producto_id)
+                        if producto:
+                            cambios_detalle.append(
+                                f'{producto.nombre}: {pres.cantidad} -> {nueva_cant}'
+                            )
                         pres.cantidad = nueva_cant
                         cambios += 1
                 except (ValueError, TypeError):
                     continue
         db.session.commit()
+
+        if cambios > 0:
+            _audit(
+                'producto_stock_masivo',
+                f'{cambios} productos actualizados en tienda {tienda_id} | ' +
+                '; '.join(cambios_detalle[:10]) +
+                (f' ... (+{len(cambios_detalle)-10} más)' if len(cambios_detalle) > 10 else ''),
+                tienda_id=tienda_id,
+            )
+
         flash(f'{cambios} productos actualizados.', 'success')
         return redirect(url_for('inventario.stock_masivo',
                                 q=request.args.get('q', ''),
                                 filtro=request.args.get('filtro', '')))
 
-    # GET: mostrar lista
     busqueda = request.args.get('q', '', type=str).strip()
-    filtro = request.args.get('filtro', '', type=str).strip()  # '', 'sin_stock', 'bajo'
+    filtro = request.args.get('filtro', '', type=str).strip()
     page = request.args.get('page', 1, type=int)
 
-    # Query con JOIN para traer producto + presentación
     q = db.session.query(Producto, ProductoTienda).join(
         ProductoTienda, Producto.id == ProductoTienda.producto_id
     ).filter(ProductoTienda.tienda_id == tienda_id)
@@ -317,7 +377,7 @@ def stock_masivo():
     )
 
 
-# ==================== API: BÚSQUEDA RÁPIDA (AJAX) ====================
+# ==================== API: BÚSQUEDA RÁPIDA ====================
 @bp.route('/api/buscar')
 @login_required
 def api_buscar():

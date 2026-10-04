@@ -9,6 +9,14 @@ from app.utils.seguridad import hash_password
 from app.utils.decorators import programador_requerido
 
 
+def _audit(accion, detalle, tienda_id=None):
+    try:
+        from app.services.auditoria_service import registrar_auditoria
+        registrar_auditoria(accion, detalle, tienda_id=tienda_id)
+    except Exception as e:
+        print(f'[auditoria {accion}] aviso: {e}')
+
+
 @bp.route('/usuarios')
 @login_required
 @programador_requerido
@@ -35,7 +43,6 @@ def nuevo_usuario():
         rol = request.form.get('rol', 'operario')
         tienda_id = request.form.get('tienda_id', type=int)
 
-        # Validaciones
         if not nombre or not username or not password:
             flash('Nombre, usuario y contraseña son obligatorios.', 'danger')
             return redirect(url_for('admin.nuevo_usuario'))
@@ -49,11 +56,9 @@ def nuevo_usuario():
             flash(f'El usuario "{username}" ya existe.', 'danger')
             return redirect(url_for('admin.nuevo_usuario'))
 
-        # Si es programador, no tiene tienda
         if rol == 'programador':
             tienda_id = None
 
-        # Crear usuario
         nuevo = Usuario(
             nombre=nombre,
             username=username,
@@ -64,6 +69,12 @@ def nuevo_usuario():
         )
         db.session.add(nuevo)
         db.session.commit()
+
+        _audit(
+            'usuario_crear',
+            f'{username} | Nombre: {nombre} | Rol: {rol} | Tienda: {tienda_id or "N/A"}',
+            tienda_id=tienda_id,
+        )
 
         flash(f'Usuario "{username}" creado correctamente.', 'success')
         return redirect(url_for('admin.lista_usuarios'))
@@ -95,7 +106,6 @@ def editar_usuario(uid):
             flash('Rol inválido.', 'danger')
             return redirect(url_for('admin.editar_usuario', uid=uid))
 
-        # Verificar username único
         existente = Usuario.query.filter(
             Usuario.username == username,
             Usuario.id != uid
@@ -104,7 +114,6 @@ def editar_usuario(uid):
             flash(f'El usuario "{username}" ya está en uso.', 'danger')
             return redirect(url_for('admin.editar_usuario', uid=uid))
 
-        # No permitir que el programador se desactive o cambie su rol
         if usuario.id == current_user.id:
             if not activo:
                 flash('No puedes desactivar tu propio usuario.', 'danger')
@@ -113,7 +122,12 @@ def editar_usuario(uid):
                 flash('No puedes cambiar tu propio rol.', 'danger')
                 return redirect(url_for('admin.editar_usuario', uid=uid))
 
-        # Actualizar
+        viejo_username = usuario.username
+        viejo_rol = usuario.rol
+        viejo_activo = usuario.activo
+        viejo_tienda = usuario.tienda_id
+        cambio_password = bool(password)
+
         usuario.nombre = nombre
         usuario.username = username
         usuario.rol = rol
@@ -124,6 +138,27 @@ def editar_usuario(uid):
             usuario.password_hash = hash_password(password)
 
         db.session.commit()
+
+        cambios = []
+        if viejo_username != username:
+            cambios.append(f'username: "{viejo_username}" -> "{username}"')
+        if viejo_rol != rol:
+            cambios.append(f'rol: {viejo_rol} -> {rol}')
+        if viejo_activo != activo:
+            cambios.append(f'activo: {viejo_activo} -> {activo}')
+        if viejo_tienda != usuario.tienda_id:
+            cambios.append(f'tienda: {viejo_tienda or "N/A"} -> {usuario.tienda_id or "N/A"}')
+        if cambio_password:
+            cambios.append('contraseña cambiada')
+
+        detalle = f'{username} (ID {uid})'
+        if cambios:
+            detalle += ' | ' + ' | '.join(cambios)
+        else:
+            detalle += ' (sin cambios)'
+
+        _audit('usuario_editar', detalle)
+
         flash(f'Usuario "{username}" actualizado.', 'success')
         return redirect(url_for('admin.lista_usuarios'))
 
@@ -142,8 +177,17 @@ def eliminar_usuario(uid):
         return redirect(url_for('admin.lista_usuarios'))
 
     nombre = usuario.username
+    nombre_completo = usuario.nombre
+    rol_viejo = usuario.rol
+
     db.session.delete(usuario)
     db.session.commit()
+
+    _audit(
+        'usuario_eliminar',
+        f'{nombre} | Nombre: {nombre_completo} | Rol: {rol_viejo}'
+    )
+
     flash(f'Usuario "{nombre}" eliminado.', 'success')
     return redirect(url_for('admin.lista_usuarios'))
 
@@ -160,5 +204,8 @@ def reset_password(uid):
 
     usuario.password_hash = hash_password(nueva)
     db.session.commit()
+
+    _audit('usuario_reset_password', f'Contraseña de {usuario.username} cambiada')
+
     flash(f'Contraseña de "{usuario.username}" cambiada.', 'success')
     return redirect(url_for('admin.lista_usuarios'))
