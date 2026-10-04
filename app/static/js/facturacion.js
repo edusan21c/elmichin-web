@@ -3,7 +3,60 @@
     'use strict';
 
     const CFG = window.FACTURACION_CONFIG || {};
-    const carrito = [];
+    const MAX_PESTANAS = 6;
+    const STORAGE_KEY = 'michin_facturacion_pestanas';
+    const LETRAS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+    // ==================== ESTADO ====================
+    let estado = {
+        pestanas: [crearPestanaVacia('A')],
+        activa: 0
+    };
+
+    function crearPestanaVacia(id) {
+        return {
+            id: id,
+            carrito: [],
+            cliente: { nombre: '', documento: '', telefono: '', direccion: '' },
+            metodoPago: 'efectivo',
+            bolsas: 0,
+            valorPagado: 0,
+        };
+    }
+
+    function pestanaActual() {
+        return estado.pestanas[estado.activa];
+    }
+
+    function contarItems(p) {
+        return p.carrito.reduce((s, it) => s + it.cantidad, 0);
+    }
+
+    // ==================== PERSISTENCIA ====================
+    function guardarEstado() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+        } catch (e) {
+            console.warn('No se pudo guardar en localStorage:', e);
+        }
+    }
+
+    function cargarEstado() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (data && Array.isArray(data.pestanas) && data.pestanas.length > 0) {
+                estado = data;
+                // Sanity check
+                if (estado.activa >= estado.pestanas.length) {
+                    estado.activa = 0;
+                }
+            }
+        } catch (e) {
+            console.warn('No se pudo cargar de localStorage:', e);
+        }
+    }
 
     // ==================== HELPERS ====================
     function fmt(n) {
@@ -13,9 +66,146 @@
     function $(sel) { return document.querySelector(sel); }
     function $$(sel) { return document.querySelectorAll(sel); }
 
+    // ==================== PESTAÑAS (UI) ====================
+    function renderPestanas() {
+        const container = $('#pestanas-tabs');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        estado.pestanas.forEach((p, idx) => {
+            const items = contarItems(p);
+            const activa = idx === estado.activa;
+            const tieneItems = items > 0;
+
+            const li = document.createElement('li');
+            li.className = 'nav-item';
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'nav-link d-flex align-items-center gap-2' + (activa ? ' active' : '');
+            btn.setAttribute('data-idx', idx);
+
+            // Contenido: letra + punto azul si tiene items
+            let contenidoHTML = `<span class="fw-bold">${p.id}</span>`;
+            if (tieneItems) {
+                contenidoHTML += `<span class="badge bg-primary rounded-pill">${items}</span>`;
+            }
+            // Botón de cerrar (solo si hay más de 1 pestaña)
+            if (estado.pestanas.length > 1) {
+                contenidoHTML += `<span class="pestana-cerrar ms-1" data-cerrar="${idx}" title="Cerrar pestaña">×</span>`;
+            }
+            btn.innerHTML = contenidoHTML;
+
+            btn.addEventListener('click', function(e) {
+                // Si clickearon la X, no cambiar de pestaña
+                if (e.target.dataset.cerrar !== undefined) return;
+                cambiarPestana(idx);
+            });
+
+            li.appendChild(btn);
+            container.appendChild(li);
+        });
+
+        // Botón [+] si no llegamos al máximo
+        if (estado.pestanas.length < MAX_PESTANAS) {
+            const li = document.createElement('li');
+            li.className = 'nav-item';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'nav-link text-success fw-bold';
+            btn.innerHTML = '+';
+            btn.title = 'Nueva pestaña';
+            btn.addEventListener('click', crearPestana);
+            li.appendChild(btn);
+            container.appendChild(li);
+        }
+
+        // Listeners para las X
+        container.querySelectorAll('[data-cerrar]').forEach(el => {
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const idx = parseInt(this.dataset.cerrar);
+                cerrarPestana(idx);
+            });
+        });
+    }
+
+    function cambiarPestana(idx) {
+        if (idx === estado.activa) return;
+        estado.activa = idx;
+        guardarEstado();
+        renderPestanas();
+        cargarPestanaEnUI();
+    }
+
+    function crearPestana() {
+        if (estado.pestanas.length >= MAX_PESTANAS) return;
+
+        // Buscar la primera letra libre
+        const usadas = new Set(estado.pestanas.map(p => p.id));
+        const letraLibre = LETRAS.find(l => !usadas.has(l));
+        if (!letraLibre) return;
+
+        const nueva = crearPestanaVacia(letraLibre);
+        estado.pestanas.push(nueva);
+        estado.activa = estado.pestanas.length - 1;
+        guardarEstado();
+        renderPestanas();
+        cargarPestanaEnUI();
+        inputBuscar.focus();
+    }
+
+    function cerrarPestana(idx) {
+        if (estado.pestanas.length <= 1) return;
+
+        const p = estado.pestanas[idx];
+        const items = contarItems(p);
+
+        if (items > 0) {
+            const ok = confirm(
+                `La pestaña "${p.id}" tiene ${items} producto(s).\n` +
+                `¿Seguro que quieres cerrarla? Se perderán los datos.`
+            );
+            if (!ok) return;
+        }
+
+        estado.pestanas.splice(idx, 1);
+
+        // Ajustar índice activo
+        if (estado.activa >= estado.pestanas.length) {
+            estado.activa = estado.pestanas.length - 1;
+        } else if (estado.activa > idx) {
+            estado.activa--;
+        }
+
+        guardarEstado();
+        renderPestanas();
+        cargarPestanaEnUI();
+    }
+
+    // ==================== CARGAR PESTAÑA EN UI ====================
+    function cargarPestanaEnUI() {
+        const p = pestanaActual();
+
+        // Cliente
+        $('#cliente-nombre').value = p.cliente.nombre || '';
+        $('#cliente-documento').value = p.cliente.documento || '';
+        $('#cliente-telefono').value = p.cliente.telefono || '';
+        $('#cliente-direccion').value = p.cliente.direccion || '';
+        $('#cliente-info').textContent = '';
+
+        // Pago
+        $('#metodo-pago').value = p.metodoPago || 'efectivo';
+        $('#bolsas').value = p.bolsas || 0;
+        $('#valor-pagado').value = p.valorPagado || 0;
+
+        // Carrito
+        renderCarrito();
+    }
+
     // ==================== CALCULO DE PRECIO ====================
     function calcularPrecioProducto(prod, cantidad) {
-        // Aplicar condiciones por cantidad
         const cant = parseInt(cantidad);
         const c3 = prod.condicion3 ? parseInt(prod.condicion3) : null;
         const c2 = prod.condicion2 ? parseInt(prod.condicion2) : null;
@@ -45,13 +235,8 @@
     inputBuscar.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            // Si hay un solo resultado, agregarlo
             const items = resultados.querySelectorAll('.list-group-item');
-            if (items.length === 1) {
-                items[0].click();
-            } else if (items.length > 0) {
-                items[0].click();
-            }
+            if (items.length > 0) items[0].click();
         }
     });
 
@@ -94,14 +279,13 @@
         });
     }
 
-    // ==================== CARRITO ====================
+    // ==================== CARRITO (SOBRE PESTAÑA ACTIVA) ====================
     function agregarAlCarrito(prod) {
         if (prod.stock <= 0) {
             alert('Producto sin stock');
             return;
         }
 
-        // Pedir cantidad
         const cantStr = prompt(`¿Cuántas unidades de "${prod.nombre}"?\n(Máximo disponible: ${prod.stock})`, '1');
         if (cantStr === null) return;
 
@@ -115,8 +299,9 @@
             return;
         }
 
-        // Verificar si ya existe
-        const existente = carrito.find(it => it.producto_id === prod.id);
+        const p = pestanaActual();
+        const existente = p.carrito.find(it => it.producto_id === prod.id);
+
         if (existente) {
             const nuevaCant = existente.cantidad + cantidad;
             if (nuevaCant > prod.stock) {
@@ -127,7 +312,7 @@
             existente.precio_unitario = calcularPrecioProducto(prod, nuevaCant);
             existente.subtotal = existente.precio_unitario * nuevaCant;
         } else {
-            carrito.push({
+            p.carrito.push({
                 producto_id: prod.id,
                 nombre: prod.nombre,
                 cantidad: cantidad,
@@ -143,10 +328,15 @@
         resultados.innerHTML = '';
         inputBuscar.focus();
 
+        guardarEstado();
+        renderPestanas();
         renderCarrito();
     }
 
     function renderCarrito() {
+        const p = pestanaActual();
+        const carrito = p.carrito;
+
         const body = $('#carrito-body');
         const tabla = $('#carrito-tabla');
         const vacio = $('#carrito-vacio');
@@ -168,7 +358,7 @@
                         <div class="fw-semibold small">${item.nombre}</div>
                     </td>
                     <td class="text-center">
-                        <input type="number" class="form-control form-control-sm text-center" 
+                        <input type="number" class="form-control form-control-sm text-center"
                                value="${item.cantidad}" min="1" max="${item.stock_max}"
                                data-idx="${idx}" data-accion="cantidad" style="width: 65px;">
                     </td>
@@ -183,7 +373,6 @@
                 body.appendChild(tr);
             });
 
-            // Listeners
             body.querySelectorAll('input[data-accion="cantidad"]').forEach(inp => {
                 inp.addEventListener('change', function() {
                     const idx = parseInt(this.dataset.idx);
@@ -197,6 +386,8 @@
                     item.cantidad = cant;
                     item.precio_unitario = calcularPrecioProducto(item.prod_data, cant);
                     item.subtotal = item.precio_unitario * cant;
+                    guardarEstado();
+                    renderPestanas();
                     renderCarrito();
                 });
             });
@@ -205,6 +396,8 @@
                 btn.addEventListener('click', function() {
                     const idx = parseInt(this.dataset.idx);
                     carrito.splice(idx, 1);
+                    guardarEstado();
+                    renderPestanas();
                     renderCarrito();
                 });
             });
@@ -215,9 +408,12 @@
 
     // ==================== TOTALES ====================
     function renderTotales() {
+        const p = pestanaActual();
+        const carrito = p.carrito;
+
         const subtotal = carrito.reduce((s, it) => s + it.subtotal, 0);
-        const metodo = $('#metodo-pago').value;
-        const bolsas = parseInt($('#bolsas').value) || 0;
+        const metodo = p.metodoPago || 'efectivo';
+        const bolsas = parseInt(p.bolsas) || 0;
         const totalBolsas = bolsas * CFG.valorBolsa;
 
         let recargo = 0;
@@ -247,7 +443,7 @@
             $('#card-pago').classList.remove('d-none');
             $('#alerta-credito').classList.add('d-none');
 
-            const pagado = parseFloat($('#valor-pagado').value) || 0;
+            const pagado = parseFloat(p.valorPagado) || 0;
             const vueltas = pagado - total;
             if (pagado > 0) {
                 if (vueltas >= 0) {
@@ -261,28 +457,63 @@
         }
     }
 
-    // ==================== EVENTOS TOTALLES ====================
-    $('#metodo-pago').addEventListener('change', renderTotales);
-    $('#bolsas').addEventListener('input', renderTotales);
-    $('#valor-pagado').addEventListener('input', renderTotales);
+    // ==================== EVENTOS UI ====================
+    $('#metodo-pago').addEventListener('change', function() {
+        pestanaActual().metodoPago = this.value;
+        guardarEstado();
+        renderTotales();
+    });
+
+    $('#bolsas').addEventListener('input', function() {
+        pestanaActual().bolsas = parseInt(this.value) || 0;
+        guardarEstado();
+        renderTotales();
+    });
+
+    $('#valor-pagado').addEventListener('input', function() {
+        pestanaActual().valorPagado = parseFloat(this.value) || 0;
+        guardarEstado();
+        renderTotales();
+    });
+
+    // Cliente
+    $('#cliente-nombre').addEventListener('input', function() {
+        pestanaActual().cliente.nombre = this.value;
+        guardarEstado();
+    });
+    $('#cliente-documento').addEventListener('input', function() {
+        pestanaActual().cliente.documento = this.value;
+        guardarEstado();
+    });
+    $('#cliente-telefono').addEventListener('input', function() {
+        pestanaActual().cliente.telefono = this.value;
+        guardarEstado();
+    });
+    $('#cliente-direccion').addEventListener('input', function() {
+        pestanaActual().cliente.direccion = this.value;
+        guardarEstado();
+    });
 
     // ==================== FINALIZAR ====================
     $('#btn-finalizar').addEventListener('click', async function() {
+        const p = pestanaActual();
+        const carrito = p.carrito;
+
         if (carrito.length === 0) {
             alert('El carrito está vacío');
             return;
         }
 
-        const nombre = $('#cliente-nombre').value.trim();
+        const nombre = p.cliente.nombre.trim();
         if (!nombre) {
             alert('Ingresa el nombre del cliente');
             $('#cliente-nombre').focus();
             return;
         }
 
-        const metodo = $('#metodo-pago').value;
-        const bolsas = parseInt($('#bolsas').value) || 0;
-        const valorPagado = parseFloat($('#valor-pagado').value) || 0;
+        const metodo = p.metodoPago || 'efectivo';
+        const bolsas = parseInt(p.bolsas) || 0;
+        const valorPagado = parseFloat(p.valorPagado) || 0;
 
         const subtotal = carrito.reduce((s, it) => s + it.subtotal, 0);
         let recargo = 0;
@@ -302,9 +533,9 @@
         const payload = {
             cliente: {
                 nombre: nombre,
-                documento: $('#cliente-documento').value.trim(),
-                telefono: $('#cliente-telefono').value.trim(),
-                direccion: $('#cliente-direccion').value.trim(),
+                documento: p.cliente.documento.trim(),
+                telefono: p.cliente.telefono.trim(),
+                direccion: p.cliente.direccion.trim(),
             },
             carrito: carrito.map(it => ({
                 producto_id: it.producto_id,
@@ -333,6 +564,14 @@
             const data = await r.json();
 
             if (data.ok) {
+                // Limpiar SOLO esta pestaña
+                p.carrito = [];
+                p.cliente = { nombre: '', documento: '', telefono: '', direccion: '' };
+                p.metodoPago = 'efectivo';
+                p.bolsas = 0;
+                p.valorPagado = 0;
+                guardarEstado();
+
                 window.location.href = data.redirect;
             } else {
                 alert('Error: ' + (data.error || 'Desconocido'));
@@ -348,16 +587,17 @@
 
     // ==================== LIMPIAR ====================
     $('#btn-limpiar').addEventListener('click', function() {
-        if (!confirm('¿Limpiar toda la venta?')) return;
-        carrito.length = 0;
-        renderCarrito();
-        $('#cliente-nombre').value = '';
-        $('#cliente-documento').value = '';
-        $('#cliente-telefono').value = '';
-        $('#cliente-direccion').value = '';
-        $('#valor-pagado').value = '0';
-        $('#bolsas').value = '0';
-        $('#cliente-info').textContent = '';
+        const p = pestanaActual();
+        if (p.carrito.length > 0 && !confirm('¿Limpiar la venta de esta pestaña?')) return;
+
+        p.carrito = [];
+        p.cliente = { nombre: '', documento: '', telefono: '', direccion: '' };
+        p.metodoPago = 'efectivo';
+        p.bolsas = 0;
+        p.valorPagado = 0;
+        guardarEstado();
+        renderPestanas();
+        cargarPestanaEnUI();
         inputBuscar.focus();
     });
 
@@ -390,14 +630,20 @@
     const selectorTienda = $('#selector-tienda');
     if (selectorTienda) {
         selectorTienda.addEventListener('change', function() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('tienda', this.value);
-            window.location.href = url.toString();
+            // Ojo: si cambia la tienda, hay que limpiar pestañas porque los datos son de otra tienda
+            if (confirm('Cambiar de tienda cerrará las pestañas actuales. ¿Continuar?')) {
+                localStorage.removeItem(STORAGE_KEY);
+                const url = new URL(window.location.href);
+                url.searchParams.set('tienda', this.value);
+                window.location.href = url.toString();
+            }
         });
     }
 
     // ==================== INIT ====================
+    cargarEstado();
+    renderPestanas();
+    cargarPestanaEnUI();
     inputBuscar.focus();
-    renderCarrito();
 
 })();

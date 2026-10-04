@@ -17,6 +17,20 @@
     </h1>
 </div>
 
+<!-- ============ BARRA DE PESTAÑAS ============ -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <small class="text-muted me-2">
+                <i class="bi bi-bookmark"></i> Facturas en curso:
+            </small>
+            <ul class="nav nav-pills" id="pestanas-tabs">
+                <!-- Se llena con JS -->
+            </ul>
+        </div>
+    </div>
+</div>
+
 <div class="row g-3">
     <!-- ============ COLUMNA IZQUIERDA: BUSQUEDA ============ -->
     <div class="col-lg-5">
@@ -101,7 +115,7 @@
             <div class="card-body">
                 <div class="row g-2 align-items-center mb-2">
                     <div class="col-md-6">
-                        <label class="form-label small mb-0">Subtotal</div>
+                        <label class="form-label small mb-0">Subtotal</label>
                     </div>
                     <div class="col-md-6 text-end">
                         <span id="lbl-subtotal" class="fs-5">$0</span>
@@ -182,7 +196,7 @@
                 <i class="bi bi-check-circle"></i> FINALIZAR VENTA
             </button>
             <button type="button" id="btn-limpiar" class="btn btn-outline-danger">
-                <i class="bi bi-x-circle"></i> Limpiar todo
+                <i class="bi bi-x-circle"></i> Limpiar esta pestaña
             </button>
         </div>
     </div>
