@@ -16,7 +16,7 @@ def hora_local():
     return datetime.utcnow() - timedelta(hours=5)
 
 
-# ==================== PUSH (TIENDA → CENTRAL) ====================
+# ==================== PUSH (TIENDA -> CENTRAL) ====================
 def obtener_pendientes_push(tienda_id):
     """Devuelve todos los registros pendientes de subir al central."""
     facturas_pend = (Factura.query
@@ -142,9 +142,9 @@ def marcar_sincronizados(tienda_id, resultado):
     db.session.commit()
 
 
-# ==================== PULL (CENTRAL → TIENDA) ====================
+# ==================== PULL (CENTRAL -> TIENDA) ====================
 def obtener_cambios_pull(tienda_id, desde=None):
-    """Devuelve los productos de UNA tienda específica que tienen cambios
+    """Devuelve los productos de UNA tienda especifica que tienen cambios
     pendientes de enviar (fue editado el precio, stock o condiciones)."""
     if not tienda_id:
         return {'productos': [], 'timestamp': datetime.utcnow().isoformat()}
@@ -178,6 +178,25 @@ def obtener_cambios_pull(tienda_id, desde=None):
     return resultado
 
 
+def marcar_productos_enviados(tienda_id, ids_productos):
+    """NUEVO v2.12: Marca productos de una tienda como 'sincronizado' despues
+    de servirlos por /sync/pull. Evita que se repitan indefinidamente en cada
+    ciclo del worker (bug v2.11: los mismos productos bajaban cada 2 min)."""
+    if not ids_productos or not tienda_id:
+        return 0
+
+    n = (ProductoTienda.query
+         .filter(ProductoTienda.tienda_id == tienda_id,
+                 ProductoTienda.producto_id.in_(ids_productos),
+                 ProductoTienda.sync_estado == 'pendiente')
+         .update({
+             'sync_estado': 'sincronizado',
+             'sync_fecha': datetime.utcnow(),
+         }, synchronize_session=False))
+    db.session.commit()
+    return n
+
+
 def aplicar_cambios_pull(datos):
     """Aplica los cambios recibidos del central.
     IMPORTANTE: prioriza match por codigo_barras (unico y confiable)
@@ -197,7 +216,7 @@ def aplicar_cambios_pull(datos):
         # ============ 1. BUSCAR PRODUCTO GLOBAL (PRIORIDAD: CODIGO) ============
         producto = None
 
-        # 1a. Por código de barras (lo más confiable)
+        # 1a. Por codigo de barras (lo mas confiable)
         if codigo:
             producto = Producto.query.filter_by(codigo_barras=codigo).first()
 
@@ -205,7 +224,7 @@ def aplicar_cambios_pull(datos):
         if not producto and nombre:
             producto = Producto.query.filter_by(nombre=nombre).first()
 
-        # 1c. Por ID (último recurso, puede estar desalineado)
+        # 1c. Por ID (ultimo recurso, puede estar desalineado)
         if not producto and producto_id:
             producto = Producto.query.get(producto_id)
 
@@ -492,7 +511,7 @@ def procesar_push(tienda_id, datos):
             if not t_id:
                 continue
 
-            # Buscar producto por codigo → nombre → id
+            # Buscar producto por codigo -> nombre -> id
             producto = None
             if codigo:
                 producto = Producto.query.filter_by(codigo_barras=codigo).first()
@@ -541,7 +560,7 @@ def procesar_push(tienda_id, datos):
     }
 
 
-# ==================== PULL FACTURAS (CENTRAL → TIENDA) ====================
+# ==================== PULL FACTURAS (CENTRAL -> TIENDA) ====================
 def obtener_facturas_para_tienda(tienda_id, desde=None):
     """Devuelve SOLO las facturas remotas pendientes para esa tienda."""
     query = Factura.query.filter(
@@ -607,7 +626,7 @@ def obtener_facturas_para_tienda(tienda_id, desde=None):
 
 
 def marcar_facturas_enviadas(ids):
-    """Marca facturas remotas como ya enviadas (evita reenvíos)."""
+    """Marca facturas remotas como ya enviadas (evita reenvios)."""
     if not ids:
         return 0
 
@@ -773,7 +792,7 @@ def _factura_to_dict_extendida(f):
     }
 
 
-# ==================== PUSH INMEDIATO (TIENDA → CENTRAL) ====================
+# ==================== PUSH INMEDIATO (TIENDA -> CENTRAL) ====================
 def push_factura_individual(tienda_id, factura_id):
     """Empuja UNA factura (y su cliente) al central inmediatamente."""
     import requests
@@ -816,8 +835,8 @@ def push_factura_individual(tienda_id, factura_id):
 # ==================== DETECTAR FACTURAS FANTASMA ====================
 def detectar_facturas_faltantes(tienda_id):
     """
-    Consulta al central qué facturas marcadas como 'sincronizado' en tienda
-    NO existen allá (fantasmas). Las re-marca como 'pendiente'.
+    Consulta al central que facturas marcadas como 'sincronizado' en tienda
+    NO existen alla (fantasmas). Las re-marca como 'pendiente'.
     Retorna cantidad de facturas re-marcadas.
     """
     import requests

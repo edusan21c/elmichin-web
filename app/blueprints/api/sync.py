@@ -59,7 +59,9 @@ def sync_push():
 @bp.route('/sync/pull', methods=['GET'])
 @requiere_sync_key
 def sync_pull():
-    """Devuelve cambios (productos, precios, stock) para una tienda específica."""
+    """Devuelve cambios (productos, precios, stock) para una tienda especifica.
+    NUEVO v2.12: marca los productos servidos como 'sincronizado' para no
+    repetirlos en cada ciclo del worker."""
     from app.services import sync_service
 
     tienda_id = request.args.get('tienda_id', type=int)
@@ -69,6 +71,12 @@ def sync_pull():
         return jsonify({'ok': False, 'error': 'tienda_id requerido', 'productos': []}), 400
 
     datos = sync_service.obtener_cambios_pull(tienda_id, desde)
+
+    # NUEVO v2.12: marcar los productos servidos para no repetirlos indefinidamente
+    ids = [p['producto_id'] for p in datos.get('productos', [])]
+    if ids:
+        sync_service.marcar_productos_enviados(tienda_id, ids)
+
     return jsonify(datos)
 
 
@@ -77,8 +85,8 @@ def sync_pull():
 @requiere_sync_key
 def sync_pull_facturas():
     """
-    Devuelve facturas remotas (dueño->tienda) pendientes de enviar.
-    Después de servirlas, las marca como 'remota_recibida' para no reenviarlas.
+    Devuelve facturas remotas (dueno->tienda) pendientes de enviar.
+    Despues de servirlas, las marca como 'remota_recibida' para no reenviarlas.
     """
     from app.services import sync_service
 
@@ -92,7 +100,7 @@ def sync_pull_facturas():
         # 1. Obtener las facturas remotas pendientes
         facturas = sync_service.obtener_facturas_para_tienda(tienda_id, desde)
 
-        # 2. Marcar como enviadas para no reenviarlas en el próximo ciclo
+        # 2. Marcar como enviadas para no reenviarlas en el proximo ciclo
         ids = [f['id'] for f in facturas]
         enviadas = sync_service.marcar_facturas_enviadas(ids)
     except Exception as e:
@@ -115,9 +123,9 @@ def sync_pull_facturas():
 @requiere_sync_key
 def sync_factura_individual(numero_factura):
     """
-    Devuelve una factura específica SIN marcarla como enviada.
-    Útil para recuperar facturas que quedaron marcadas como 'remota_recibida'
-    por error (por ejemplo, cuando se probó el endpoint desde un navegador).
+    Devuelve una factura especifica SIN marcarla como enviada.
+    Util para recuperar facturas que quedaron marcadas como 'remota_recibida'
+    por error (por ejemplo, cuando se probo el endpoint desde un navegador).
     """
     from app.services import sync_service
     from app.models.factura import Factura
@@ -148,12 +156,11 @@ def sync_ping():
     })
 
 
-
 # ==================== VERIFICAR FACTURAS FANTASMA ====================
 @bp.route('/sync/facturas-existen', methods=['POST'])
 @requiere_sync_key
 def sync_facturas_existen():
-    """Recibe lista de números de factura y devuelve cuáles existen en central."""
+    """Recibe lista de numeros de factura y devuelve cuales existen en central."""
     from app.models.factura import Factura
 
     data = request.get_json(silent=True) or {}
