@@ -180,7 +180,8 @@ def obtener_cambios_pull(tienda_id, desde=None):
 
 def aplicar_cambios_pull(datos):
     """Aplica los cambios recibidos del central.
-    Actualiza precios Y stock. Marca sincronizado para no reenviar."""
+    IMPORTANTE: prioriza match por codigo_barras (unico y confiable)
+    antes que por ID, porque los IDs pueden estar desalineados entre PCs."""
     actualizados = 0
     creados = 0
 
@@ -190,52 +191,58 @@ def aplicar_cambios_pull(datos):
         nombre = p_data.get('nombre')
         codigo = p_data.get('codigo_barras')
 
-        if not producto_id or not tienda_id:
+        if not tienda_id:
             continue
 
-        # Buscar ProductoTienda existente
+        # ============ 1. BUSCAR PRODUCTO GLOBAL (PRIORIDAD: CODIGO) ============
+        producto = None
+
+        # 1a. Por código de barras (lo más confiable)
+        if codigo:
+            producto = Producto.query.filter_by(codigo_barras=codigo).first()
+
+        # 1b. Por nombre exacto
+        if not producto and nombre:
+            producto = Producto.query.filter_by(nombre=nombre).first()
+
+        # 1c. Por ID (último recurso, puede estar desalineado)
+        if not producto and producto_id:
+            producto = Producto.query.get(producto_id)
+
+        # ============ 2. SI NO EXISTE, CREARLO ============
+        if not producto:
+            try:
+                producto = Producto(
+                    id=producto_id,
+                    nombre=nombre or f'Producto {producto_id}',
+                    codigo_barras=codigo or None,
+                    categoria=p_data.get('categoria') or None,
+                )
+                db.session.add(producto)
+                db.session.flush()
+            except Exception as e:
+                db.session.rollback()
+                print(f'  [pull] No se pudo crear producto {producto_id}: {e}')
+                continue
+
+        id_real = producto.id
+
+        # ============ 3. BUSCAR/CREAR PRODUCTO_TIENDA ============
         pres = ProductoTienda.query.filter_by(
-            producto_id=producto_id, tienda_id=tienda_id
+            producto_id=id_real, tienda_id=tienda_id
         ).first()
 
         if not pres:
-            # Intentar buscar el Producto global por id, código o nombre
-            producto = Producto.query.get(producto_id)
-            if not producto and codigo:
-                producto = Producto.query.filter_by(codigo_barras=codigo).first()
-            if not producto and nombre:
-                producto = Producto.query.filter_by(nombre=nombre).first()
+            pres = ProductoTienda(
+                producto_id=id_real,
+                tienda_id=tienda_id,
+                cantidad=0,
+            )
+            db.session.add(pres)
+            db.session.flush()
+            creados += 1
 
-            if not producto:
-                try:
-                    producto = Producto(
-                        id=producto_id,
-                        nombre=nombre or f'Producto {producto_id}',
-                        codigo_barras=codigo or None,
-                        categoria=p_data.get('categoria') or None,
-                    )
-                    db.session.add(producto)
-                    db.session.flush()
-                except Exception as e:
-                    db.session.rollback()
-                    print(f'  [pull] No se pudo crear producto {producto_id}: {e}')
-                    continue
-
-            id_real = producto.id
-            pres = ProductoTienda.query.filter_by(
-                producto_id=id_real, tienda_id=tienda_id
-            ).first()
-            if not pres:
-                pres = ProductoTienda(
-                    producto_id=id_real,
-                    tienda_id=tienda_id,
-                    cantidad=0,
-                )
-                db.session.add(pres)
-                db.session.flush()
-                creados += 1
-
-        # Aplicar precios Y stock
+        # ============ 4. APLICAR VALORES ============
         pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
         pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
         pres.precio_venta1 = Decimal(str(p_data.get('precio_venta1', 0)))
@@ -245,7 +252,6 @@ def aplicar_cambios_pull(datos):
         pres.condicion2 = p_data.get('condicion2', '')
         pres.condicion3 = p_data.get('condicion3', '')
 
-        # Marcar sincronizado para que el push no lo reenvíe
         pres.sync_estado = 'sincronizado'
         pres.sync_fecha = datetime.utcnow()
 
@@ -480,16 +486,31 @@ def procesar_push(tienda_id, datos):
         try:
             producto_id = p_data.get('producto_id')
             t_id = p_data.get('tienda_id')
+            codigo = p_data.get('codigo_barras')
+            nombre = p_data.get('nombre')
 
-            if not producto_id or not t_id:
+            if not t_id:
+                continue
+
+            # Buscar producto por codigo → nombre → id
+            producto = None
+            if codigo:
+                producto = Producto.query.filter_by(codigo_barras=codigo).first()
+            if not producto and nombre:
+                producto = Producto.query.filter_by(nombre=nombre).first()
+            if not producto and producto_id:
+                producto = Producto.query.get(producto_id)
+
+            if not producto:
+                errores.append(f'Producto {producto_id}: no existe en central')
                 continue
 
             pres = ProductoTienda.query.filter_by(
-                producto_id=producto_id, tienda_id=t_id
+                producto_id=producto.id, tienda_id=t_id
             ).first()
 
             if not pres:
-                errores.append(f'Producto {producto_id}: no existe en central para tienda {t_id}')
+                errores.append(f'Producto {producto_id}: no existe presentacion en central')
                 continue
 
             pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
@@ -504,7 +525,8 @@ def procesar_push(tienda_id, datos):
             pres.sync_estado = 'sincronizado'
             pres.sync_fecha = datetime.utcnow()
 
-            productos_ok.append(producto_id)
+            # Devolver el ID REAL del producto (no el que vino)
+            productos_ok.append(producto.id)
         except Exception as e:
             errores.append(f'Producto {p_data.get("producto_id")}: {e}')
 
@@ -856,9 +878,13 @@ def obtener_productos_pendientes_push(tienda_id):
 
     resultado = []
     for pres in query:
+        # Incluir nombre y codigo para que central pueda hacer el match correcto
+        prod = pres.producto
         resultado.append({
             'producto_id': pres.producto_id,
             'tienda_id': pres.tienda_id,
+            'nombre': prod.nombre if prod else None,
+            'codigo_barras': prod.codigo_barras if prod else None,
             'cantidad': int(pres.cantidad or 0),
             'precio_venta': float(pres.precio_venta or 0),
             'precio_venta1': float(pres.precio_venta1 or 0),
