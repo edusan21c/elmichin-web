@@ -41,14 +41,16 @@ def sync_push():
 
     return jsonify({
         'ok': True,
-        'facturas_ok': resultado['facturas_ok'],
-        'pagos_ok': resultado['pagos_ok'],
-        'clientes_ok': resultado['clientes_ok'],
-        'errores': resultado['errores'],
+        'facturas_ok': resultado.get('facturas_ok', []),
+        'pagos_ok': resultado.get('pagos_ok', []),
+        'clientes_ok': resultado.get('clientes_ok', []),
+        'productos_ok': resultado.get('productos_ok', []),
+        'errores': resultado.get('errores', []),
         'recibidas': {
-            'facturas': len(resultado['facturas_ok']),
-            'pagos': len(resultado['pagos_ok']),
-            'clientes': len(resultado['clientes_ok']),
+            'facturas': len(resultado.get('facturas_ok', [])),
+            'pagos': len(resultado.get('pagos_ok', [])),
+            'clientes': len(resultado.get('clientes_ok', [])),
+            'productos': len(resultado.get('productos_ok', [])),
         },
     })
 
