@@ -173,7 +173,8 @@ def obtener_cambios_pull(desde):
 
 def aplicar_cambios_pull(datos):
     """Aplica los cambios recibidos del central en la tienda local.
-    Si el producto NO existe en tienda, lo crea automaticamente."""
+    Si el producto NO existe por ID, busca por código de barras o nombre
+    antes de crearlo (evita duplicados por código único)."""
     actualizados = 0
     creados = 0
 
@@ -181,39 +182,63 @@ def aplicar_cambios_pull(datos):
         producto_id = p_data.get('producto_id')
         tienda_id = p_data.get('tienda_id')
         nombre = p_data.get('nombre')
+        codigo = p_data.get('codigo_barras')
 
         if not producto_id or not tienda_id:
             continue
 
-        # ¿Existe la presentacion en esta tienda?
+        # 1. Buscar ProductoTienda por producto_id (el que viene de central)
         pres = ProductoTienda.query.filter_by(
             producto_id=producto_id, tienda_id=tienda_id
         ).first()
 
         if not pres:
-            # Verificar que el Producto global exista (o crearlo)
+            # 2. Buscar el Producto por ID
             producto = Producto.query.get(producto_id)
+
+            if not producto and codigo:
+                # 3. Si no existe por ID, buscar por código de barras
+                producto = Producto.query.filter_by(codigo_barras=codigo).first()
+
+            if not producto and nombre:
+                # 4. Si no existe por código, buscar por nombre exacto
+                producto = Producto.query.filter_by(nombre=nombre).first()
+
             if not producto:
-                producto = Producto(
-                    id=producto_id,
-                    nombre=nombre or f'Producto {producto_id}',
-                    codigo_barras=p_data.get('codigo_barras') or None,
-                    categoria=p_data.get('categoria') or None,
+                # 5. Solo si NO existe, crearlo con el ID de central
+                try:
+                    producto = Producto(
+                        id=producto_id,
+                        nombre=nombre or f'Producto {producto_id}',
+                        codigo_barras=codigo or None,
+                        categoria=p_data.get('categoria') or None,
+                    )
+                    db.session.add(producto)
+                    db.session.flush()
+                except Exception as e:
+                    db.session.rollback()
+                    print(f'  [pull] No se pudo crear producto {producto_id}: {e}')
+                    continue
+
+            # 6. Usar el ID real del producto (puede ser distinto al de central)
+            id_real = producto.id
+
+            # 7. Verificar que no exista ya el ProductoTienda
+            pres = ProductoTienda.query.filter_by(
+                producto_id=id_real, tienda_id=tienda_id
+            ).first()
+
+            if not pres:
+                pres = ProductoTienda(
+                    producto_id=id_real,
+                    tienda_id=tienda_id,
+                    cantidad=0,
                 )
-                db.session.add(producto)
+                db.session.add(pres)
                 db.session.flush()
+                creados += 1
 
-            # Crear la presentacion en esta tienda
-            pres = ProductoTienda(
-                producto_id=producto_id,
-                tienda_id=tienda_id,
-                cantidad=0,
-            )
-            db.session.add(pres)
-            db.session.flush()
-            creados += 1
-
-        # Actualizar precios y condiciones
+        # 8. Actualizar precios y condiciones
         pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
         pres.precio_venta1 = Decimal(str(p_data.get('precio_venta1', 0)))
         pres.precio_venta2 = Decimal(str(p_data.get('precio_venta2', 0)))
@@ -230,7 +255,6 @@ def aplicar_cambios_pull(datos):
         print(f'  [pull] {creados} productos nuevos creados, {actualizados} actualizados')
 
     return actualizados
-
 
 # ==================== LOG ====================
 def registrar_log(tienda_id, tipo, tabla, registros, exitoso, mensaje=''):
