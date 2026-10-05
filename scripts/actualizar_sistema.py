@@ -13,6 +13,7 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARCHIVO_ESTADO = os.path.join(RAIZ, '.update_status.json')
 ARCHIVO_LOG = os.path.join(RAIZ, 'logs', 'update.log')
 NOMBRE_SERVICIO = 'MichinFlask'
+NOMBRE_TAREA = 'MichinUpdate'
 
 # Scripts de migración manual que se corren en cada actualización.
 # Cada uno debe ser idempotente (si ya está aplicado, no rompe).
@@ -108,6 +109,18 @@ def correr_migraciones_manuales(python_exe):
             # No es fatal: si el script no aplica, no rompe el sistema
 
 
+def limpiar_tarea_programada():
+    """Elimina la tarea programada de schtasks (limpieza post-actualizacion)."""
+    try:
+        subprocess.run(
+            ['schtasks', '/Delete', '/TN', NOMBRE_TAREA, '/F'],
+            capture_output=True, text=True, timeout=10,
+        )
+        log('Tarea programada eliminada')
+    except Exception as e:
+        log(f'Aviso limpiando tarea: {e}')
+
+
 def main():
     log('=' * 60)
     log('INICIANDO ACTUALIZACION DEL SISTEMA')
@@ -124,6 +137,7 @@ def main():
     if not ok:
         log(f'ERROR en git pull: {err}')
         guardar_estado('Error en git pull', 10, 'error', err[:200])
+        limpiar_tarea_programada()
         return
 
     log(f'git pull OK: {out.strip()[:200]}')
@@ -171,6 +185,7 @@ def main():
     if not ok:
         log('ERROR reiniciando servicio')
         guardar_estado('Error reiniciando servicio', 90, 'error')
+        limpiar_tarea_programada()
         return
 
     # ============ FIN ============
@@ -185,6 +200,9 @@ def main():
     except Exception:
         pass
 
+    # Eliminar la tarea programada de schtasks (limpieza)
+    limpiar_tarea_programada()
+
 
 if __name__ == '__main__':
     try:
@@ -194,3 +212,4 @@ if __name__ == '__main__':
         import traceback
         log(traceback.format_exc())
         guardar_estado('Error fatal', 0, 'error', str(e)[:200])
+        limpiar_tarea_programada()

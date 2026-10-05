@@ -13,6 +13,7 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 REPO_GITHUB = 'edusan21c/elmichin-web'
 API_TAGS = f'https://api.github.com/repos/{REPO_GITHUB}/tags'
 ARCHIVO_ESTADO = os.path.join(RAIZ, '.update_status.json')
+NOMBRE_TAREA = 'MichinUpdate'
 
 
 # ==================== VERSION LOCAL ====================
@@ -105,9 +106,9 @@ def leer_estado():
         with open(ARCHIVO_ESTADO, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
-        # Si el estado tiene mas de 5 minutos, considerarlo obsoleto
+        # Si el estado tiene mas de 10 minutos, considerarlo obsoleto
         fecha = datetime.fromisoformat(data.get('fecha', '2000-01-01T00:00:00'))
-        if datetime.now() - fecha > timedelta(minutes=5):
+        if datetime.now() - fecha > timedelta(minutes=10):
             return None
 
         return data
@@ -136,7 +137,14 @@ def limpiar_estado():
 # ==================== LANZAR ACTUALIZACION ====================
 def lanzar_actualizacion():
     """
-    Lanza el script de actualizacion como proceso separado.
+    Lanza el script de actualizacion usando el Task Scheduler de Windows
+    (schtasks). Esto es critico porque NSSM mata el 'process tree' cuando
+    se detiene el servicio Flask. Si usaramos Popen normal, el script moriria
+    junto con Flask y nunca llegaria a reiniciar el servicio.
+
+    Al usar schtasks, el script corre como proceso independiente del
+    Service Control Manager, por lo que NSSM no puede matarlo.
+
     Retorna (exito, mensaje).
     """
     # Verificar que no haya una actualizacion en curso
@@ -157,23 +165,47 @@ def lanzar_actualizacion():
         'progreso': 0,
     })
 
-    # Ejecutar como proceso separado para que sobreviva al restart del servicio
     try:
-        python_exe = sys.executable  # Ruta del python actual (venv)
+        python_exe = sys.executable  # Python del venv (con todos los modulos)
 
-        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP = 0x00000008 | 0x00000200
-        flags = 0
-        if sys.platform == 'win32':
-            flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        # Eliminar tarea previa si existe (por si quedo huerfana)
+        try:
+            subprocess.run(
+                ['schtasks', '/Delete', '/TN', NOMBRE_TAREA, '/F'],
+                capture_output=True, text=True, timeout=10,
+            )
+        except Exception:
+            pass
 
-        subprocess.Popen(
-            [python_exe, script],
-            cwd=RAIZ,
-            creationflags=flags,
-            close_fds=True,
-        )
+        # Hora de ejecucion: 1 minuto en el futuro (evita race conditions)
+        hora_ejecucion = (datetime.now() + timedelta(minutes=1)).strftime('%H:%M')
 
-        return True, 'Actualizacion iniciada.'
+        # Crear la tarea programada
+        cmd_create = [
+            'schtasks', '/Create', '/F',
+            '/TN', NOMBRE_TAREA,
+            '/TR', f'"{python_exe}" "{script}"',
+            '/SC', 'ONCE',
+            '/ST', hora_ejecucion,
+            '/RL', 'HIGHEST',
+            '/RU', 'SYSTEM',
+        ]
+        r = subprocess.run(cmd_create, capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            limpiar_estado()
+            err = (r.stderr or r.stdout or 'desconocido').strip()
+            return False, f'Error creando tarea: {err[:200]}'
+
+        # Ejecutar la tarea ya (no esperar a la hora programada)
+        cmd_run = ['schtasks', '/Run', '/TN', NOMBRE_TAREA]
+        r = subprocess.run(cmd_run, capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            limpiar_estado()
+            err = (r.stderr or r.stdout or 'desconocido').strip()
+            return False, f'Error ejecutando tarea: {err[:200]}'
+
+        return True, 'Actualizacion iniciada. El servicio se reiniciara en ~30 segundos.'
+
     except Exception as e:
         limpiar_estado()
         return False, f'Error al lanzar: {e}'
