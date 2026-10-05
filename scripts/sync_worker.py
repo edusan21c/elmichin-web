@@ -1,7 +1,5 @@
 # scripts/sync_worker.py
 # Worker de sincronizacion. Corre en cada TIENDA y sincroniza con el central.
-# Uso: python scripts\sync_worker.py
-# O programado con Task Scheduler cada 2 minutos.
 
 import os
 import sys
