@@ -142,6 +142,13 @@ def main():
 
     log(f'git pull OK: {out.strip()[:200]}')
 
+    # Traer tambien los tags (para que get_version_local() vea el tag nuevo)
+    ok, out, err = ejecutar('git fetch --tags', timeout=120)
+    if ok:
+        log('git fetch --tags OK')
+    else:
+        log(f'Aviso en git fetch --tags: {err[:200]}')
+
     # ============ 2. PIP INSTALL ============
     guardar_estado('Instalando dependencias...', 30)
     log('[2/5] pip install -r requirements.txt')
