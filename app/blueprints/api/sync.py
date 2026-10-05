@@ -139,3 +139,33 @@ def sync_ping():
         'servidor': 'El Michin Central',
         'hora': datetime.utcnow().isoformat(),
     })
+
+
+
+# ==================== VERIFICAR FACTURAS FANTASMA ====================
+@bp.route('/sync/facturas-existen', methods=['POST'])
+@requiere_sync_key
+def sync_facturas_existen():
+    """Recibe lista de números de factura y devuelve cuáles existen en central."""
+    from app.models.factura import Factura
+
+    data = request.get_json(silent=True) or {}
+    tienda_id = data.get('tienda_id')
+    numeros = data.get('numeros', [])
+
+    if not tienda_id or not numeros:
+        return jsonify({'ok': True, 'existen': [], 'faltan': []})
+
+    resultados = Factura.query.filter(
+        Factura.tienda_id == tienda_id,
+        Factura.numero_factura.in_(numeros)
+    ).with_entities(Factura.numero_factura).all()
+
+    existen = [r[0] for r in resultados]
+    faltan = [n for n in numeros if n not in existen]
+
+    return jsonify({
+        'ok': True,
+        'existen': existen,
+        'faltan': faltan,
+    })

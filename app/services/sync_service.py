@@ -695,3 +695,58 @@ def push_factura_individual(tienda_id, factura_id):
         return True
     except requests.RequestException:
         return False
+
+
+
+# ==================== DETECTAR FACTURAS FANTASMA ====================
+def detectar_facturas_faltantes(tienda_id):
+    """
+    Consulta al central qué facturas marcadas como 'sincronizado' en tienda
+    NO existen allá (fantasmas). Las re-marca como 'pendiente'.
+    Retorna cantidad de facturas re-marcadas.
+    """
+    import requests
+    from flask import current_app
+
+    central_url = (current_app.config.get('CENTRAL_URL') or '').rstrip('/')
+    sync_key = current_app.config.get('SYNC_KEY') or ''
+    if not central_url or not sync_key:
+        return 0
+
+    facturas = Factura.query.filter(
+        Factura.tienda_id == tienda_id,
+        Factura.sync_estado == 'sincronizado',
+        Factura.origen != 'remota_recibida',
+    ).all()
+
+    if not facturas:
+        return 0
+
+    numeros = [f.numero_factura for f in facturas]
+
+    try:
+        r = requests.post(
+            central_url + '/api/sync/facturas-existen',
+            json={'tienda_id': tienda_id, 'numeros': numeros},
+            headers={'X-Sync-Key': sync_key},
+            timeout=15,
+        )
+        if r.status_code != 200:
+            return 0
+        data = r.json()
+        if not data.get('ok'):
+            return 0
+
+        faltan = data.get('faltan', [])
+        if not faltan:
+            return 0
+
+        n = (Factura.query
+             .filter(Factura.tienda_id == tienda_id,
+                     Factura.numero_factura.in_(faltan))
+             .update({'sync_estado': 'pendiente'}, synchronize_session=False))
+        db.session.commit()
+        return n
+
+    except requests.RequestException:
+        return 0

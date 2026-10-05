@@ -55,6 +55,21 @@ def hay_internet(url):
         return False
 
 
+def detectar_fantasmas(app, tienda_id):
+    """Detecta y re-marca facturas 'sincronizadas' que no existen en central."""
+    with app.app_context():
+        try:
+            faltantes = sync_service.detectar_facturas_faltantes(tienda_id)
+            if faltantes > 0:
+                log(f'  {faltantes} facturas re-marcadas como pendiente')
+            else:
+                log('  Sin facturas fantasma')
+            return faltantes
+        except Exception as e:
+            log(f'  Error: {e}')
+            return 0
+
+
 def hacer_push(app, central_url, sync_key, tienda_id):
     """Envia datos pendientes al central (facturas, pagos, clientes)."""
     with app.app_context():
@@ -205,6 +220,10 @@ def main():
         sys.exit(0)
 
     log('Conexion al central OK')
+
+    # ============ VERIFICAR FACTURAS FANTASMA ============
+    log('--- VERIFICACION (facturas fantasma) ---')
+    detectar_fantasmas(app, tienda_id)
 
     # PUSH
     log('--- PUSH (enviar pendientes) ---')
