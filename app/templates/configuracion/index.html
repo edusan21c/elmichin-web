@@ -48,7 +48,7 @@
         <!-- Barra de progreso (oculta por defecto) -->
         <div id="progreso-update" class="mt-3" style="display:none;">
             <div class="progress" style="height: 25px;">
-                <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated"
+                <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
                      role="progressbar" style="width: 0%;">0%</div>
             </div>
             <small class="text-muted" id="paso-actual">Iniciando...</small>
@@ -181,7 +181,7 @@ if (st) {
 {% if current_user.es_admin() %}
 (function() {
     const btnBuscar = document.getElementById('btn-buscar-version');
-    if (!btnBuscar) return;  // admin no tiene la card: salir
+    if (!btnBuscar) return;
 
     const estadoDiv = document.getElementById('estado-version');
     const infoRemota = document.getElementById('info-remota');
@@ -193,6 +193,15 @@ if (st) {
     let hayUpdate = false;
     let updateEnProgreso = false;
 
+    // ==================== BLOQUEAR REFRESH DURANTE UPDATE ====================
+    window.addEventListener('beforeunload', function(e) {
+        if (updateEnProgreso) {
+            e.preventDefault();
+            e.returnValue = 'La actualización está en curso. ¿Seguro que querés salir?';
+            return e.returnValue;
+        }
+    });
+
     // ==================== BUSCAR VERSION ====================
     async function buscarVersion() {
         estadoDiv.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split"></i> Consultando GitHub...</span>';
@@ -201,7 +210,7 @@ if (st) {
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 seg
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
             const r = await fetch('/configuracion/api/version', { signal: controller.signal });
             clearTimeout(timeoutId);
             const data = await r.json();
@@ -262,6 +271,13 @@ if (st) {
 
             updateEnProgreso = true;
             progresoDiv.style.display = 'block';
+
+            // Inicializar barra con color visible
+            barraProgreso.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
+            barraProgreso.style.width = '5%';
+            barraProgreso.textContent = '5%';
+            pasoActual.textContent = 'Iniciando actualización...';
+
             polling();
         } catch (e) {
             alert('Error: ' + e.message);
@@ -269,7 +285,6 @@ if (st) {
         }
     }
 
-   
     // ==================== POLLING DEL ESTADO ====================
     let intentosSinProgreso = 0;
     const MAX_INTENTOS_SIN_PROGRESO = 20;  // 20 * 3s = 60 seg
@@ -280,32 +295,41 @@ if (st) {
             const data = await r.json();
 
             if (data.en_progreso) {
-                // Hay progreso: resetear contador
+                // Progreso real: barra azul
                 intentosSinProgreso = 0;
+                barraProgreso.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
                 barraProgreso.style.width = data.progreso + '%';
                 barraProgreso.textContent = data.progreso + '%';
                 pasoActual.textContent = data.paso || 'Procesando...';
                 setTimeout(polling, 3000);
 
             } else if (data.estado === 'completado') {
-                // Completado explícito
+                // Completado explícito: barra verde
+                updateEnProgreso = false;
+                barraProgreso.className = 'progress-bar bg-success';
                 barraProgreso.style.width = '100%';
                 barraProgreso.textContent = '100%';
-                pasoActual.textContent = '¡Actualización completada!';
+                pasoActual.textContent = '¡Actualización completada! Refrescando...';
                 setTimeout(() => window.location.reload(), 2000);
 
             } else {
-                // Sin estado: puede ser (a) reiniciando servicio, (b) terminado y borrado
+                // Sin estado: probablemente reiniciando servicio
                 intentosSinProgreso++;
 
                 if (intentosSinProgreso >= MAX_INTENTOS_SIN_PROGRESO) {
                     // 60 seg sin estado = asumir completado
+                    updateEnProgreso = false;
+                    barraProgreso.className = 'progress-bar bg-success';
                     barraProgreso.style.width = '100%';
                     barraProgreso.textContent = '100%';
                     pasoActual.textContent = '¡Actualización completada! Refrescando...';
                     setTimeout(() => window.location.reload(), 2000);
                 } else {
-                    pasoActual.textContent = `Esperando servicio... (${intentosSinProgreso}/${MAX_INTENTOS_SIN_PROGRESO})`;
+                    // Barra amarilla animada al 90% mientras espera
+                    barraProgreso.className = 'progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark';
+                    barraProgreso.style.width = '90%';
+                    barraProgreso.textContent = 'Reiniciando... ' + intentosSinProgreso + '/' + MAX_INTENTOS_SIN_PROGRESO;
+                    pasoActual.textContent = 'Esperando que el servicio vuelva...';
                     setTimeout(polling, 3000);
                 }
             }
@@ -315,12 +339,17 @@ if (st) {
             intentosSinProgreso++;
 
             if (intentosSinProgreso >= MAX_INTENTOS_SIN_PROGRESO) {
+                updateEnProgreso = false;
+                barraProgreso.className = 'progress-bar bg-success';
                 barraProgreso.style.width = '100%';
                 barraProgreso.textContent = '100%';
                 pasoActual.textContent = '¡Actualización completada! Refrescando...';
                 setTimeout(() => window.location.reload(), 2000);
             } else {
-                pasoActual.textContent = `Reiniciando servicio... (${intentosSinProgreso}/${MAX_INTENTOS_SIN_PROGRESO})`;
+                barraProgreso.className = 'progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark';
+                barraProgreso.style.width = '90%';
+                barraProgreso.textContent = 'Reiniciando... ' + intentosSinProgreso + '/' + MAX_INTENTOS_SIN_PROGRESO;
+                pasoActual.textContent = 'Esperando que el servicio vuelva...';
                 setTimeout(polling, 3000);
             }
         }
