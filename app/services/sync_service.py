@@ -172,20 +172,48 @@ def obtener_cambios_pull(desde):
 
 
 def aplicar_cambios_pull(datos):
-    """Aplica los cambios recibidos del central en la tienda local."""
+    """Aplica los cambios recibidos del central en la tienda local.
+    Si el producto NO existe en tienda, lo crea automaticamente."""
     actualizados = 0
+    creados = 0
 
     for p_data in datos.get('productos', []):
         producto_id = p_data.get('producto_id')
         tienda_id = p_data.get('tienda_id')
+        nombre = p_data.get('nombre')
 
+        if not producto_id or not tienda_id:
+            continue
+
+        # ¿Existe la presentacion en esta tienda?
         pres = ProductoTienda.query.filter_by(
             producto_id=producto_id, tienda_id=tienda_id
         ).first()
 
         if not pres:
-            continue
+            # Verificar que el Producto global exista (o crearlo)
+            producto = Producto.query.get(producto_id)
+            if not producto:
+                producto = Producto(
+                    id=producto_id,
+                    nombre=nombre or f'Producto {producto_id}',
+                    codigo_barras=p_data.get('codigo_barras') or None,
+                    categoria=p_data.get('categoria') or None,
+                )
+                db.session.add(producto)
+                db.session.flush()
 
+            # Crear la presentacion en esta tienda
+            pres = ProductoTienda(
+                producto_id=producto_id,
+                tienda_id=tienda_id,
+                cantidad=0,
+            )
+            db.session.add(pres)
+            db.session.flush()
+            creados += 1
+
+        # Actualizar precios y condiciones
         pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
         pres.precio_venta1 = Decimal(str(p_data.get('precio_venta1', 0)))
         pres.precio_venta2 = Decimal(str(p_data.get('precio_venta2', 0)))
@@ -197,6 +225,10 @@ def aplicar_cambios_pull(datos):
         actualizados += 1
 
     db.session.commit()
+
+    if creados > 0:
+        print(f'  [pull] {creados} productos nuevos creados, {actualizados} actualizados')
+
     return actualizados
 
 
@@ -695,7 +727,6 @@ def push_factura_individual(tienda_id, factura_id):
         return True
     except requests.RequestException:
         return False
-
 
 
 # ==================== DETECTAR FACTURAS FANTASMA ====================
