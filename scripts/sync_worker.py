@@ -34,7 +34,6 @@ def log(msg):
     linea = f'[{ahora}] {msg}'
     print(linea, flush=True)
 
-    # Escribir al archivo
     try:
         os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
         with open(LOG_FILE, 'a', encoding='utf-8') as f:
@@ -71,14 +70,19 @@ def detectar_fantasmas(app, tienda_id):
 
 
 def hacer_push(app, central_url, sync_key, tienda_id):
-    """Envia datos pendientes al central (facturas, pagos, clientes)."""
+    """Envia datos pendientes al central (facturas, pagos, clientes, productos)."""
     with app.app_context():
         pendientes = sync_service.obtener_pendientes_push(tienda_id)
+
+        # Agregar productos locales editados (precios/stock)
+        productos_pendientes = sync_service.obtener_productos_pendientes_push(tienda_id)
+        pendientes['productos'] = productos_pendientes
 
         total = (
             len(pendientes['facturas']) +
             len(pendientes['pagos']) +
-            len(pendientes['clientes'])
+            len(pendientes['clientes']) +
+            len(pendientes['productos'])
         )
 
         if total == 0:
@@ -140,7 +144,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
         try:
             r = requests.get(
                 central_url.rstrip('/') + '/api/sync/pull',
-                params={'desde': desde},
+                params={'tienda_id': tienda_id, 'desde': desde},
                 headers={'X-Sync-Key': sync_key},
                 timeout=TIMEOUT_REQUEST,
             )
@@ -148,15 +152,14 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 datos = r.json()
                 productos = datos.get('productos', [])
                 if productos:
-                    productos_tienda = [
-                        p for p in productos if p.get('tienda_id') == tienda_id
-                    ]
                     actualizados = sync_service.aplicar_cambios_pull(
-                        {'productos': productos_tienda}
+                        {'productos': productos}
                     )
                     log(f'  PULL productos: {actualizados} actualizados')
                 else:
                     log('  PULL productos: sin cambios')
+            else:
+                log(f'  PULL productos: HTTP {r.status_code}')
         except requests.RequestException as e:
             log(f'  PULL productos: fallo red - {e}')
 
@@ -214,7 +217,6 @@ def main():
         log('ERROR: SYNC_KEY no configurada')
         sys.exit(1)
 
-    # Verificar internet
     if not hay_internet(central_url):
         log('Sin conexion al central. Reintentando en el proximo ciclo.')
         sys.exit(0)

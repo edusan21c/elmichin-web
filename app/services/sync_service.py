@@ -108,6 +108,7 @@ def marcar_sincronizados(tienda_id, resultado):
     ids_facturas = resultado.get('facturas_ok', [])
     ids_pagos = resultado.get('pagos_ok', [])
     ids_clientes = resultado.get('clientes_ok', [])
+    ids_productos = resultado.get('productos_ok', [])
 
     if ids_facturas:
         (Factura.query
@@ -130,51 +131,56 @@ def marcar_sincronizados(tienda_id, resultado):
                   'sync_fecha': datetime.utcnow()},
                  synchronize_session=False))
 
+    if ids_productos:
+        (ProductoTienda.query
+         .filter(ProductoTienda.tienda_id == tienda_id,
+                 ProductoTienda.producto_id.in_(ids_productos))
+         .update({'sync_estado': 'sincronizado',
+                  'sync_fecha': datetime.utcnow()},
+                 synchronize_session=False))
+
     db.session.commit()
 
 
 # ==================== PULL (CENTRAL → TIENDA) ====================
-def obtener_cambios_pull(desde):
-    """Devuelve productos y configuracion modificados desde 'desde'."""
-    if isinstance(desde, str):
-        try:
-            desde = datetime.fromisoformat(desde)
-        except ValueError:
-            desde = datetime.utcnow() - timedelta(days=7)
+def obtener_cambios_pull(tienda_id, desde=None):
+    """Devuelve los productos de UNA tienda específica que tienen cambios
+    pendientes de enviar (fue editado el precio, stock o condiciones)."""
+    if not tienda_id:
+        return {'productos': [], 'timestamp': datetime.utcnow().isoformat()}
 
-    productos = (Producto.query
-                 .filter(Producto.actualizado_en >= desde)
-                 .all())
+    query = (db.session.query(Producto, ProductoTienda)
+             .join(ProductoTienda, Producto.id == ProductoTienda.producto_id)
+             .filter(
+                 ProductoTienda.tienda_id == tienda_id,
+                 ProductoTienda.sync_estado == 'pendiente'
+             ))
 
-    resultado = {
-        'productos': [],
-        'timestamp': datetime.utcnow().isoformat(),
-    }
+    resultado = {'productos': [], 'timestamp': datetime.utcnow().isoformat()}
 
-    for p in productos:
-        for pres in p.presentaciones:
-            resultado['productos'].append({
-                'producto_id': p.id,
-                'nombre': p.nombre,
-                'codigo_barras': p.codigo_barras,
-                'categoria': p.categoria,
-                'tienda_id': pres.tienda_id,
-                'precio_venta': float(pres.precio_venta or 0),
-                'precio_venta1': float(pres.precio_venta1 or 0),
-                'precio_venta2': float(pres.precio_venta2 or 0),
-                'precio_venta3': float(pres.precio_venta3 or 0),
-                'condicion1': pres.condicion1 or '',
-                'condicion2': pres.condicion2 or '',
-                'condicion3': pres.condicion3 or '',
-            })
+    for p, pres in query.all():
+        resultado['productos'].append({
+            'producto_id': p.id,
+            'nombre': p.nombre,
+            'codigo_barras': p.codigo_barras,
+            'categoria': p.categoria,
+            'tienda_id': pres.tienda_id,
+            'cantidad': int(pres.cantidad or 0),
+            'precio_venta': float(pres.precio_venta or 0),
+            'precio_venta1': float(pres.precio_venta1 or 0),
+            'precio_venta2': float(pres.precio_venta2 or 0),
+            'precio_venta3': float(pres.precio_venta3 or 0),
+            'condicion1': pres.condicion1 or '',
+            'condicion2': pres.condicion2 or '',
+            'condicion3': pres.condicion3 or '',
+        })
 
     return resultado
 
 
 def aplicar_cambios_pull(datos):
-    """Aplica los cambios recibidos del central en la tienda local.
-    Si el producto NO existe por ID, busca por código de barras o nombre
-    antes de crearlo (evita duplicados por código único)."""
+    """Aplica los cambios recibidos del central.
+    Actualiza precios Y stock. Marca sincronizado para no reenviar."""
     actualizados = 0
     creados = 0
 
@@ -187,25 +193,20 @@ def aplicar_cambios_pull(datos):
         if not producto_id or not tienda_id:
             continue
 
-        # 1. Buscar ProductoTienda por producto_id (el que viene de central)
+        # Buscar ProductoTienda existente
         pres = ProductoTienda.query.filter_by(
             producto_id=producto_id, tienda_id=tienda_id
         ).first()
 
         if not pres:
-            # 2. Buscar el Producto por ID
+            # Intentar buscar el Producto global por id, código o nombre
             producto = Producto.query.get(producto_id)
-
             if not producto and codigo:
-                # 3. Si no existe por ID, buscar por código de barras
                 producto = Producto.query.filter_by(codigo_barras=codigo).first()
-
             if not producto and nombre:
-                # 4. Si no existe por código, buscar por nombre exacto
                 producto = Producto.query.filter_by(nombre=nombre).first()
 
             if not producto:
-                # 5. Solo si NO existe, crearlo con el ID de central
                 try:
                     producto = Producto(
                         id=producto_id,
@@ -220,14 +221,10 @@ def aplicar_cambios_pull(datos):
                     print(f'  [pull] No se pudo crear producto {producto_id}: {e}')
                     continue
 
-            # 6. Usar el ID real del producto (puede ser distinto al de central)
             id_real = producto.id
-
-            # 7. Verificar que no exista ya el ProductoTienda
             pres = ProductoTienda.query.filter_by(
                 producto_id=id_real, tienda_id=tienda_id
             ).first()
-
             if not pres:
                 pres = ProductoTienda(
                     producto_id=id_real,
@@ -238,7 +235,8 @@ def aplicar_cambios_pull(datos):
                 db.session.flush()
                 creados += 1
 
-        # 8. Actualizar precios y condiciones
+        # Aplicar precios Y stock
+        pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
         pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
         pres.precio_venta1 = Decimal(str(p_data.get('precio_venta1', 0)))
         pres.precio_venta2 = Decimal(str(p_data.get('precio_venta2', 0)))
@@ -246,6 +244,10 @@ def aplicar_cambios_pull(datos):
         pres.condicion1 = p_data.get('condicion1', '')
         pres.condicion2 = p_data.get('condicion2', '')
         pres.condicion3 = p_data.get('condicion3', '')
+
+        # Marcar sincronizado para que el push no lo reenvíe
+        pres.sync_estado = 'sincronizado'
+        pres.sync_fecha = datetime.utcnow()
 
         actualizados += 1
 
@@ -255,6 +257,7 @@ def aplicar_cambios_pull(datos):
         print(f'  [pull] {creados} productos nuevos creados, {actualizados} actualizados')
 
     return actualizados
+
 
 # ==================== LOG ====================
 def registrar_log(tienda_id, tipo, tabla, registros, exitoso, mensaje=''):
@@ -292,6 +295,7 @@ def procesar_push(tienda_id, datos):
     facturas_ok = []
     pagos_ok = []
     clientes_ok = []
+    productos_ok = []
     errores = []
 
     # ---------- 1. CLIENTES ----------
@@ -471,12 +475,46 @@ def procesar_push(tienda_id, datos):
         except Exception as e:
             errores.append(f'Pago {p_data.get("id")}: {e}')
 
+    # ---------- 4. PRODUCTOS (precios/stock editados en tienda) ----------
+    for p_data in datos.get('productos', []):
+        try:
+            producto_id = p_data.get('producto_id')
+            t_id = p_data.get('tienda_id')
+
+            if not producto_id or not t_id:
+                continue
+
+            pres = ProductoTienda.query.filter_by(
+                producto_id=producto_id, tienda_id=t_id
+            ).first()
+
+            if not pres:
+                errores.append(f'Producto {producto_id}: no existe en central para tienda {t_id}')
+                continue
+
+            pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
+            pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
+            pres.precio_venta1 = Decimal(str(p_data.get('precio_venta1', 0)))
+            pres.precio_venta2 = Decimal(str(p_data.get('precio_venta2', 0)))
+            pres.precio_venta3 = Decimal(str(p_data.get('precio_venta3', 0)))
+            pres.condicion1 = p_data.get('condicion1', '')
+            pres.condicion2 = p_data.get('condicion2', '')
+            pres.condicion3 = p_data.get('condicion3', '')
+
+            pres.sync_estado = 'sincronizado'
+            pres.sync_fecha = datetime.utcnow()
+
+            productos_ok.append(producto_id)
+        except Exception as e:
+            errores.append(f'Producto {p_data.get("producto_id")}: {e}')
+
     db.session.commit()
 
     return {
         'facturas_ok': facturas_ok,
         'pagos_ok': pagos_ok,
         'clientes_ok': clientes_ok,
+        'productos_ok': productos_ok,
         'errores': errores,
     }
 
@@ -805,3 +843,30 @@ def detectar_facturas_faltantes(tienda_id):
 
     except requests.RequestException:
         return 0
+
+
+# ==================== PRODUCTOS PENDIENTES DE PUSH ====================
+def obtener_productos_pendientes_push(tienda_id):
+    """Devuelve los productos LOCALES de esta tienda que fueron editados
+    (precio o stock) y hay que enviar al central."""
+    query = ProductoTienda.query.filter_by(
+        tienda_id=tienda_id,
+        sync_estado='pendiente'
+    ).all()
+
+    resultado = []
+    for pres in query:
+        resultado.append({
+            'producto_id': pres.producto_id,
+            'tienda_id': pres.tienda_id,
+            'cantidad': int(pres.cantidad or 0),
+            'precio_venta': float(pres.precio_venta or 0),
+            'precio_venta1': float(pres.precio_venta1 or 0),
+            'precio_venta2': float(pres.precio_venta2 or 0),
+            'precio_venta3': float(pres.precio_venta3 or 0),
+            'condicion1': pres.condicion1 or '',
+            'condicion2': pres.condicion2 or '',
+            'condicion3': pres.condicion3 or '',
+        })
+
+    return resultado

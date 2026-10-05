@@ -1,5 +1,6 @@
 # app/blueprints/inventario/routes.py
 from flask import render_template, redirect, url_for, flash, request, jsonify, abort, current_app
+from datetime import datetime
 from flask_login import login_required, current_user
 from sqlalchemy import or_, func
 from . import bp
@@ -203,6 +204,10 @@ def editar(producto_id):
         pres.condicion3 = form.condicion3.data or ''
         pres.precio_venta3 = form.precio_venta3.data or 0
 
+        # Marcar para sincronizar (precios cambiaron)
+        pres.sync_estado = 'pendiente'
+        pres.sync_fecha = datetime.utcnow()
+
         db.session.commit()
 
         cambios = []
@@ -282,6 +287,8 @@ def actualizar_stock(producto_id):
 
     cantidad_vieja = pres.cantidad
     pres.cantidad = cantidad
+    pres.sync_estado = 'pendiente'
+    pres.sync_fecha = datetime.utcnow()
     db.session.commit()
 
     _audit(
@@ -324,6 +331,8 @@ def stock_masivo():
                                 f'{producto.nombre}: {pres.cantidad} -> {nueva_cant}'
                             )
                         pres.cantidad = nueva_cant
+                        pres.sync_estado = 'pendiente'
+                        pres.sync_fecha = datetime.utcnow()
                         cambios += 1
                 except (ValueError, TypeError):
                     continue

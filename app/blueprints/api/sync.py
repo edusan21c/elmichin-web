@@ -57,11 +57,16 @@ def sync_push():
 @bp.route('/sync/pull', methods=['GET'])
 @requiere_sync_key
 def sync_pull():
-    """Devuelve cambios (productos, precios) para que la tienda actualice."""
+    """Devuelve cambios (productos, precios, stock) para una tienda específica."""
     from app.services import sync_service
 
+    tienda_id = request.args.get('tienda_id', type=int)
     desde = request.args.get('desde', '')
-    datos = sync_service.obtener_cambios_pull(desde)
+
+    if not tienda_id or tienda_id <= 0:
+        return jsonify({'ok': False, 'error': 'tienda_id requerido', 'productos': []}), 400
+
+    datos = sync_service.obtener_cambios_pull(tienda_id, desde)
     return jsonify(datos)
 
 
