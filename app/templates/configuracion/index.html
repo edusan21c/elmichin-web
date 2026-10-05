@@ -269,29 +269,60 @@ if (st) {
         }
     }
 
+   
     // ==================== POLLING DEL ESTADO ====================
+    let intentosSinProgreso = 0;
+    const MAX_INTENTOS_SIN_PROGRESO = 20;  // 20 * 3s = 60 seg
+
     async function polling() {
         try {
             const r = await fetch('/configuracion/api/estado-actualizacion');
             const data = await r.json();
 
             if (data.en_progreso) {
+                // Hay progreso: resetear contador
+                intentosSinProgreso = 0;
                 barraProgreso.style.width = data.progreso + '%';
                 barraProgreso.textContent = data.progreso + '%';
                 pasoActual.textContent = data.paso || 'Procesando...';
                 setTimeout(polling, 3000);
+
             } else if (data.estado === 'completado') {
+                // Completado explícito
                 barraProgreso.style.width = '100%';
                 barraProgreso.textContent = '100%';
                 pasoActual.textContent = '¡Actualización completada!';
                 setTimeout(() => window.location.reload(), 2000);
+
             } else {
-                pasoActual.textContent = 'Esperando servicio...';
+                // Sin estado: puede ser (a) reiniciando servicio, (b) terminado y borrado
+                intentosSinProgreso++;
+
+                if (intentosSinProgreso >= MAX_INTENTOS_SIN_PROGRESO) {
+                    // 60 seg sin estado = asumir completado
+                    barraProgreso.style.width = '100%';
+                    barraProgreso.textContent = '100%';
+                    pasoActual.textContent = '¡Actualización completada! Refrescando...';
+                    setTimeout(() => window.location.reload(), 2000);
+                } else {
+                    pasoActual.textContent = `Esperando servicio... (${intentosSinProgreso}/${MAX_INTENTOS_SIN_PROGRESO})`;
+                    setTimeout(polling, 3000);
+                }
+            }
+
+        } catch (e) {
+            // Servicio caído durante el restart
+            intentosSinProgreso++;
+
+            if (intentosSinProgreso >= MAX_INTENTOS_SIN_PROGRESO) {
+                barraProgreso.style.width = '100%';
+                barraProgreso.textContent = '100%';
+                pasoActual.textContent = '¡Actualización completada! Refrescando...';
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                pasoActual.textContent = `Reiniciando servicio... (${intentosSinProgreso}/${MAX_INTENTOS_SIN_PROGRESO})`;
                 setTimeout(polling, 3000);
             }
-        } catch (e) {
-            pasoActual.textContent = 'Reiniciando servicio...';
-            setTimeout(polling, 3000);
         }
     }
 
