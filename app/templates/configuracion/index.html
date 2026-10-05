@@ -48,8 +48,8 @@
         <!-- Barra de progreso (oculta por defecto) -->
         <div id="progreso-update" class="mt-3" style="display:none;">
             <div class="progress" style="height: 25px;">
-                <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
-                     role="progressbar" style="width: 0%;">0%</div>
+                <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated"
+                     role="progressbar" style="width: 0%; background-color: #0d6efd;">0%</div>
             </div>
             <small class="text-muted" id="paso-actual">Iniciando...</small>
         </div>
@@ -193,6 +193,19 @@ if (st) {
     let hayUpdate = false;
     let updateEnProgreso = false;
 
+    // Colores explicitos (para evitar problemas con Bootstrap dinamico)
+    const COLOR_PROGRESO = '#0d6efd';   // azul
+    const COLOR_REINICIO = '#ffc107';   // amarillo
+    const COLOR_EXITO    = '#198754';   // verde
+
+    // Helper: pinta la barra con color directo por CSS inline
+    function pintarBarra(color, ancho, texto) {
+        barraProgreso.style.backgroundColor = color;
+        barraProgreso.style.width = ancho + '%';
+        barraProgreso.textContent = texto;
+        barraProgreso.setAttribute('aria-valuenow', ancho);
+    }
+
     // ==================== BLOQUEAR REFRESH DURANTE UPDATE ====================
     window.addEventListener('beforeunload', function(e) {
         if (updateEnProgreso) {
@@ -273,9 +286,7 @@ if (st) {
             progresoDiv.style.display = 'block';
 
             // Inicializar barra con color visible
-            barraProgreso.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
-            barraProgreso.style.width = '5%';
-            barraProgreso.textContent = '5%';
+            pintarBarra(COLOR_PROGRESO, 5, '5%');
             pasoActual.textContent = 'Iniciando actualización...';
 
             polling();
@@ -297,18 +308,14 @@ if (st) {
             if (data.en_progreso) {
                 // Progreso real: barra azul
                 intentosSinProgreso = 0;
-                barraProgreso.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
-                barraProgreso.style.width = data.progreso + '%';
-                barraProgreso.textContent = data.progreso + '%';
+                pintarBarra(COLOR_PROGRESO, data.progreso, data.progreso + '%');
                 pasoActual.textContent = data.paso || 'Procesando...';
                 setTimeout(polling, 3000);
 
             } else if (data.estado === 'completado') {
                 // Completado explícito: barra verde
                 updateEnProgreso = false;
-                barraProgreso.className = 'progress-bar bg-success';
-                barraProgreso.style.width = '100%';
-                barraProgreso.textContent = '100%';
+                pintarBarra(COLOR_EXITO, 100, '100%');
                 pasoActual.textContent = '¡Actualización completada! Refrescando...';
                 setTimeout(() => window.location.reload(), 2000);
 
@@ -319,16 +326,13 @@ if (st) {
                 if (intentosSinProgreso >= MAX_INTENTOS_SIN_PROGRESO) {
                     // 60 seg sin estado = asumir completado
                     updateEnProgreso = false;
-                    barraProgreso.className = 'progress-bar bg-success';
-                    barraProgreso.style.width = '100%';
-                    barraProgreso.textContent = '100%';
+                    pintarBarra(COLOR_EXITO, 100, '100%');
                     pasoActual.textContent = '¡Actualización completada! Refrescando...';
                     setTimeout(() => window.location.reload(), 2000);
                 } else {
-                    // Barra amarilla animada al 90% mientras espera
-                    barraProgreso.className = 'progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark';
-                    barraProgreso.style.width = '90%';
-                    barraProgreso.textContent = 'Reiniciando... ' + intentosSinProgreso + '/' + MAX_INTENTOS_SIN_PROGRESO;
+                    // Barra amarilla al 90% mientras espera
+                    pintarBarra(COLOR_REINICIO, 90,
+                        'Reiniciando... ' + intentosSinProgreso + '/' + MAX_INTENTOS_SIN_PROGRESO);
                     pasoActual.textContent = 'Esperando que el servicio vuelva...';
                     setTimeout(polling, 3000);
                 }
@@ -340,15 +344,12 @@ if (st) {
 
             if (intentosSinProgreso >= MAX_INTENTOS_SIN_PROGRESO) {
                 updateEnProgreso = false;
-                barraProgreso.className = 'progress-bar bg-success';
-                barraProgreso.style.width = '100%';
-                barraProgreso.textContent = '100%';
+                pintarBarra(COLOR_EXITO, 100, '100%');
                 pasoActual.textContent = '¡Actualización completada! Refrescando...';
                 setTimeout(() => window.location.reload(), 2000);
             } else {
-                barraProgreso.className = 'progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark';
-                barraProgreso.style.width = '90%';
-                barraProgreso.textContent = 'Reiniciando... ' + intentosSinProgreso + '/' + MAX_INTENTOS_SIN_PROGRESO;
+                pintarBarra(COLOR_REINICIO, 90,
+                    'Reiniciando... ' + intentosSinProgreso + '/' + MAX_INTENTOS_SIN_PROGRESO);
                 pasoActual.textContent = 'Esperando que el servicio vuelva...';
                 setTimeout(polling, 3000);
             }
