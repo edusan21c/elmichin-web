@@ -215,6 +215,7 @@ def sync_health():
     """v2.14-health: panel de salud del sync en HTML.
     Muestra estado de cada tienda: productos pendientes, ultima sync,
     errores recientes. Solo lectura, sin autenticacion (URL interna)."""
+    from app.extensions import db
     from app.models.producto import ProductoTienda
     from app.models.sync_log import SyncLog
     from app.models.tienda import Tienda
