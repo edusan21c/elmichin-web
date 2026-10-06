@@ -515,24 +515,62 @@ def procesar_push(tienda_id, datos):
 
             # v2.12-fix-B: buscar producto SOLO por codigo o nombre.
             # NUNCA por ID: los IDs estan desalineados entre PCs y el
-            # fallback corrompia productos. Si no hay match, se registra error.
+            # fallback corrompia productos.
             producto = None
             if codigo:
                 producto = Producto.query.filter_by(codigo_barras=codigo).first()
             if not producto and nombre:
                 producto = Producto.query.filter_by(nombre=nombre).first()
 
+            # v2.13-fix-E: si el producto no existe en central, CREARLO.
+            # Esto permite que las tiendas aporten productos nuevos al catalogo.
+            # Regla: codigo_barras obligatorio (evita duplicados sin control).
             if not producto:
-                errores.append(f'Producto {producto_id}: no existe en central')
-                continue
+                if not codigo:
+                    errores.append(f'Producto {producto_id}: sin codigo_barras, no se puede crear desde tienda')
+                    continue
+                try:
+                    producto = Producto(
+                        nombre=nombre or f'Producto {producto_id}',
+                        codigo_barras=codigo,
+                        categoria=p_data.get('categoria') or None,
+                    )
+                    db.session.add(producto)
+                    db.session.flush()
+                    print(f'  [push] Producto nuevo desde tienda {t_id}: '
+                          f'{producto.nombre} (id_central={producto.id}, '
+                          f'codigo={codigo})')
+                except Exception as e:
+                    db.session.rollback()
+                    errores.append(f'Producto {producto_id}: no se pudo crear ({e})')
+                    continue
 
+            # Buscar/crear la presentacion (ProductoTienda) para esta tienda
             pres = ProductoTienda.query.filter_by(
                 producto_id=producto.id, tienda_id=t_id
             ).first()
 
             if not pres:
-                errores.append(f'Producto {producto_id}: no existe presentacion en central')
-                continue
+                # v2.13-fix-E: si el producto acaba de crearse, tambien
+                # hay que crear su presentacion en la tienda.
+                try:
+                    pres = ProductoTienda(
+                        producto_id=producto.id,
+                        tienda_id=t_id,
+                        cantidad=0,
+                        precio_venta=Decimal('0'),
+                        precio_venta1=Decimal('0'),
+                        precio_venta2=Decimal('0'),
+                        precio_venta3=Decimal('0'),
+                    )
+                    db.session.add(pres)
+                    db.session.flush()
+                    print(f'  [push] Presentacion creada: producto_id={producto.id}, '
+                          f'tienda_id={t_id}')
+                except Exception as e:
+                    db.session.rollback()
+                    errores.append(f'Producto {producto_id}: no se pudo crear presentacion ({e})')
+                    continue
 
             pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
             pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
@@ -546,7 +584,10 @@ def procesar_push(tienda_id, datos):
             pres.sync_estado = 'sincronizado'
             pres.sync_fecha = datetime.utcnow()
 
-            # Devolver el ID REAL del producto (no el que vino)
+            # v2.12-fix-D: devolver el ID LOCAL de la tienda (el que vino en
+            # el payload), no el de central. Con IDs desalineados entre PCs,
+            # devolver el ID de central hace que marcar_sincronizados en la
+            # tienda no matchee nada y los productos se reenvien en loop.
             productos_ok.append(producto_id)
         except Exception as e:
             errores.append(f'Producto {p_data.get("producto_id")}: {e}')
