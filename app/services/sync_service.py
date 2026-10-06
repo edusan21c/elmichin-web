@@ -388,6 +388,16 @@ def procesar_push(tienda_id, datos):
             ).first()
 
             if existente:
+                # v2.13-fix-F: ACTUALIZAR factura existente con los valores
+                # del push (antes solo se mapeaba y los cambios se perdian,
+                # por ejemplo cuando T1 marcaba la factura como pagada).
+                existente.saldo_pendiente = Decimal(str(f_data.get('saldo_pendiente', existente.saldo_pendiente or 0)))
+                existente.valor_pagado = Decimal(str(f_data.get('valor_pagado', existente.valor_pagado or 0)))
+                existente.estado_credito = f_data.get('estado_credito', existente.estado_credito)
+                existente.tipo_pago = f_data.get('tipo_pago', existente.tipo_pago)
+                existente.metodo_pago = f_data.get('metodo_pago', existente.metodo_pago)
+                existente.sync_estado = 'sincronizado'
+                existente.sync_fecha = datetime.utcnow()
                 mapa_facturas[id_local] = existente.id
                 facturas_ok.append(id_local)
                 continue
@@ -499,6 +509,18 @@ def procesar_push(tienda_id, datos):
             db.session.add(pago)
             db.session.flush()
             pagos_ok.append(id_local)
+
+            # v2.13-fix-F: recalcular saldo del cliente afectado por el pago.
+            # Antes el saldo_actual quedaba congelado en el valor original.
+            factura_afectada = Factura.query.get(factura_central_id)
+            if factura_afectada and factura_afectada.cliente_id:
+                nuevo_saldo = (db.session.query(
+                    db.func.coalesce(db.func.sum(Factura.saldo_pendiente), 0)
+                ).filter(Factura.cliente_id == factura_afectada.cliente_id).scalar())
+                cliente_afectado = Cliente.query.get(factura_afectada.cliente_id)
+                if cliente_afectado:
+                    cliente_afectado.saldo_actual = Decimal(str(nuevo_saldo))
+                    cliente_afectado.sync_fecha = datetime.utcnow()
         except Exception as e:
             errores.append(f'Pago {p_data.get("id")}: {e}')
 
@@ -669,7 +691,9 @@ def obtener_facturas_para_tienda(tienda_id, desde=None):
 
 
 def marcar_facturas_enviadas(ids):
-    """Marca facturas remotas como ya enviadas (evita reenvios)."""
+    """Marca facturas remotas como ya enviadas (evita reenvios).
+    v2.13-fix-F: tambien actualiza sync_estado='sincronizado' (antes quedaba
+    en 'pendiente' generando ruido en logs y conteos)."""
     if not ids:
         return 0
 
@@ -677,6 +701,7 @@ def marcar_facturas_enviadas(ids):
          .filter(Factura.id.in_(ids))
          .update({
              'origen': 'remota_recibida',
+             'sync_estado': 'sincronizado',
              'sync_fecha': datetime.utcnow(),
          }, synchronize_session=False))
     db.session.commit()
