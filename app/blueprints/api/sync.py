@@ -208,3 +208,175 @@ def sync_facturas_existen():
         'existen': existen,
         'faltan': faltan,
     })
+
+# ==================== PANEL DE SALUD DEL SYNC (HTML) ====================
+@bp.route('/sync/health', methods=['GET'])
+def sync_health():
+    """v2.14-health: panel de salud del sync en HTML.
+    Muestra estado de cada tienda: productos pendientes, ultima sync,
+    errores recientes. Solo lectura, sin autenticacion (URL interna)."""
+    from app.models.producto import ProductoTienda
+    from app.models.sync_log import SyncLog
+    from app.models.tienda import Tienda
+    from sqlalchemy import func
+    from datetime import timedelta
+
+    ahora = datetime.utcnow()
+    hace_24h = ahora - timedelta(hours=24)
+
+    # Datos por tienda
+    tiendas = Tienda.query.order_by(Tienda.id).all()
+    filas_tiendas = []
+
+    for t in tiendas:
+        pendientes = (db.session.query(func.count(ProductoTienda.producto_id))
+                      .filter(ProductoTienda.tienda_id == t.id,
+                              ProductoTienda.sync_estado == 'pendiente')
+                      .scalar() or 0)
+
+        ultima_ok = (SyncLog.query
+                     .filter_by(tienda_id=t.id, exitoso=True)
+                     .order_by(SyncLog.id.desc())
+                     .first())
+
+        errores_24h = (SyncLog.query
+                       .filter(SyncLog.tienda_id == t.id,
+                               SyncLog.exitoso == False,
+                               SyncLog.id >= 1)
+                       .count())
+
+        hace = '—'
+        if ultima_ok and ultima_ok.id:
+            # usamos created_at si existe; si no, es aprox
+            hace = 'OK'
+
+        filas_tiendas.append({
+            'id': t.id,
+            'nombre': t.nombre or f'Tienda {t.id}',
+            'pendientes': pendientes,
+            'errores_24h': errores_24h,
+        })
+
+    # Ultimos 15 logs
+    logs = (SyncLog.query
+            .order_by(SyncLog.id.desc())
+            .limit(15)
+            .all())
+
+    # Totales globales
+    total_productos = (db.session.query(func.count(ProductoTienda.producto_id))
+                       .filter(ProductoTienda.tienda_id == 1)
+                       .scalar() or 0)
+    total_pendientes = (db.session.query(func.count(ProductoTienda.producto_id))
+                        .filter(ProductoTienda.tienda_id == 1,
+                                ProductoTienda.sync_estado == 'pendiente')
+                        .scalar() or 0)
+
+    # ============ HTML ============
+    html = f'''<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Salud del Sync - El Michin</title>
+<style>
+  body {{ font-family: -apple-system, system-ui, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; color: #222; }}
+  h1 {{ color: #16a34a; margin: 0 0 20px 0; }}
+  h2 {{ color: #444; font-size: 1.1em; margin-top: 30px; border-bottom: 2px solid #ddd; padding-bottom: 8px; }}
+  .card {{ background: white; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }}
+  .metrics {{ display: flex; gap: 16px; flex-wrap: wrap; }}
+  .metric {{ flex: 1; min-width: 150px; background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }}
+  .metric .valor {{ font-size: 2em; font-weight: bold; color: #16a34a; }}
+  .metric .label {{ color: #666; font-size: 0.9em; }}
+  .metric.alerta .valor {{ color: #dc2626; }}
+  .metric.ok .valor {{ color: #16a34a; }}
+  table {{ width: 100%; border-collapse: collapse; }}
+  th, td {{ text-align: left; padding: 8px 12px; border-bottom: 1px solid #eee; }}
+  th {{ background: #fafafa; color: #666; font-size: 0.85em; text-transform: uppercase; }}
+  .badge {{ display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; font-weight: bold; }}
+  .badge-ok {{ background: #dcfce7; color: #166534; }}
+  .badge-err {{ background: #fee2e2; color: #991b1b; }}
+  .badge-warn {{ background: #fef3c7; color: #92400e; }}
+  .refresh {{ color: #666; font-size: 0.85em; margin-bottom: 20px; }}
+  .refresh a {{ color: #16a34a; text-decoration: none; }}
+  .footer {{ color: #999; font-size: 0.8em; margin-top: 30px; }}
+</style>
+</head>
+<body>
+<h1>🩺 Salud del Sync — El Michin Central</h1>
+<div class="refresh">Actualizado: {ahora.strftime('%Y-%m-%d %H:%M:%S')} UTC · <a href="/api/sync/health">Refrescar</a></div>
+
+<h2>Resumen General</h2>
+<div class="metrics">
+  <div class="metric">
+    <div class="valor">{total_productos}</div>
+    <div class="label">Productos totales T1</div>
+  </div>
+  <div class="metric {'alerta' if total_pendientes > 0 else 'ok'}">
+    <div class="valor">{total_pendientes}</div>
+    <div class="label">Productos pendientes</div>
+  </div>
+  <div class="metric">
+    <div class="valor">{len(tiendas)}</div>
+    <div class="label">Tiendas activas</div>
+  </div>
+</div>
+
+<h2>Estado por Tienda</h2>
+<div class="card">
+<table>
+<thead><tr><th>ID</th><th>Tienda</th><th>Pendientes</th><th>Errores (24h)</th><th>Estado</th></tr></thead>
+<tbody>
+'''
+
+    for t in filas_tiendas:
+        estado_badge = '<span class="badge badge-ok">OK</span>'
+        if t['pendientes'] > 0 or t['errores_24h'] > 5:
+            estado_badge = '<span class="badge badge-warn">Revisar</span>'
+        if t['errores_24h'] > 20:
+            estado_badge = '<span class="badge badge-err">Atención</span>'
+
+        html += f'''<tr>
+  <td>{t['id']}</td>
+  <td>{t['nombre']}</td>
+  <td>{t['pendientes']}</td>
+  <td>{t['errores_24h']}</td>
+  <td>{estado_badge}</td>
+</tr>'''
+
+    html += '''
+</tbody>
+</table>
+</div>
+
+<h2>Últimos 15 logs</h2>
+<div class="card">
+<table>
+<thead><tr><th>ID</th><th>Tienda</th><th>Tipo</th><th>Tabla</th><th>Registros</th><th>OK</th><th>Mensaje</th></tr></thead>
+<tbody>
+'''
+
+    for l in logs:
+        badge = '<span class="badge badge-ok">OK</span>' if l.exitoso else '<span class="badge badge-err">ERROR</span>'
+        msg = (l.mensaje or '')[:80]
+        html += f'''<tr>
+  <td>{l.id}</td>
+  <td>{l.tienda_id}</td>
+  <td>{l.tipo or ''}</td>
+  <td>{l.tabla or ''}</td>
+  <td>{l.registros or 0}</td>
+  <td>{badge}</td>
+  <td>{msg}</td>
+</tr>'''
+
+    html += '''
+</tbody>
+</table>
+</div>
+
+<div class="footer">
+  Panel de salud v1 — v2.14-health · El Michin
+</div>
+</body>
+</html>'''
+
+    return html
