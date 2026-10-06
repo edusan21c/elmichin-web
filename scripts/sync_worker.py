@@ -1,5 +1,6 @@
 # scripts/sync_worker.py
 # Worker de sincronizacion. Corre en cada TIENDA y sincroniza con el central.
+# v2.14-backoff: retry exponencial en fallas de push/pull.
 
 import os
 import sys
@@ -24,6 +25,10 @@ from app.services import sync_service
 TIMEOUT_PING = 3
 TIMEOUT_REQUEST = 30
 LOG_FILE = os.path.join(RAIZ, 'logs', 'sync.log')
+BACKOFF_FILE = os.path.join(RAIZ, '.sync_backoff.json')
+
+# Backoff en minutos segun numero de fallas consecutivas
+BACKOFF_MINUTOS = [2, 5, 15, 30, 60]
 
 
 def log(msg):
@@ -38,6 +43,83 @@ def log(msg):
             f.write(linea + '\n')
     except Exception:
         pass
+
+
+# ==================== BACKOFF ====================
+def _leer_backoff():
+    """Lee el estado de backoff desde el archivo."""
+    if not os.path.exists(BACKOFF_FILE):
+        return {}
+    try:
+        with open(BACKOFF_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _escribir_backoff(data):
+    """Escribe el estado de backoff al archivo."""
+    try:
+        with open(BACKOFF_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+    except Exception:
+        pass
+
+
+def puede_intentar(operacion):
+    """v2.14-backoff: verifica si ya paso el tiempo de espera."""
+    data = _leer_backoff()
+    op = data.get(operacion, {})
+    proximo = op.get('proximo_intento')
+
+    if not proximo:
+        return True
+
+    try:
+        proximo_dt = datetime.fromisoformat(proximo)
+        if datetime.now() >= proximo_dt:
+            return True
+        # Aun en espera: log y saltar
+        restante = int((proximo_dt - datetime.now()).total_seconds() / 60)
+        log(f'  {operacion.upper()}: en backoff, faltan {restante} min '
+            f'(fallas consecutivas: {op.get("fallas", 0)})')
+        return False
+    except Exception:
+        return True
+
+
+def registrar_exito(operacion):
+    """v2.14-backoff: resetea el contador de fallas."""
+    data = _leer_backoff()
+    data[operacion] = {
+        'fallas': 0,
+        'proximo_intento': None,
+        'ultimo_error': None,
+    }
+    _escribir_backoff(data)
+
+
+def registrar_falla(operacion, error_msg):
+    """v2.14-backoff: incrementa fallas y programa proximo intento."""
+    data = _leer_backoff()
+    op = data.get(operacion, {})
+    fallas = op.get('fallas', 0) + 1
+
+    # Indice del backoff (maximo el ultimo de la lista)
+    idx = min(fallas - 1, len(BACKOFF_MINUTOS) - 1)
+    espera_min = BACKOFF_MINUTOS[idx]
+
+    proximo_dt = datetime.now() + timedelta(minutes=espera_min)
+
+    data[operacion] = {
+        'fallas': fallas,
+        'proximo_intento': proximo_dt.isoformat(),
+        'ultimo_error': str(error_msg)[:200],
+    }
+    _escribir_backoff(data)
+
+    log(f'  {operacion.upper()}: falla {fallas} registrada, '
+        f'proximo intento en {espera_min} min')
 
 
 def hay_internet(url):
@@ -68,7 +150,12 @@ def detectar_fantasmas(app, tienda_id):
 
 
 def hacer_push(app, central_url, sync_key, tienda_id):
-    """Envia datos pendientes al central (facturas, pagos, clientes, productos)."""
+    """Envia datos pendientes al central (facturas, pagos, clientes, productos).
+    v2.14-backoff: salta si esta en periodo de espera."""
+    # v2.14-backoff: verificar si podemos intentar
+    if not puede_intentar('push'):
+        return True  # No es error, solo esperando
+
     with app.app_context():
         pendientes = sync_service.obtener_pendientes_push(tienda_id)
 
@@ -85,6 +172,7 @@ def hacer_push(app, central_url, sync_key, tienda_id):
 
         if total == 0:
             log('  PUSH: sin cambios pendientes')
+            registrar_exito('push')
             return True
 
         log(f'  PUSH: enviando {total} registros...')
@@ -111,35 +199,45 @@ def hacer_push(app, central_url, sync_key, tienda_id):
                         tienda_id, 'push', 'mixto', total,
                         True, str(data.get('recibidas', {}))
                     )
+                    registrar_exito('push')
                     return True
                 else:
-                    log(f'  PUSH: ERROR - {data.get("error")}')
+                    err = str(data.get('error', 'unknown'))
+                    log(f'  PUSH: ERROR - {err}')
                     sync_service.registrar_log(
                         tienda_id, 'push', 'mixto', 0,
-                        False, str(data.get('error'))
+                        False, err
                     )
+                    registrar_falla('push', err)
                     return False
             else:
-                log(f'  PUSH: HTTP {r.status_code}')
+                err = f'HTTP {r.status_code}'
+                log(f'  PUSH: {err}')
                 sync_service.registrar_log(
                     tienda_id, 'push', 'mixto', 0,
-                    False, f'HTTP {r.status_code}'
+                    False, err
                 )
+                registrar_falla('push', err)
                 return False
 
         except requests.RequestException as e:
             log(f'  PUSH: fallo de red - {e}')
+            registrar_falla('push', f'Red: {e}')
             return False
 
 
 def hacer_pull(app, central_url, sync_key, tienda_id):
     """Recibe cambios del central (productos Y facturas).
-    v2.14-pull-lotes: itera en lotes de 200 hasta que central devuelva 0.
-    v2.14-fix-ack: envia header X-Sync-Ack y confirma cada lote aplicado."""
+    v2.14-pull-lotes: itera en lotes de 200.
+    v2.14-fix-ack: envia header X-Sync-Ack y confirma cada lote aplicado.
+    v2.14-backoff: salta si esta en periodo de espera."""
+    # v2.14-backoff: verificar si podemos intentar
+    if not puede_intentar('pull'):
+        return True
+
     with app.app_context():
         desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
-        # Headers para el pull (incluye ACK flag)
         headers_pull = {
             'X-Sync-Key': sync_key,
             'X-Sync-Ack': 'true',
@@ -150,6 +248,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
         total_productos = 0
         ids_pendientes_ack = []
         MAX_ITERACIONES = 50
+        hubo_error_pull = False
 
         for i in range(MAX_ITERACIONES):
             try:
@@ -161,6 +260,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 )
                 if r.status_code != 200:
                     log(f'  PULL productos: HTTP {r.status_code}')
+                    hubo_error_pull = True
                     break
 
                 datos = r.json()
@@ -186,6 +286,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                     break
             except requests.RequestException as e:
                 log(f'  PULL productos: fallo red - {e}')
+                hubo_error_pull = True
                 break
 
         # v2.14-fix-ack: enviar ACK al central con todos los IDs aplicados
@@ -236,8 +337,16 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                     log('  PULL facturas: sin cambios')
             else:
                 log(f'  PULL facturas: HTTP {r.status_code}')
+                hubo_error_pull = True
         except requests.RequestException as e:
             log(f'  PULL facturas: fallo red - {e}')
+            hubo_error_pull = True
+
+        # v2.14-backoff: registrar exito o falla
+        if hubo_error_pull:
+            registrar_falla('pull', 'Error en algun paso del pull')
+        else:
+            registrar_exito('pull')
 
         return True
 
