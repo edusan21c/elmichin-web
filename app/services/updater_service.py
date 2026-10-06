@@ -68,17 +68,31 @@ def get_ultima_version_remota():
     versiones = get_versions_remotas()
     if not versiones:
         return None
-    # Ordenar por version (formato vX.Y[.Z])
+    # Ordenar por version (formato vX.Y[.Z] o vX.Y-sufijo)
     return sorted(versiones, key=parse_version, reverse=True)[0]
 
 
 def parse_version(v):
-    """Convierte 'v1.5.2' en tupla (1, 5, 2) para comparar."""
+    """Convierte 'v2.14-pull-lotes' en tupla (2, 14) para comparar.
+
+    v2.14-updater-fix: ignora sufijos despues del numero. Antes, cuando
+    el sufijo existia (ej: 'v2.14-pull-lotes'), el int() fallaba y ponia 0,
+    causando que (2,0) fuera menor que (2,11) y que v2.11 pareciera mas
+    nueva que las versiones con sufijo.
+    """
     v = v.lstrip('v')
     partes = []
     for p in v.split('.'):
+        # Extrae solo los digitos iniciales de cada parte
+        # Ej: '14-pull-lotes' -> '14' | '11' -> '11' | '1fix' -> '1'
+        num = ''
+        for c in p:
+            if c.isdigit():
+                num += c
+            else:
+                break
         try:
-            partes.append(int(p))
+            partes.append(int(num) if num else 0)
         except ValueError:
             partes.append(0)
     return tuple(partes)
