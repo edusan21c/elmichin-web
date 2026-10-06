@@ -1,3 +1,4 @@
 # version.py
-# Version actual del sistema. Se actualiza manualmente o via git tag.
-VERSION = "1.7"
+# Version actual del sistema. Fallback cuando git no esta disponible.
+# La version real se lee de git tag en updater_service.get_version_local()
+VERSION = "2.14"
