@@ -190,9 +190,8 @@ def obtener_cambios_pull(tienda_id, desde=None):
 
 
 def marcar_productos_enviados(tienda_id, ids_productos):
-    """NUEVO v2.12: Marca productos de una tienda como 'sincronizado' despues
-    de servirlos por /sync/pull. Evita que se repitan indefinidamente en cada
-    ciclo del worker (bug v2.11: los mismos productos bajaban cada 2 min)."""
+    """v2.12-fix-A: Marca productos de una tienda como 'sincronizado' despues
+    de servirlos por /sync/pull. Evita que se repitan indefinidamente."""
     if not ids_productos or not tienda_id:
         return 0
 
@@ -210,8 +209,6 @@ def marcar_productos_enviados(tienda_id, ids_productos):
 
 def aplicar_cambios_pull(datos):
     """Aplica los cambios recibidos del central.
-    IMPORTANTE: prioriza match por codigo_barras (unico y confiable)
-    antes que por ID, porque los IDs pueden estar desalineados entre PCs.
     v2.12-fix-C: se elimino el fallback por ID (corrompia productos)."""
     actualizados = 0
     creados = 0
@@ -225,26 +222,18 @@ def aplicar_cambios_pull(datos):
         if not tienda_id:
             continue
 
-        # ============ 1. BUSCAR PRODUCTO GLOBAL (PRIORIDAD: CODIGO) ============
+        # 1. BUSCAR PRODUCTO GLOBAL (PRIORIDAD: CODIGO)
         producto = None
-
-        # 1a. Por codigo de barras (lo mas confiable)
         if codigo:
             producto = Producto.query.filter_by(codigo_barras=codigo).first()
-
-        # 1b. Por nombre exacto
         if not producto and nombre:
             producto = Producto.query.filter_by(nombre=nombre).first()
+        # 1c. ELIMINADO en v2.12-fix-C (fallback por ID).
 
-        # 1c. ELIMINADO en v2.12-fix-C: el fallback por ID corrompia productos
-        # por el desfase -1 entre central y tienda. Ahora si no hay match
-        # por codigo ni nombre, se crea un producto nuevo (bloque 2 abajo).
-
-        # ============ 2. SI NO EXISTE, CREARLO ============
+        # 2. SI NO EXISTE, CREARLO
         if not producto:
             try:
-                # v2.12-fix-C: NO forzar id=producto_id (causaba desfase
-                # entre PCs). Dejar que la BD asigne el siguiente ID libre.
+                # v2.12-fix-C: NO forzar id=producto_id.
                 producto = Producto(
                     nombre=nombre or f'Producto {producto_id}',
                     codigo_barras=codigo or None,
@@ -259,7 +248,7 @@ def aplicar_cambios_pull(datos):
 
         id_real = producto.id
 
-        # ============ 3. BUSCAR/CREAR PRODUCTO_TIENDA ============
+        # 3. BUSCAR/CREAR PRODUCTO_TIENDA
         pres = ProductoTienda.query.filter_by(
             producto_id=id_real, tienda_id=tienda_id
         ).first()
@@ -274,7 +263,7 @@ def aplicar_cambios_pull(datos):
             db.session.flush()
             creados += 1
 
-        # ============ 4. APLICAR VALORES ============
+        # 4. APLICAR VALORES
         pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
         pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
         pres.precio_venta1 = Decimal(str(p_data.get('precio_venta1', 0)))
@@ -299,7 +288,7 @@ def aplicar_cambios_pull(datos):
 
 # ==================== LOG ====================
 def registrar_log(tienda_id, tipo, tabla, registros, exitoso, mensaje=''):
-    """Registra un log de sync. Ignora el error si tienda_id no existe (ej: modo central)."""
+    """Registra un log de sync."""
     try:
         if not tienda_id or tienda_id <= 0:
             return None
@@ -489,8 +478,7 @@ def procesar_push(tienda_id, datos):
             factura_central_id = mapa_facturas.get(factura_local_id)
 
             # v2.13-fix-G: si la factura no vino en el mismo push, buscarla
-            # en central por numero_factura. Antes el pago se rechazaba si
-            # la factura ya se habia sincronizado en un push anterior.
+            # en central por numero_factura.
             if not factura_central_id:
                 numero_factura = p_data.get('numero_factura')
                 if numero_factura:
@@ -534,20 +522,33 @@ def procesar_push(tienda_id, datos):
             db.session.flush()
             pagos_ok.append(id_local)
 
-            # v2.13-fix-F: recalcular saldo del cliente afectado por el pago.
+            # v2.13-fix-H: actualizar la factura con el monto del pago
+            # (antes solo se insertaba el pago pero la factura quedaba intacta).
+            # Y recalcular el saldo del cliente afectado (v2.13-fix-F).
             factura_afectada = Factura.query.get(factura_central_id)
-            if factura_afectada and factura_afectada.cliente_id:
-                nuevo_saldo = (db.session.query(
-                    db.func.coalesce(db.func.sum(Factura.saldo_pendiente), 0)
-                ).filter(Factura.cliente_id == factura_afectada.cliente_id).scalar())
-                cliente_afectado = Cliente.query.get(factura_afectada.cliente_id)
-                if cliente_afectado:
-                    cliente_afectado.saldo_actual = Decimal(str(nuevo_saldo))
-                    cliente_afectado.sync_fecha = datetime.utcnow()
+            if factura_afectada:
+                # fix-H: sumar el pago al valor_pagado y restarlo del saldo_pendiente
+                factura_afectada.valor_pagado = (factura_afectada.valor_pagado or Decimal('0')) + monto
+                nuevo_saldo_factura = (factura_afectada.saldo_pendiente or Decimal('0')) - monto
+                if nuevo_saldo_factura <= 0:
+                    nuevo_saldo_factura = Decimal('0')
+                    factura_afectada.estado_credito = 'pagado'
+                factura_afectada.saldo_pendiente = nuevo_saldo_factura
+                factura_afectada.sync_fecha = datetime.utcnow()
+
+                # fix-F: recalcular el saldo del cliente desde sus facturas
+                if factura_afectada.cliente_id:
+                    nuevo_saldo = (db.session.query(
+                        db.func.coalesce(db.func.sum(Factura.saldo_pendiente), 0)
+                    ).filter(Factura.cliente_id == factura_afectada.cliente_id).scalar())
+                    cliente_afectado = Cliente.query.get(factura_afectada.cliente_id)
+                    if cliente_afectado:
+                        cliente_afectado.saldo_actual = Decimal(str(nuevo_saldo))
+                        cliente_afectado.sync_fecha = datetime.utcnow()
         except Exception as e:
             errores.append(f'Pago {p_data.get("id")}: {e}')
 
-    # ---------- 4. PRODUCTOS (precios/stock editados en tienda) ----------
+    # ---------- 4. PRODUCTOS ----------
     for p_data in datos.get('productos', []):
         try:
             producto_id = p_data.get('producto_id')
@@ -559,8 +560,6 @@ def procesar_push(tienda_id, datos):
                 continue
 
             # v2.12-fix-B: buscar producto SOLO por codigo o nombre.
-            # NUNCA por ID: los IDs estan desalineados entre PCs y el
-            # fallback corrompia productos.
             producto = None
             if codigo:
                 producto = Producto.query.filter_by(codigo_barras=codigo).first()
@@ -640,7 +639,7 @@ def procesar_push(tienda_id, datos):
     }
 
 
-# ==================== PULL FACTURAS (CENTRAL -> TIENDA) ====================
+# ==================== PULL FACTURAS ====================
 def obtener_facturas_para_tienda(tienda_id, desde=None):
     """Devuelve SOLO las facturas remotas pendientes para esa tienda."""
     query = Factura.query.filter(
@@ -874,7 +873,7 @@ def _factura_to_dict_extendida(f):
     }
 
 
-# ==================== PUSH INMEDIATO (TIENDA -> CENTRAL) ====================
+# ==================== PUSH INMEDIATO ====================
 def push_factura_individual(tienda_id, factura_id):
     """Empuja UNA factura (y su cliente) al central inmediatamente."""
     import requests
