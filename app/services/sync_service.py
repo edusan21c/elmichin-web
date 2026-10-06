@@ -200,7 +200,8 @@ def marcar_productos_enviados(tienda_id, ids_productos):
 def aplicar_cambios_pull(datos):
     """Aplica los cambios recibidos del central.
     IMPORTANTE: prioriza match por codigo_barras (unico y confiable)
-    antes que por ID, porque los IDs pueden estar desalineados entre PCs."""
+    antes que por ID, porque los IDs pueden estar desalineados entre PCs.
+    v2.12-fix-C: se elimino el fallback por ID (corrompia productos)."""
     actualizados = 0
     creados = 0
 
@@ -224,15 +225,16 @@ def aplicar_cambios_pull(datos):
         if not producto and nombre:
             producto = Producto.query.filter_by(nombre=nombre).first()
 
-        # 1c. Por ID (ultimo recurso, puede estar desalineado)
-        if not producto and producto_id:
-            producto = Producto.query.get(producto_id)
+        # 1c. ELIMINADO en v2.12-fix-C: el fallback por ID corrompia productos
+        # por el desfase -1 entre central y tienda. Ahora si no hay match
+        # por codigo ni nombre, se crea un producto nuevo (bloque 2 abajo).
 
         # ============ 2. SI NO EXISTE, CREARLO ============
         if not producto:
             try:
+                # v2.12-fix-C: NO forzar id=producto_id (causaba desfase
+                # entre PCs). Dejar que la BD asigne el siguiente ID libre.
                 producto = Producto(
-                    id=producto_id,
                     nombre=nombre or f'Producto {producto_id}',
                     codigo_barras=codigo or None,
                     categoria=p_data.get('categoria') or None,
