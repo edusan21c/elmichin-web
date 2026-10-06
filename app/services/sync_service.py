@@ -79,9 +79,20 @@ def _detalle_to_dict(d):
 
 
 def _pago_to_dict(p):
+    # v2.13-fix-G: incluir numero_factura para que central pueda matchear
+    # pagos cuando la factura NO viene en el mismo push.
+    num_fact = None
+    if p.factura_id:
+        try:
+            fact = db.session.get(Factura, p.factura_id)
+            if fact:
+                num_fact = fact.numero_factura
+        except Exception:
+            pass
     return {
         'id': p.id,
         'factura_id': p.factura_id,
+        'numero_factura': num_fact,
         'tienda_id': p.tienda_id,
         'fecha': p.fecha.isoformat() if p.fecha else None,
         'monto': float(p.monto or 0),
@@ -389,8 +400,7 @@ def procesar_push(tienda_id, datos):
 
             if existente:
                 # v2.13-fix-F: ACTUALIZAR factura existente con los valores
-                # del push (antes solo se mapeaba y los cambios se perdian,
-                # por ejemplo cuando T1 marcaba la factura como pagada).
+                # del push (antes solo se mapeaba y los cambios se perdian).
                 existente.saldo_pendiente = Decimal(str(f_data.get('saldo_pendiente', existente.saldo_pendiente or 0)))
                 existente.valor_pagado = Decimal(str(f_data.get('valor_pagado', existente.valor_pagado or 0)))
                 existente.estado_credito = f_data.get('estado_credito', existente.estado_credito)
@@ -478,6 +488,20 @@ def procesar_push(tienda_id, datos):
             factura_local_id = p_data.get('factura_id')
             factura_central_id = mapa_facturas.get(factura_local_id)
 
+            # v2.13-fix-G: si la factura no vino en el mismo push, buscarla
+            # en central por numero_factura. Antes el pago se rechazaba si
+            # la factura ya se habia sincronizado en un push anterior.
+            if not factura_central_id:
+                numero_factura = p_data.get('numero_factura')
+                if numero_factura:
+                    fact_encontrada = Factura.query.filter_by(
+                        tienda_id=tienda_id, numero_factura=numero_factura
+                    ).first()
+                    if fact_encontrada:
+                        factura_central_id = fact_encontrada.id
+                        print(f'  [push] Pago {id_local}: factura {numero_factura} '
+                              f'encontrada por numero (id={factura_central_id})')
+
             if not factura_central_id:
                 errores.append(f'Pago {id_local}: factura {factura_local_id} no mapeada')
                 continue
@@ -511,7 +535,6 @@ def procesar_push(tienda_id, datos):
             pagos_ok.append(id_local)
 
             # v2.13-fix-F: recalcular saldo del cliente afectado por el pago.
-            # Antes el saldo_actual quedaba congelado en el valor original.
             factura_afectada = Factura.query.get(factura_central_id)
             if factura_afectada and factura_afectada.cliente_id:
                 nuevo_saldo = (db.session.query(
@@ -545,8 +568,6 @@ def procesar_push(tienda_id, datos):
                 producto = Producto.query.filter_by(nombre=nombre).first()
 
             # v2.13-fix-E: si el producto no existe en central, CREARLO.
-            # Esto permite que las tiendas aporten productos nuevos al catalogo.
-            # Regla: codigo_barras obligatorio (evita duplicados sin control).
             if not producto:
                 if not codigo:
                     errores.append(f'Producto {producto_id}: sin codigo_barras, no se puede crear desde tienda')
@@ -567,14 +588,11 @@ def procesar_push(tienda_id, datos):
                     errores.append(f'Producto {producto_id}: no se pudo crear ({e})')
                     continue
 
-            # Buscar/crear la presentacion (ProductoTienda) para esta tienda
             pres = ProductoTienda.query.filter_by(
                 producto_id=producto.id, tienda_id=t_id
             ).first()
 
             if not pres:
-                # v2.13-fix-E: si el producto acaba de crearse, tambien
-                # hay que crear su presentacion en la tienda.
                 try:
                     pres = ProductoTienda(
                         producto_id=producto.id,
@@ -606,10 +624,7 @@ def procesar_push(tienda_id, datos):
             pres.sync_estado = 'sincronizado'
             pres.sync_fecha = datetime.utcnow()
 
-            # v2.12-fix-D: devolver el ID LOCAL de la tienda (el que vino en
-            # el payload), no el de central. Con IDs desalineados entre PCs,
-            # devolver el ID de central hace que marcar_sincronizados en la
-            # tienda no matchee nada y los productos se reenvien en loop.
+            # v2.12-fix-D: devolver el ID LOCAL de la tienda.
             productos_ok.append(producto_id)
         except Exception as e:
             errores.append(f'Producto {p_data.get("producto_id")}: {e}')
@@ -691,9 +706,8 @@ def obtener_facturas_para_tienda(tienda_id, desde=None):
 
 
 def marcar_facturas_enviadas(ids):
-    """Marca facturas remotas como ya enviadas (evita reenvios).
-    v2.13-fix-F: tambien actualiza sync_estado='sincronizado' (antes quedaba
-    en 'pendiente' generando ruido en logs y conteos)."""
+    """Marca facturas remotas como ya enviadas.
+    v2.13-fix-F: tambien actualiza sync_estado='sincronizado'."""
     if not ids:
         return 0
 
@@ -817,7 +831,7 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
 
 # ==================== HELPERS DE FORMATO ====================
 def _factura_to_dict_extendida(f):
-    """Convierte una factura a dict CON cliente y detalles (formato pull-facturas)."""
+    """Convierte una factura a dict CON cliente y detalles."""
     cliente_data = None
     if f.cliente:
         cliente_data = {
@@ -902,11 +916,7 @@ def push_factura_individual(tienda_id, factura_id):
 
 # ==================== DETECTAR FACTURAS FANTASMA ====================
 def detectar_facturas_faltantes(tienda_id):
-    """
-    Consulta al central que facturas marcadas como 'sincronizado' en tienda
-    NO existen alla (fantasmas). Las re-marca como 'pendiente'.
-    Retorna cantidad de facturas re-marcadas.
-    """
+    """Detecta facturas marcadas como sincronizadas que no existen en central."""
     import requests
     from flask import current_app
 
@@ -956,8 +966,7 @@ def detectar_facturas_faltantes(tienda_id):
 
 # ==================== PRODUCTOS PENDIENTES DE PUSH ====================
 def obtener_productos_pendientes_push(tienda_id):
-    """Devuelve los productos LOCALES de esta tienda que fueron editados
-    (precio o stock) y hay que enviar al central."""
+    """Devuelve los productos LOCALES de esta tienda que fueron editados."""
     query = ProductoTienda.query.filter_by(
         tienda_id=tienda_id,
         sync_estado='pendiente'
@@ -965,7 +974,6 @@ def obtener_productos_pendientes_push(tienda_id):
 
     resultado = []
     for pres in query:
-        # Incluir nombre y codigo para que central pueda hacer el match correcto
         prod = pres.producto
         resultado.append({
             'producto_id': pres.producto_id,
