@@ -133,33 +133,51 @@ def hacer_push(app, central_url, sync_key, tienda_id):
 
 
 def hacer_pull(app, central_url, sync_key, tienda_id):
-    """Recibe cambios del central (productos Y facturas)."""
+    """Recibe cambios del central (productos Y facturas).
+    v2.14-pull-lotes: itera en lotes de 200 hasta que central devuelva 0."""
     with app.app_context():
         desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
-        # ============ 1. PULL PRODUCTOS ============
+        # ============ 1. PULL PRODUCTOS (en lotes) ============
         log(f'  PULL productos desde {desde[:10]}...')
-        try:
-            r = requests.get(
-                central_url.rstrip('/') + '/api/sync/pull',
-                params={'tienda_id': tienda_id, 'desde': desde},
-                headers={'X-Sync-Key': sync_key},
-                timeout=TIMEOUT_REQUEST,
-            )
-            if r.status_code == 200:
+        total_productos = 0
+        MAX_ITERACIONES = 50
+        for i in range(MAX_ITERACIONES):
+            try:
+                r = requests.get(
+                    central_url.rstrip('/') + '/api/sync/pull',
+                    params={'tienda_id': tienda_id, 'desde': desde},
+                    headers={'X-Sync-Key': sync_key},
+                    timeout=TIMEOUT_REQUEST,
+                )
+                if r.status_code != 200:
+                    log(f'  PULL productos: HTTP {r.status_code}')
+                    break
+
                 datos = r.json()
                 productos = datos.get('productos', [])
-                if productos:
-                    actualizados = sync_service.aplicar_cambios_pull(
-                        {'productos': productos}
-                    )
-                    log(f'  PULL productos: {actualizados} actualizados')
-                else:
-                    log('  PULL productos: sin cambios')
-            else:
-                log(f'  PULL productos: HTTP {r.status_code}')
-        except requests.RequestException as e:
-            log(f'  PULL productos: fallo red - {e}')
+                hay_mas = datos.get('hay_mas', False)
+
+                if not productos:
+                    break
+
+                actualizados = sync_service.aplicar_cambios_pull(
+                    {'productos': productos}
+                )
+                total_productos += actualizados
+                log(f'  PULL productos lote {i+1}: {actualizados} '
+                    f'actualizados (hay_mas={hay_mas})')
+
+                if not hay_mas:
+                    break
+            except requests.RequestException as e:
+                log(f'  PULL productos: fallo red - {e}')
+                break
+
+        if total_productos > 0:
+            log(f'  PULL productos TOTAL: {total_productos} actualizados')
+        else:
+            log('  PULL productos: sin cambios')
 
         # ============ 2. PULL FACTURAS REMOTAS ============
         log(f'  PULL facturas desde {desde[:10]}...')

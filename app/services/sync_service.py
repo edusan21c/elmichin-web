@@ -154,22 +154,34 @@ def marcar_sincronizados(tienda_id, resultado):
 
 
 # ==================== PULL (CENTRAL -> TIENDA) ====================
-def obtener_cambios_pull(tienda_id, desde=None):
-    """Devuelve los productos de UNA tienda especifica que tienen cambios
-    pendientes de enviar (fue editado el precio, stock o condiciones)."""
+def obtener_cambios_pull(tienda_id, desde=None, limite=200):
+    """Devuelve los productos de UNA tienda que tienen cambios pendientes.
+    v2.14-pull-lotes: limita a 200 por request para evitar timeouts en
+    catalogos grandes. El worker de la tienda itera hasta recibir 0."""
     if not tienda_id:
-        return {'productos': [], 'timestamp': datetime.utcnow().isoformat()}
+        return {'productos': [], 'timestamp': datetime.utcnow().isoformat(),
+                'hay_mas': False}
 
     query = (db.session.query(Producto, ProductoTienda)
              .join(ProductoTienda, Producto.id == ProductoTienda.producto_id)
              .filter(
                  ProductoTienda.tienda_id == tienda_id,
                  ProductoTienda.sync_estado == 'pendiente'
-             ))
+             )
+             .order_by(ProductoTienda.producto_id)
+             .limit(limite + 1))
 
-    resultado = {'productos': [], 'timestamp': datetime.utcnow().isoformat()}
+    registros = query.all()
+    hay_mas = len(registros) > limite
+    registros = registros[:limite]
 
-    for p, pres in query.all():
+    resultado = {
+        'productos': [],
+        'timestamp': datetime.utcnow().isoformat(),
+        'hay_mas': hay_mas,
+    }
+
+    for p, pres in registros:
         resultado['productos'].append({
             'producto_id': p.id,
             'nombre': p.nombre,
