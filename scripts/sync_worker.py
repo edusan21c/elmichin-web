@@ -134,20 +134,29 @@ def hacer_push(app, central_url, sync_key, tienda_id):
 
 def hacer_pull(app, central_url, sync_key, tienda_id):
     """Recibe cambios del central (productos Y facturas).
-    v2.14-pull-lotes: itera en lotes de 200 hasta que central devuelva 0."""
+    v2.14-pull-lotes: itera en lotes de 200 hasta que central devuelva 0.
+    v2.14-fix-ack: envia header X-Sync-Ack y confirma cada lote aplicado."""
     with app.app_context():
         desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
+
+        # Headers para el pull (incluye ACK flag)
+        headers_pull = {
+            'X-Sync-Key': sync_key,
+            'X-Sync-Ack': 'true',
+        }
 
         # ============ 1. PULL PRODUCTOS (en lotes) ============
         log(f'  PULL productos desde {desde[:10]}...')
         total_productos = 0
+        ids_pendientes_ack = []
         MAX_ITERACIONES = 50
+
         for i in range(MAX_ITERACIONES):
             try:
                 r = requests.get(
                     central_url.rstrip('/') + '/api/sync/pull',
                     params={'tienda_id': tienda_id, 'desde': desde},
-                    headers={'X-Sync-Key': sync_key},
+                    headers=headers_pull,
                     timeout=TIMEOUT_REQUEST,
                 )
                 if r.status_code != 200:
@@ -161,11 +170,16 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 if not productos:
                     break
 
-                actualizados = sync_service.aplicar_cambios_pull(
+                resultado = sync_service.aplicar_cambios_pull(
                     {'productos': productos}
                 )
-                total_productos += actualizados
-                log(f'  PULL productos lote {i+1}: {actualizados} '
+                aplicados = resultado.get('actualizados', 0)
+                ids_lote = resultado.get('ids_aplicados', [])
+
+                total_productos += aplicados
+                ids_pendientes_ack.extend(ids_lote)
+
+                log(f'  PULL productos lote {i+1}: {aplicados} '
                     f'actualizados (hay_mas={hay_mas})')
 
                 if not hay_mas:
@@ -173,6 +187,23 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
             except requests.RequestException as e:
                 log(f'  PULL productos: fallo red - {e}')
                 break
+
+        # v2.14-fix-ack: enviar ACK al central con todos los IDs aplicados
+        if ids_pendientes_ack:
+            try:
+                r = requests.post(
+                    central_url.rstrip('/') + '/api/sync/ack',
+                    json={'tienda_id': tienda_id, 'ids_productos': ids_pendientes_ack},
+                    headers={'X-Sync-Key': sync_key},
+                    timeout=TIMEOUT_REQUEST,
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    log(f'  ACK productos: {data.get("marcados", 0)} marcados en central')
+                else:
+                    log(f'  ACK productos: HTTP {r.status_code} (se reintentaran)')
+            except requests.RequestException as e:
+                log(f'  ACK productos: fallo red - {e} (se reintentaran)')
 
         if total_productos > 0:
             log(f'  PULL productos TOTAL: {total_productos} actualizados')

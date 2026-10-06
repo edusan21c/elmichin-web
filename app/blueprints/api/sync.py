@@ -60,8 +60,10 @@ def sync_push():
 @requiere_sync_key
 def sync_pull():
     """Devuelve cambios (productos, precios, stock) para una tienda especifica.
-    NUEVO v2.12: marca los productos servidos como 'sincronizado' para no
-    repetirlos en cada ciclo del worker."""
+
+    v2.14-fix-ack: si T1 envia header 'X-Sync-Ack: true', NO marcamos los
+    productos como sincronizados al servir. T1 confirmara despues via
+    /api/sync/ack. Si el header no viene (cliente viejo), marca al servir."""
     from app.services import sync_service
 
     tienda_id = request.args.get('tienda_id', type=int)
@@ -70,24 +72,54 @@ def sync_pull():
     if not tienda_id or tienda_id <= 0:
         return jsonify({'ok': False, 'error': 'tienda_id requerido', 'productos': []}), 400
 
+    # v2.14-fix-ack: detectar si el cliente soporta ACK
+    soporta_ack = request.headers.get('X-Sync-Ack', '').lower() == 'true'
+
     datos = sync_service.obtener_cambios_pull(tienda_id, desde)
 
-    # NUEVO v2.12: marcar los productos servidos para no repetirlos indefinidamente
-    ids = [p['producto_id'] for p in datos.get('productos', [])]
-    if ids:
-        sync_service.marcar_productos_enviados(tienda_id, ids)
+    # v2.12-fix-A / v2.14-fix-ack: marcar al servir SOLO si el cliente NO usa ACK
+    if not soporta_ack:
+        ids = [p['producto_id'] for p in datos.get('productos', [])]
+        if ids:
+            sync_service.marcar_productos_ack(tienda_id, ids)
 
     return jsonify(datos)
+
+
+# ==================== ACK DE PULL (TIENDA -> CENTRAL) ====================
+@bp.route('/sync/ack', methods=['POST'])
+@requiere_sync_key
+def sync_ack():
+    """v2.14-fix-ack: T1 confirma que aplico N productos del pull.
+    Central los marca como sincronizado. Si T1 falla antes de llamar aca,
+    los productos siguen 'pendiente' y se reintentan en el proximo ciclo."""
+    from app.services import sync_service
+
+    data = request.get_json(silent=True) or {}
+    tienda_id = data.get('tienda_id')
+    ids_productos = data.get('ids_productos', [])
+
+    if not tienda_id or tienda_id <= 0:
+        return jsonify({'ok': False, 'error': 'tienda_id requerido'}), 400
+
+    if not ids_productos:
+        return jsonify({'ok': True, 'marcados': 0})
+
+    try:
+        marcados = sync_service.marcar_productos_ack(tienda_id, ids_productos)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+    return jsonify({'ok': True, 'marcados': marcados})
 
 
 # ==================== PULL FACTURAS REMOTAS (CENTRAL -> TIENDA) ====================
 @bp.route('/sync/pull-facturas', methods=['GET'])
 @requiere_sync_key
 def sync_pull_facturas():
-    """
-    Devuelve facturas remotas (dueno->tienda) pendientes de enviar.
-    Despues de servirlas, las marca como 'remota_recibida' para no reenviarlas.
-    """
+    """Devuelve facturas remotas (dueno->tienda) pendientes de enviar."""
     from app.services import sync_service
 
     tienda_id = request.args.get('tienda_id', type=int)
@@ -97,10 +129,7 @@ def sync_pull_facturas():
         return jsonify({'ok': False, 'error': 'tienda_id invalido'}), 400
 
     try:
-        # 1. Obtener las facturas remotas pendientes
         facturas = sync_service.obtener_facturas_para_tienda(tienda_id, desde)
-
-        # 2. Marcar como enviadas para no reenviarlas en el proximo ciclo
         ids = [f['id'] for f in facturas]
         enviadas = sync_service.marcar_facturas_enviadas(ids)
     except Exception as e:
@@ -122,11 +151,7 @@ def sync_pull_facturas():
 @bp.route('/sync/factura/<numero_factura>', methods=['GET'])
 @requiere_sync_key
 def sync_factura_individual(numero_factura):
-    """
-    Devuelve una factura especifica SIN marcarla como enviada.
-    Util para recuperar facturas que quedaron marcadas como 'remota_recibida'
-    por error (por ejemplo, cuando se probo el endpoint desde un navegador).
-    """
+    """Devuelve una factura especifica SIN marcarla como enviada."""
     from app.services import sync_service
     from app.models.factura import Factura
 
