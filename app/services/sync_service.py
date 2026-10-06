@@ -513,14 +513,14 @@ def procesar_push(tienda_id, datos):
             if not t_id:
                 continue
 
-            # Buscar producto por codigo -> nombre -> id
+            # v2.12-fix-B: buscar producto SOLO por codigo o nombre.
+            # NUNCA por ID: los IDs estan desalineados entre PCs y el
+            # fallback corrompia productos. Si no hay match, se registra error.
             producto = None
             if codigo:
                 producto = Producto.query.filter_by(codigo_barras=codigo).first()
             if not producto and nombre:
                 producto = Producto.query.filter_by(nombre=nombre).first()
-            if not producto and producto_id:
-                producto = Producto.query.get(producto_id)
 
             if not producto:
                 errores.append(f'Producto {producto_id}: no existe en central')
