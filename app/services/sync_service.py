@@ -547,7 +547,7 @@ def procesar_push(tienda_id, datos):
             pres.sync_fecha = datetime.utcnow()
 
             # Devolver el ID REAL del producto (no el que vino)
-            productos_ok.append(producto.id)
+            productos_ok.append(producto_id)
         except Exception as e:
             errores.append(f'Producto {p_data.get("producto_id")}: {e}')
 
