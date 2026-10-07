@@ -117,6 +117,14 @@ def nuevo():
             flash('Ya existe un producto con ese nombre.', 'danger')
             return render_template('inventario/form.html', form=form, producto=None)
 
+        # v2.16-validar-codigo: el codigo de barras debe ser unico
+        codigo_nuevo = form.codigo_barras.data.strip() if form.codigo_barras.data else None
+        if codigo_nuevo:
+            existe_codigo = Producto.query.filter_by(codigo_barras=codigo_nuevo).first()
+            if existe_codigo:
+                flash(f'Ya existe un producto con el codigo "{codigo_nuevo}": {existe_codigo.nombre}', 'danger')
+                return render_template('inventario/form.html', form=form, producto=None)
+
         producto = Producto(
             nombre=form.nombre.data.strip(),
             codigo_barras=form.codigo_barras.data.strip() if form.codigo_barras.data else None,
@@ -183,6 +191,17 @@ def editar(producto_id):
         if existe_otro:
             flash('Ya existe otro producto con ese nombre.', 'danger')
             return render_template('inventario/form.html', form=form, producto=producto)
+
+        # v2.16-validar-codigo: el codigo de barras debe ser unico (excepto el propio)
+        codigo_nuevo = form.codigo_barras.data.strip() if form.codigo_barras.data else None
+        if codigo_nuevo:
+            existe_codigo = Producto.query.filter(
+                Producto.codigo_barras == codigo_nuevo,
+                Producto.id != producto.id
+            ).first()
+            if existe_codigo:
+                flash(f'Ya existe otro producto con el codigo "{codigo_nuevo}": {existe_codigo.nombre}', 'danger')
+                return render_template('inventario/form.html', form=form, producto=producto)
 
         viejo_nombre = producto.nombre
         viejo_precio = float(pres.precio_venta or 0)
