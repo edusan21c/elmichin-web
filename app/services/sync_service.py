@@ -261,6 +261,21 @@ def aplicar_cambios_pull(datos):
                 print(f'  [pull] No se pudo crear producto {producto_id}: {e}')
                 continue
 
+        # v2.21-fix-barcode-pull: si el barcode cambio en Central, actualizarlo local
+        if producto and codigo and producto.codigo_barras != codigo:
+            codigo_anterior = producto.codigo_barras
+            otro = Producto.query.filter(
+                Producto.codigo_barras == codigo,
+                Producto.id != producto.id,
+            ).first()
+            if otro:
+                print(f'  [pull] Barcode {codigo} ya existe en "{otro.nombre}" '
+                      f'(id={otro.id}), no se actualiza "{producto.nombre}"')
+            else:
+                producto.codigo_barras = codigo
+                print(f'  [pull] Barcode actualizado desde Central: '
+                      f'"{producto.nombre}" {codigo_anterior} -> {codigo}')
+
         id_real = producto.id
 
         pres = ProductoTienda.query.filter_by(
