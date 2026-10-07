@@ -223,9 +223,24 @@ def editar(producto_id):
         pres.condicion3 = form.condicion3.data or ''
         pres.precio_venta3 = form.precio_venta3.data or 0
 
-        # Marcar para sincronizar (precios cambiaron)
-        pres.sync_estado = 'pendiente'
-        pres.sync_fecha = datetime.utcnow()
+        # v2.22-fix-marcar-todas-tiendas: si es admin en Central, marcar TODAS
+        # las tiendas activas. Si es operario, solo su tienda.
+        if current_user.es_admin() or current_user.es_programador():
+            tiendas_activas = Tienda.query.filter_by(activa=True).all()
+            for t in tiendas_activas:
+                p_t = ProductoTienda.query.filter_by(
+                    producto_id=producto.id, tienda_id=t.id
+                ).first()
+                if not p_t:
+                    p_t = ProductoTienda(
+                        producto_id=producto.id, tienda_id=t.id, cantidad=0
+                    )
+                    db.session.add(p_t)
+                p_t.sync_estado = 'pendiente'
+                p_t.sync_fecha = datetime.utcnow()
+        else:
+            pres.sync_estado = 'pendiente'
+            pres.sync_fecha = datetime.utcnow()
 
         db.session.commit()
 
