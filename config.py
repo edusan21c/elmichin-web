@@ -49,6 +49,10 @@ class Config:
     # Sincronizacion entre tiendas y central
     SYNC_KEY = os.getenv('SYNC_KEY', '')
 
+    # v2.15-alertas: notificaciones por Telegram
+    TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
+    TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
+
     # ============ CSRF / Seguridad ============
     # Desactivar chequeo estricto de HTTPS en CSRF (necesario por ProxyFix + Cloudflare)
     WTF_CSRF_SSL_STRICT = False

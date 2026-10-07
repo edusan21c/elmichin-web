@@ -1,6 +1,7 @@
 # scripts/sync_worker.py
 # Worker de sincronizacion. Corre en cada TIENDA y sincroniza con el central.
 # v2.14-backoff: retry exponencial en fallas de push/pull.
+# v2.15-alertas: notificaciones por Telegram en fallas consecutivas.
 
 import os
 import sys
@@ -30,6 +31,9 @@ BACKOFF_FILE = os.path.join(RAIZ, '.sync_backoff.json')
 # Backoff en minutos segun numero de fallas consecutivas
 BACKOFF_MINUTOS = [2, 5, 15, 30, 60]
 
+# v2.15-alertas: umbral de fallas para disparar alerta
+UMBRAL_ALERTA_FALLAS = 3
+
 
 def log(msg):
     """Registra mensaje en el log y consola."""
@@ -43,6 +47,37 @@ def log(msg):
             f.write(linea + '\n')
     except Exception:
         pass
+
+
+# ==================== ALERTAS TELEGRAM ====================
+def enviar_alerta_telegram(mensaje):
+    """v2.15-alertas: envia alerta por Telegram si esta configurado.
+    Lee TELEGRAM_TOKEN y TELEGRAM_CHAT_ID desde el .env (via current_app)."""
+    from flask import current_app
+
+    token = current_app.config.get('TELEGRAM_TOKEN', '')
+    chat_id = current_app.config.get('TELEGRAM_CHAT_ID', '')
+
+    if not token or not chat_id:
+        log('  [alerta] Telegram no configurado, se omite.')
+        return False
+
+    try:
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": mensaje,
+        }
+        r = requests.post(url, json=payload, timeout=10)
+        if r.status_code == 200:
+            log('  [alerta] Telegram enviado OK.')
+            return True
+        else:
+            log(f'  [alerta] Error Telegram HTTP {r.status_code}')
+            return False
+    except Exception as e:
+        log(f'  [alerta] Fallo al enviar: {e}')
+        return False
 
 
 # ==================== BACKOFF ====================
@@ -79,7 +114,6 @@ def puede_intentar(operacion):
         proximo_dt = datetime.fromisoformat(proximo)
         if datetime.now() >= proximo_dt:
             return True
-        # Aun en espera: log y saltar
         restante = int((proximo_dt - datetime.now()).total_seconds() / 60)
         log(f'  {operacion.upper()}: en backoff, faltan {restante} min '
             f'(fallas consecutivas: {op.get("fallas", 0)})')
@@ -100,10 +134,12 @@ def registrar_exito(operacion):
 
 
 def registrar_falla(operacion, error_msg):
-    """v2.14-backoff: incrementa fallas y programa proximo intento."""
+    """v2.14-backoff: incrementa fallas y programa proximo intento.
+    v2.15-alertas: dispara alerta Telegram en el umbral."""
     data = _leer_backoff()
     op = data.get(operacion, {})
-    fallas = op.get('fallas', 0) + 1
+    fallas_previas = op.get('fallas', 0)
+    fallas = fallas_previas + 1
 
     # Indice del backoff (maximo el ultimo de la lista)
     idx = min(fallas - 1, len(BACKOFF_MINUTOS) - 1)
@@ -120,6 +156,22 @@ def registrar_falla(operacion, error_msg):
 
     log(f'  {operacion.upper()}: falla {fallas} registrada, '
         f'proximo intento en {espera_min} min')
+
+    # v2.15-alertas: disparar alerta cuando alcanza el umbral exacto
+    if fallas == UMBRAL_ALERTA_FALLAS:
+        try:
+            from flask import current_app
+            tienda_id = current_app.config.get('TIENDA_ID', '?')
+            mensaje = (
+                f"[El Michin Alerta]\n"
+                f"Worker de Tienda {tienda_id} con {fallas} fallas consecutivas "
+                f"en operacion '{operacion}'.\n\n"
+                f"Ultimo error: {str(error_msg)[:150]}\n\n"
+                f"Revisar el estado de la red o la central."
+            )
+            enviar_alerta_telegram(mensaje)
+        except Exception as e:
+            log(f'  [alerta] Error al disparar: {e}')
 
 
 def hay_internet(url):
@@ -152,14 +204,12 @@ def detectar_fantasmas(app, tienda_id):
 def hacer_push(app, central_url, sync_key, tienda_id):
     """Envia datos pendientes al central (facturas, pagos, clientes, productos).
     v2.14-backoff: salta si esta en periodo de espera."""
-    # v2.14-backoff: verificar si podemos intentar
     if not puede_intentar('push'):
-        return True  # No es error, solo esperando
+        return True
 
     with app.app_context():
         pendientes = sync_service.obtener_pendientes_push(tienda_id)
 
-        # Agregar productos locales editados (precios/stock)
         productos_pendientes = sync_service.obtener_productos_pendientes_push(tienda_id)
         pendientes['productos'] = productos_pendientes
 
@@ -230,8 +280,8 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
     """Recibe cambios del central (productos Y facturas).
     v2.14-pull-lotes: itera en lotes de 200.
     v2.14-fix-ack: envia header X-Sync-Ack y confirma cada lote aplicado.
-    v2.14-backoff: salta si esta en periodo de espera."""
-    # v2.14-backoff: verificar si podemos intentar
+    v2.14-backoff: salta si esta en periodo de espera.
+    v2.15-alertas: alerta en fallas consecutivas."""
     if not puede_intentar('pull'):
         return True
 
