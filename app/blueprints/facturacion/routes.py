@@ -5,7 +5,7 @@ from flask import (
     flash, current_app
 )
 from flask_login import login_required, current_user
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from . import bp
 from app.extensions import db
 from app.models.producto import Producto, ProductoTienda
@@ -56,9 +56,10 @@ def api_productos():
     if not tienda_id:
         return jsonify([])
 
+    patron = func.unaccent(f'%{q}%')
     productos = (Producto.query
                  .filter(or_(
-                     Producto.nombre.ilike(f'%{q}%'),
+                     func.unaccent(Producto.nombre).ilike(patron),
                      Producto.codigo_barras.ilike(f'%{q}%')
                  ))
                  .order_by(Producto.nombre)

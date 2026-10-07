@@ -2,7 +2,7 @@
 from decimal import Decimal
 from flask import render_template, request, jsonify, url_for, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from . import bp
 from app.extensions import db
 from app.models.producto import Producto, ProductoTienda
@@ -44,16 +44,15 @@ def api_productos():
     if not tienda_id:
         return jsonify([])
 
-    # Buscar por codigo exacto primero, luego por nombre
-    producto = Producto.query.filter_by(codigo_barras=q).first()
-    productos = [producto] if producto else []
-
-    if not productos:
-        productos = (Producto.query
-                     .filter(Producto.nombre.ilike(f'%{q}%'))
-                     .order_by(Producto.nombre)
-                     .limit(5)
-                     .all())
+    patron = func.unaccent(f'%{q}%')
+    productos = (Producto.query
+                 .filter(or_(
+                     func.unaccent(Producto.nombre).ilike(patron),
+                     Producto.codigo_barras.ilike(f'%{q}%')
+                 ))
+                 .order_by(Producto.nombre)
+                 .limit(20)
+                 .all())
 
     resultados = []
     for p in productos:
