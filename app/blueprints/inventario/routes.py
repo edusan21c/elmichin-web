@@ -11,11 +11,22 @@ from app.models.tienda import Tienda
 from app.utils.decorators import admin_requerido, programador_requerido
 
 
+def es_central():
+    """v2.23: True si esta instancia corre en el servidor central."""
+    return current_app.config.get('MODO', 'tienda_local') == 'central'
+
+
 def tienda_actual():
-    if current_user.es_programador():
+    # v2.23-selector-admin-solo-central:
+    # Solo admin/programador EN CENTRAL puede cambiar de tienda.
+    # En tiendas, siempre la tienda del usuario (o primera si programador local).
+    if es_central() and (current_user.es_programador() or current_user.es_admin()):
         tid = request.args.get('tienda', type=int)
         if tid:
             return tid
+        primera = Tienda.query.filter_by(activa=True).first()
+        return primera.id if primera else None
+    if current_user.es_programador():
         primera = Tienda.query.filter_by(activa=True).first()
         return primera.id if primera else None
     return current_user.tienda_id
@@ -102,6 +113,7 @@ def lista():
         tiendas=tiendas,
         puede_editar=puede_editar(),
         contadores=contadores,
+        modo_central=es_central(),
     )
 
 
