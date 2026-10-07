@@ -104,6 +104,30 @@ def limpiar_backups_viejos():
         print(f'Backups eliminados (> {DIAS_RETENCION} dias): {eliminados}')
 
 
+def enviar_alerta_backup(mensaje):
+    """v2.16-backup-alerta: envia alerta Telegram si el backup falla."""
+    import urllib.request
+    import json as _json
+
+    config = leer_env()
+    token = config.get('TELEGRAM_TOKEN', '')
+    chat_id = config.get('TELEGRAM_CHAT_ID', '')
+
+    if not token or not chat_id:
+        print('[alerta] Telegram no configurado, se omite.')
+        return False
+
+    try:
+        url = f'https://api.telegram.org/bot{token}/sendMessage'
+        payload = _json.dumps({'chat_id': chat_id, 'text': mensaje}).encode('utf-8')
+        req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status == 200
+    except Exception as e:
+        print(f'[alerta] No se pudo enviar: {e}')
+        return False
+
+
 def main():
     print('=' * 60)
     print('BACKUP AUTOMATICO - El Michin Central')
@@ -118,6 +142,12 @@ def main():
     else:
         print()
         print('Backup FALLO.')
+        # v2.16-backup-alerta: notificar por Telegram
+        enviar_alerta_backup(
+            f'[El Michin Backup] FALLO el backup automatico de la central.\n'
+            f'Fecha: {datetime.now().strftime("%Y-%m-%d %H:%M")}\n'
+            f'Revisar el log o el estado del servicio PostgreSQL.'
+        )
         sys.exit(1)
 
 
