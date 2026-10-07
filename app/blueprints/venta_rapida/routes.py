@@ -114,6 +114,7 @@ def crear():
             bolsas_cantidad=0,
             valor_bolsa=Decimal('0'),
             valor_pagado=total,
+            precio_manual=bool(data.get('precio_manual', False)),
         )
     except Exception as e:
         import traceback

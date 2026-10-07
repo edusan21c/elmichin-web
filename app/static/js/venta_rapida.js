@@ -5,13 +5,14 @@
     const CFG = window.VR_CONFIG || {};
     const STORAGE_KEY = 'michin_venta_rapida';
 
-    let historial = [];  // Historial NO se persiste (solo sesión)
+    let historial = [];
     let saliendoIntencionalmente = false;
 
     // ==================== ESTADO PERSISTENTE ====================
     let estado = {
         carrito: [],
         valorPagado: '',
+        modoPrecioLibre: false,
     };
 
     function guardarEstado() {
@@ -31,6 +32,7 @@
                 estado = {
                     carrito: data.carrito || [],
                     valorPagado: data.valorPagado || '',
+                    modoPrecioLibre: !!data.modoPrecioLibre,
                 };
             }
         } catch (e) {
@@ -41,6 +43,7 @@
     function limpiarEstado() {
         estado.carrito = [];
         estado.valorPagado = '';
+        estado.modoPrecioLibre = false;
         guardarEstado();
     }
 
@@ -123,7 +126,7 @@
     }
 
     // ==================== AGREGAR AL CARRITO ====================
-        async function agregarAlCarrito(prod) {
+    async function agregarAlCarrito(prod) {
         const carrito = estado.carrito;
         const existente = carrito.find(it => it.producto_id === prod.id);
 
@@ -136,6 +139,7 @@
             existente.cantidad = nuevaCant;
             existente.precio_unitario = calcularPrecio(prod, nuevaCant);
             existente.subtotal = existente.precio_unitario * nuevaCant;
+            existente.precio_editado = false;
         } else {
             let cantidad = 1;
             const input = inputBuscar.value.trim();
@@ -153,6 +157,7 @@
                 subtotal: calcularPrecio(prod, cantidad) * cantidad,
                 stock_max: prod.stock,
                 prod_data: prod,
+                precio_editado: false,
             });
         }
 
@@ -163,9 +168,12 @@
         guardarEstado();
         renderCarrito();
     }
+
     // ==================== RENDER CARRITO ====================
     function renderCarrito() {
         const carrito = estado.carrito;
+        const modoLibre = !!estado.modoPrecioLibre;
+
         const body = $('#carrito-body');
         const tabla = $('#carrito-tabla');
         const vacio = $('#carrito-vacio');
@@ -180,7 +188,14 @@
         } else {
             tabla.classList.remove('d-none');
             vacio.classList.add('d-none');
+
             carrito.forEach((item, idx) => {
+                const celdaPrecio = modoLibre
+                    ? `<input type="number" class="form-control form-control-sm text-end"
+                              value="${item.precio_unitario}" min="0" step="50"
+                              data-idx="${idx}" data-accion="precio" style="width: 90px;">`
+                    : `<span class="small">${fmt(item.precio_unitario)}</span>`;
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td><div class="fw-semibold small">${item.nombre}</div></td>
@@ -189,7 +204,7 @@
                                value="${item.cantidad}" min="1" max="${item.stock_max}"
                                data-idx="${idx}" data-accion="cantidad" style="width: 65px;">
                     </td>
-                    <td class="text-end small">${fmt(item.precio_unitario)}</td>
+                    <td class="text-end">${celdaPrecio}</td>
                     <td class="text-end small fw-semibold">${fmt(item.subtotal)}</td>
                     <td>
                         <button type="button" class="btn btn-sm btn-outline-danger"
@@ -214,6 +229,21 @@
                     item.cantidad = cant;
                     item.precio_unitario = calcularPrecio(item.prod_data, cant);
                     item.subtotal = item.precio_unitario * cant;
+                    item.precio_editado = false;
+                    guardarEstado();
+                    renderCarrito();
+                });
+            });
+
+            body.querySelectorAll('input[data-accion="precio"]').forEach(inp => {
+                inp.addEventListener('change', function() {
+                    const idx = parseInt(this.dataset.idx);
+                    let precio = parseFloat(this.value);
+                    if (isNaN(precio) || precio < 0) precio = 0;
+                    const item = carrito[idx];
+                    item.precio_unitario = precio;
+                    item.subtotal = precio * item.cantidad;
+                    item.precio_editado = true;
                     guardarEstado();
                     renderCarrito();
                 });
@@ -257,6 +287,16 @@
         renderTotal();
     });
 
+    // Switch Precio Libre
+    const switchPrecio = $('#switch-precio-libre');
+    if (switchPrecio) {
+        switchPrecio.addEventListener('change', function() {
+            estado.modoPrecioLibre = this.checked;
+            guardarEstado();
+            renderCarrito();
+        });
+    }
+
     // ==================== COBRAR ====================
     $('#btn-finalizar').addEventListener('click', async function() {
         const carrito = estado.carrito;
@@ -274,12 +314,16 @@
             return;
         }
 
+        // v2.16-precio-libre: detectar si algun item tiene precio editado
+        const tienePrecioManual = carrito.some(it => it.precio_editado === true);
+
         const payload = {
             carrito: carrito.map(it => ({
                 producto_id: it.producto_id,
                 cantidad: it.cantidad,
                 precio_unitario: it.precio_unitario,
             })),
+            precio_manual: tienePrecioManual,
         };
 
         const btn = this;
@@ -306,7 +350,6 @@
                 });
                 renderHistorial();
 
-                // Limpiar estado + permitir navegación
                 limpiarEstado();
                 saliendoIntencionalmente = true;
 
@@ -350,18 +393,7 @@
         `).join('');
     }
 
-    // ==================== ALERTA FLOTANTE ====================
-    function mostrarAlerta(msg, tipo) {
-        const div = document.createElement('div');
-        div.className = `alert alert-${tipo} position-fixed top-0 start-50 translate-middle-x mt-3 shadow`;
-        div.style.zIndex = '9999';
-        div.innerHTML = msg;
-        document.body.appendChild(div);
-        setTimeout(() => div.remove(), 2000);
-    }
-
-    // ==================== PROTECCIÓN ANTES DE SALIR ====================
-    // 1. Interceptar clics en links internos
+    // ==================== PROTECCION ANTES DE SALIR ====================
     document.addEventListener('click', function(e) {
         const link = e.target.closest('a[href]');
         if (!link) return;
@@ -376,7 +408,7 @@
         const total = estado.carrito.reduce((s, it) => s + it.subtotal, 0);
         const items = estado.carrito.length;
 
-        const msg = `🚨 ATENCIÓN: VENTA SIN COBRAR\n\n` +
+        const msg = `⚠️ ATENCIÓN: VENTA SIN COBRAR\n\n` +
                     `Tienes ${items} producto(s) por un total de ${fmt(total)}.\n\n` +
                     `Si sales AHORA, esta venta NO se registrará en el sistema.\n` +
                     `La caja no cuadrará al final del día.\n\n` +
@@ -384,16 +416,13 @@
                     `¿Seguro que quieres salir sin cobrar?`;
 
         if (confirm(msg)) {
-            // Registrar en consola (para auditoría futura)
             console.warn(`[VENTA_NO_COBRADA] ${new Date().toISOString()} - ` +
                          `Items: ${items} - Total: ${total}`);
-
             saliendoIntencionalmente = true;
             window.location.href = link.href;
         }
     });
 
-    // 2. Interceptar cierre/refresh del navegador
     window.addEventListener('beforeunload', function(e) {
         if (saliendoIntencionalmente) return;
         if (estado.carrito.length === 0) return;
@@ -408,7 +437,6 @@
         st.addEventListener('change', function() {
             if (estado.carrito.length > 0) {
                 if (!confirm('Cambiar de tienda limpiará el carrito. ¿Continuar?')) {
-                    // Revertir
                     this.value = this.dataset.original || this.options[0].value;
                     return;
                 }
@@ -423,9 +451,13 @@
     // ==================== INIT ====================
     cargarEstado();
 
-    // Restaurar valor pagado en el input
     if (estado.valorPagado !== '' && estado.valorPagado !== undefined) {
         $('#input-pagado').value = estado.valorPagado;
+    }
+
+    // Restaurar switch de precio libre
+    if (switchPrecio) {
+        switchPrecio.checked = !!estado.modoPrecioLibre;
     }
 
     renderCarrito();
