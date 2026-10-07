@@ -20,7 +20,7 @@
             cliente: { nombre: '', documento: '', telefono: '', direccion: '' },
             metodoPago: 'efectivo',
             bolsas: 0,
-            valorPagado: 0,
+            pagos: ['', '', ''],
             modoPrecioLibre: false,
         };
     }
@@ -58,6 +58,12 @@
                     if (typeof p.modoPrecioLibre === 'undefined') p.modoPrecioLibre = false;
                     if (!p.cliente) p.cliente = { nombre: '', documento: '', telefono: '', direccion: '' };
                     if (!Array.isArray(p.carrito)) p.carrito = [];
+                    // v2.16-pagos-parciales: migrar valorPagado viejo a pagos[0]
+                    if (!Array.isArray(p.pagos)) {
+                        p.pagos = ['', '', ''];
+                        if (p.valorPagado) p.pagos[0] = String(p.valorPagado);
+                        delete p.valorPagado;
+                    }
                 });
             }
         } catch (e) {
@@ -202,7 +208,9 @@
         // Pago
         $('#metodo-pago').value = p.metodoPago || 'efectivo';
         $('#bolsas').value = p.bolsas || 0;
-        $('#valor-pagado').value = p.valorPagado || 0;
+        $('#pago-1').value = (p.pagos && p.pagos[0]) || '';
+        $('#pago-2').value = (p.pagos && p.pagos[1]) || '';
+        $('#pago-3').value = (p.pagos && p.pagos[2]) || '';
 
         // Switch Precio Libre
         const sw = $('#switch-precio-libre');
@@ -507,16 +515,20 @@
             $('#card-pago').classList.remove('d-none');
             $('#alerta-credito').classList.add('d-none');
 
-            const pagado = parseFloat(p.valorPagado) || 0;
+            // v2.16-pagos-parciales: suma de los 3 pagos
+            const pagos = p.pagos || ['', '', ''];
+            const pagado = (parseFloat(pagos[0]) || 0) + (parseFloat(pagos[1]) || 0) + (parseFloat(pagos[2]) || 0);
             const vueltas = pagado - total;
-            if (pagado > 0) {
-                if (vueltas >= 0) {
-                    $('#lbl-vueltas').innerHTML = `<span class="text-success">Vueltas: ${fmt(vueltas)}</span>`;
-                } else {
-                    $('#lbl-vueltas').innerHTML = `<span class="text-danger">Faltan: ${fmt(-vueltas)}</span>`;
-                }
+
+            const recibidoEl = $('#lbl-total-recibido');
+            if (recibidoEl) recibidoEl.textContent = fmt(pagado);
+
+            if (pagado > 0 && vueltas >= 0) {
+                $('#lbl-vueltas').innerHTML = `<span class="text-success">Vueltas: ${fmt(vueltas)}</span>`;
+            } else if (pagado > 0) {
+                $('#lbl-vueltas').innerHTML = `<span class="text-danger">Faltan: ${fmt(-vueltas)}</span>`;
             } else {
-                $('#lbl-vueltas').innerHTML = '';
+                $('#lbl-vueltas').innerHTML = `<span class="text-danger">Faltan: ${fmt(total)}</span>`;
             }
         }
     }
@@ -534,10 +546,17 @@
         renderTotales();
     });
 
-    $('#valor-pagado').addEventListener('input', function() {
-        pestanaActual().valorPagado = parseFloat(this.value) || 0;
-        guardarEstado();
-        renderTotales();
+        // v2.16-pagos-parciales: 3 inputs en lugar de 1
+    ['#pago-1', '#pago-2', '#pago-3'].forEach((sel, idx) => {
+        const el = $(sel);
+        if (!el) return;
+        el.addEventListener('input', function() {
+            const p = pestanaActual();
+            if (!Array.isArray(p.pagos)) p.pagos = ['', '', ''];
+            p.pagos[idx] = this.value;
+            guardarEstado();
+            renderTotales();
+        });
     });
 
     // Switch Precio Libre
@@ -587,7 +606,8 @@
 
         const metodo = p.metodoPago || 'efectivo';
         const bolsas = parseInt(p.bolsas) || 0;
-        const valorPagado = parseFloat(p.valorPagado) || 0;
+        const pagos = p.pagos || ['', '', ''];
+        const valorPagado = (parseFloat(pagos[0]) || 0) + (parseFloat(pagos[1]) || 0) + (parseFloat(pagos[2]) || 0);
 
         const subtotal = carrito.reduce((s, it) => s + it.subtotal, 0);
         let recargo = 0;
@@ -647,7 +667,7 @@
                 p.cliente = { nombre: '', documento: '', telefono: '', direccion: '' };
                 p.metodoPago = 'efectivo';
                 p.bolsas = 0;
-                p.valorPagado = 0;
+                p.pagos = ['', '', ''];
                 p.modoPrecioLibre = false;
                 guardarEstado();
 
@@ -673,7 +693,7 @@
         p.cliente = { nombre: '', documento: '', telefono: '', direccion: '' };
         p.metodoPago = 'efectivo';
         p.bolsas = 0;
-        p.valorPagado = 0;
+        p.pagos = ['', '', ''];
         p.modoPrecioLibre = false;
         guardarEstado();
         renderPestanas();

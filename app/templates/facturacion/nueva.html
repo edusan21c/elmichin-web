@@ -176,18 +176,49 @@
         </div>
 
         <!-- Pago (solo si no es crédito) -->
+                <!-- Pagos parciales (solo si no es credito) -->
         <div class="card mb-3" id="card-pago">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-cash-coin"></i> Pagos parciales
+            </div>
             <div class="card-body">
-                <div class="row g-2 align-items-center">
-                    <div class="col-md-6">
-                        <label class="form-label mb-0 fw-semibold">Con cuánto paga</label>
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-md-4">
+                        <label class="form-label small mb-0 fw-semibold">Pago 1</label>
                     </div>
-                    <div class="col-md-6">
-                        <div class="input-group input-group-lg">
+                    <div class="col-md-8">
+                        <div class="input-group">
                             <span class="input-group-text">$</span>
-                            <input type="number" id="valor-pagado" class="form-control" value="0" min="0" step="50">
+                            <input type="number" id="pago-1" class="form-control text-end" value="" min="0" step="50" placeholder="0">
                         </div>
                     </div>
+                </div>
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-md-4">
+                        <label class="form-label small mb-0 fw-semibold">Pago 2</label>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" id="pago-2" class="form-control text-end" value="" min="0" step="50" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-md-4">
+                        <label class="form-label small mb-0 fw-semibold">Pago 3</label>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" id="pago-3" class="form-control text-end" value="" min="0" step="50" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+                <hr class="my-2">
+                <div class="d-flex justify-content-between">
+                    <span class="fw-semibold">Total recibido:</span>
+                    <span id="lbl-total-recibido" class="fw-bold">$0</span>
                 </div>
                 <div id="lbl-vueltas" class="text-end fs-5 mt-2"></div>
             </div>
