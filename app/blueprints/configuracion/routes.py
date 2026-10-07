@@ -1,4 +1,5 @@
 # app/blueprints/configuracion/routes.py
+from datetime import datetime
 from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from . import bp
@@ -192,4 +193,70 @@ def api_estado_actualizacion():
         'paso': estado.get('paso', ''),
         'progreso': estado.get('progreso', 0),
         'mensaje': estado.get('mensaje', ''),
+    })
+
+
+# ==================== API REPARAR SYNC (v2.20-reparar-sync) ====================
+@bp.route('/api/reparar-sync', methods=['POST'])
+@login_required
+@admin_requerido
+def api_reparar_sync():
+    """Marca TODOS los productos locales como pendientes para forzar
+    un re-push completo al central. Util cuando hay desfases de barcode/stock."""
+    from app.models.producto import ProductoTienda
+
+    tienda_id = request.args.get('tienda', type=int)
+    if not tienda_id and not current_user.es_programador():
+        tienda_id = current_user.tienda_id
+    if not tienda_id:
+        primera = Tienda.query.filter_by(activa=True).first()
+        tienda_id = primera.id if primera else None
+
+    if not tienda_id:
+        return jsonify({'ok': False, 'error': 'Sin tienda activa'}), 400
+
+    try:
+        n = (ProductoTienda.query
+             .filter_by(tienda_id=tienda_id)
+             .update({'sync_estado': 'pendiente',
+                      'sync_fecha': datetime.utcnow()},
+                     synchronize_session=False))
+        db.session.commit()
+        return jsonify({
+            'ok': True,
+            'tienda_id': tienda_id,
+            'marcados': n,
+            'mensaje': f'{n} productos marcados como pendientes. '
+                       f'El worker los empujara en el proximo ciclo (max 2 min).',
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/estado-sync', methods=['GET'])
+@login_required
+@admin_requerido
+def api_estado_sync():
+    """Cuenta productos pendientes de push para la tienda actual."""
+    from app.models.producto import ProductoTienda
+
+    tienda_id = request.args.get('tienda', type=int)
+    if not tienda_id and not current_user.es_programador():
+        tienda_id = current_user.tienda_id
+    if not tienda_id:
+        primera = Tienda.query.filter_by(activa=True).first()
+        tienda_id = primera.id if primera else None
+
+    if not tienda_id:
+        return jsonify({'ok': False, 'error': 'Sin tienda activa'}), 400
+
+    pendientes = ProductoTienda.query.filter_by(
+        tienda_id=tienda_id, sync_estado='pendiente'
+    ).count()
+
+    return jsonify({
+        'ok': True,
+        'tienda_id': tienda_id,
+        'pendientes': pendientes,
     })

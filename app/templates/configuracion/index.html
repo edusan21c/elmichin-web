@@ -17,8 +17,27 @@
     </h1>
 </div>
 
-<!-- ============ CARD DE VERSION (admin + programador) ============ -->
 {% if current_user.es_admin() %}
+
+<!-- ============ CARD REPARAR SYNC (v2.20-reparar-sync) ============ -->
+<div class="card border-warning mb-3" id="card-reparar-sync">
+    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-tools"></i> Reparar Sincronización</span>
+        <button class="btn btn-sm btn-dark" id="btn-reparar-sync">
+            <i class="bi bi-arrow-repeat"></i> Reparar ahora
+        </button>
+    </div>
+    <div class="card-body">
+        <p class="mb-2 text-muted small">
+            Fuerza a que todos los productos de esta tienda se vuelvan a enviar
+            al central. Útil cuando un producto muestra datos distintos entre
+            tiendas. Tarda hasta 2 minutos.
+        </p>
+        <div id="estado-reparar-sync"></div>
+    </div>
+</div>
+
+<!-- ============ CARD DE VERSION ============ -->
 <div class="card border-info mb-3" id="card-version">
     <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
         <span><i class="bi bi-box-seam"></i> Versión del sistema</span>
@@ -45,7 +64,6 @@
             </div>
         </div>
 
-        <!-- Barra de progreso (oculta por defecto) -->
         <div id="progreso-update" class="mt-3" style="display:none;">
             <div class="progress" style="height: 25px;">
                 <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated"
@@ -177,9 +195,69 @@ if (st) {
     });
 }
 
-// ============ SISTEMA DE ACTUALIZACION ============
 {% if current_user.es_admin() %}
 (function() {
+    // ==================== REPARAR SYNC (v2.20-reparar-sync) ====================
+    const btnReparar = document.getElementById('btn-reparar-sync');
+    const estadoReparar = document.getElementById('estado-reparar-sync');
+
+    async function repararSync() {
+        if (!confirm('¿Reparar la sincronización?\n\nSe marcarán TODOS los productos de esta tienda para reenviar al central.\nNo afecta facturas ni ventas.\nTarda hasta 2 minutos.')) return;
+
+        btnReparar.disabled = true;
+        estadoReparar.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split"></i> Marcando productos...</span>';
+
+        try {
+            const r = await fetch('/configuracion/api/reparar-sync', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+            });
+            const data = await r.json();
+
+            if (!data.ok) {
+                estadoReparar.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> ${data.error || 'Error'}</span>`;
+                btnReparar.disabled = false;
+                return;
+            }
+
+            estadoReparar.innerHTML = `<span class="text-info"><i class="bi bi-arrow-repeat"></i> ${data.marcados} productos marcados. Esperando al worker...</span>`;
+
+            let intentos = 0;
+            const maxIntentos = 48; // 4 min max
+
+            const poll = setInterval(async () => {
+                intentos++;
+                try {
+                    const rs = await fetch('/configuracion/api/estado-sync');
+                    const ds = await rs.json();
+
+                    if (ds.ok && ds.pendientes === 0) {
+                        clearInterval(poll);
+                        estadoReparar.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Reparación completa. Todo sincronizado.</span>';
+                        btnReparar.disabled = false;
+                    } else if (ds.ok) {
+                        estadoReparar.innerHTML = `<span class="text-info"><i class="bi bi-arrow-repeat"></i> Reparando... quedan ${ds.pendientes} productos (intento ${intentos})</span>`;
+                    }
+
+                    if (intentos >= maxIntentos) {
+                        clearInterval(poll);
+                        estadoReparar.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Aún hay pendientes. El worker puede estar ocupado. Esperá 2 min y probá de nuevo.</span>';
+                        btnReparar.disabled = false;
+                    }
+                } catch (e) { /* ignorar */ }
+            }, 5000);
+
+        } catch (e) {
+            estadoReparar.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> Error de red: ${e.message}</span>`;
+            btnReparar.disabled = false;
+        }
+    }
+
+    if (btnReparar) {
+        btnReparar.addEventListener('click', repararSync);
+    }
+
+    // ==================== SISTEMA DE ACTUALIZACION ====================
     const btnBuscar = document.getElementById('btn-buscar-version');
     if (!btnBuscar) return;
 
@@ -193,12 +271,10 @@ if (st) {
     let hayUpdate = false;
     let updateEnProgreso = false;
 
-    // Colores explicitos (para evitar problemas con Bootstrap dinamico)
-    const COLOR_PROGRESO = '#0d6efd';   // azul
-    const COLOR_REINICIO = '#ffc107';   // amarillo
-    const COLOR_EXITO    = '#198754';   // verde
+    const COLOR_PROGRESO = '#0d6efd';
+    const COLOR_REINICIO = '#ffc107';
+    const COLOR_EXITO    = '#198754';
 
-    // Helper: pinta la barra con color directo por CSS inline
     function pintarBarra(color, ancho, texto) {
         barraProgreso.style.backgroundColor = color;
         barraProgreso.style.width = ancho + '%';
@@ -206,7 +282,6 @@ if (st) {
         barraProgreso.setAttribute('aria-valuenow', ancho);
     }
 
-    // ==================== BLOQUEAR REFRESH DURANTE UPDATE ====================
     window.addEventListener('beforeunload', function(e) {
         if (updateEnProgreso) {
             e.preventDefault();
@@ -215,7 +290,6 @@ if (st) {
         }
     });
 
-    // ==================== BUSCAR VERSION ====================
     async function buscarVersion() {
         estadoDiv.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split"></i> Consultando GitHub...</span>';
         infoRemota.style.display = 'none';
@@ -260,7 +334,6 @@ if (st) {
         }
     }
 
-    // ==================== ACTUALIZAR ====================
     async function actualizar() {
         if (!confirm('¿Actualizar el sistema ahora? El servicio se reiniciará por 5-10 segundos.')) {
             return;
@@ -284,11 +357,8 @@ if (st) {
 
             updateEnProgreso = true;
             progresoDiv.style.display = 'block';
-
-            // Inicializar barra con color visible
             pintarBarra(COLOR_PROGRESO, 5, '5%');
             pasoActual.textContent = 'Iniciando actualización...';
-
             polling();
         } catch (e) {
             alert('Error: ' + e.message);
@@ -296,9 +366,8 @@ if (st) {
         }
     }
 
-    // ==================== POLLING DEL ESTADO ====================
     let intentosSinProgreso = 0;
-    const MAX_INTENTOS_SIN_PROGRESO = 20;  // 20 * 3s = 60 seg
+    const MAX_INTENTOS_SIN_PROGRESO = 20;
 
     async function polling() {
         try {
@@ -306,42 +375,31 @@ if (st) {
             const data = await r.json();
 
             if (data.en_progreso) {
-                // Progreso real: barra azul
                 intentosSinProgreso = 0;
                 pintarBarra(COLOR_PROGRESO, data.progreso, data.progreso + '%');
                 pasoActual.textContent = data.paso || 'Procesando...';
                 setTimeout(polling, 3000);
-
             } else if (data.estado === 'completado') {
-                // Completado explícito: barra verde
                 updateEnProgreso = false;
                 pintarBarra(COLOR_EXITO, 100, '100%');
                 pasoActual.textContent = '¡Actualización completada! Refrescando...';
                 setTimeout(() => window.location.reload(), 2000);
-
             } else {
-                // Sin estado: probablemente reiniciando servicio
                 intentosSinProgreso++;
-
                 if (intentosSinProgreso >= MAX_INTENTOS_SIN_PROGRESO) {
-                    // 60 seg sin estado = asumir completado
                     updateEnProgreso = false;
                     pintarBarra(COLOR_EXITO, 100, '100%');
                     pasoActual.textContent = '¡Actualización completada! Refrescando...';
                     setTimeout(() => window.location.reload(), 2000);
                 } else {
-                    // Barra amarilla al 90% mientras espera
                     pintarBarra(COLOR_REINICIO, 90,
                         'Reiniciando... ' + intentosSinProgreso + '/' + MAX_INTENTOS_SIN_PROGRESO);
                     pasoActual.textContent = 'Esperando que el servicio vuelva...';
                     setTimeout(polling, 3000);
                 }
             }
-
         } catch (e) {
-            // Servicio caído durante el restart
             intentosSinProgreso++;
-
             if (intentosSinProgreso >= MAX_INTENTOS_SIN_PROGRESO) {
                 updateEnProgreso = false;
                 pintarBarra(COLOR_EXITO, 100, '100%');
