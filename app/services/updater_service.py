@@ -98,17 +98,59 @@ def parse_version(v):
     return tuple(partes)
 
 
-def hay_actualizacion():
-    """Compara la version local con la ultima remota."""
+# ==================== COMPARACION POR COMMIT (v2.17) ====================
+def get_commit_local():
+    """Hash del commit HEAD local."""
     try:
-        local = get_version_local()
+        r = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            cwd=RAIZ, capture_output=True, text=True, timeout=10,
+        )
+        return r.stdout.strip() if r.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def get_commit_remoto():
+    """Hash del commit remoto (origin/main) via git ls-remote."""
+    try:
+        r = subprocess.run(
+            ['git', 'ls-remote', 'origin', 'main'],
+            cwd=RAIZ, capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.split()[0]
+    except Exception:
+        pass
+    return None
+
+
+def hay_actualizacion():
+    """Compara commit local vs commit remoto en origin/main.
+
+    Inmune a tags con el mismo numero: si dos tags v2.16-X apuntan
+    a commits distintos, se detecta correctamente.
+
+    Fallback al metodo viejo (parse_version) si git ls-remote falla
+    por red o porque la maquina no tiene git instalado.
+    """
+    local_tag = get_version_local()
+    try:
+        commit_local = get_commit_local()
+        commit_remoto = get_commit_remoto()
+
+        if commit_local and commit_remoto:
+            # Fuente de verdad: los commits
+            hay = commit_local != commit_remoto
+            return hay, local_tag, commit_remoto[:7]
+
+        # Fallback: metodo viejo por version
         remota = get_ultima_version_remota()
         if not remota:
-            return False, local, None
-        return parse_version(remota) > parse_version(local), local, remota
+            return False, local_tag, None
+        return parse_version(remota) > parse_version(local_tag), local_tag, remota
     except Exception:
-        local = get_version_local()
-        return False, local, None
+        return False, local_tag, None
 
 
 # ==================== ESTADO DE ACTUALIZACION ====================
