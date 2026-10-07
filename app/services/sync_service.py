@@ -471,10 +471,41 @@ def procesar_push(tienda_id, datos):
             db.session.flush()
 
             for d in f_data.get('detalles', []):
+                # v2.15-fix-detalle: los IDs de producto entre tienda y central
+                # estan desalineados. Buscar/crear el producto real por NOMBRE
+                # antes de insertar el detalle (evita FK violation).
+                prod_local_id = d.get('producto_id')
+                prod_nombre = (d.get('producto_nombre') or '').strip()
+
+                prod_real = None
+                if prod_nombre:
+                    prod_real = Producto.query.filter_by(nombre=prod_nombre).first()
+
+                # Si no existe, crear producto placeholder (queda en catalogo central)
+                if not prod_real:
+                    codigo_tmp = f'AUTO-{prod_local_id}' if prod_local_id else None
+                    if codigo_tmp:
+                        prod_real = Producto.query.filter_by(codigo_barras=codigo_tmp).first()
+                    if not prod_real:
+                        try:
+                            prod_real = Producto(
+                                nombre=prod_nombre or f'Producto {prod_local_id}',
+                                codigo_barras=codigo_tmp,
+                                categoria=None,
+                            )
+                            db.session.add(prod_real)
+                            db.session.flush()
+                            print(f'  [push] Producto auto-creado desde detalle: '
+                                  f'{prod_real.nombre} (id_central={prod_real.id})')
+                        except Exception as e:
+                            db.session.rollback()
+                            errores.append(f'Detalle: no se pudo crear producto ({e})')
+                            continue
+
                 detalle = DetalleFactura(
                     factura_id=factura.id,
-                    producto_id=d.get('producto_id') or 1,
-                    producto_nombre=d.get('producto_nombre', ''),
+                    producto_id=prod_real.id,
+                    producto_nombre=prod_nombre or (prod_real.nombre if prod_real else ''),
                     cantidad=int(d.get('cantidad', 0)),
                     precio_unitario=Decimal(str(d.get('precio_unitario', 0))),
                     subtotal=Decimal(str(d.get('subtotal', 0))),
