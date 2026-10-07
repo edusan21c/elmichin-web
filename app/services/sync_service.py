@@ -71,6 +71,7 @@ def _factura_to_dict(f):
 def _detalle_to_dict(d):
     return {
         'producto_id': d.producto_id,
+        'codigo_barras': d.producto.codigo_barras if d.producto else '',
         'producto_nombre': d.producto_nombre,
         'cantidad': d.cantidad,
         'precio_unitario': float(d.precio_unitario or 0),
@@ -717,6 +718,7 @@ def obtener_facturas_para_tienda(tienda_id, desde=None):
         for d in f.detalles.all():
             detalles.append({
                 'producto_id': d.producto_id,
+                'codigo_barras': d.producto.codigo_barras if d.producto else '',
                 'producto_nombre': d.producto_nombre,
                 'cantidad': d.cantidad,
                 'precio_unitario': float(d.precio_unitario or 0),
@@ -854,10 +856,24 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
         db.session.flush()
 
         for d in f_data.get('detalles', []):
+            # v2.17-fix-fk-factura: remapear producto_id de Central al ID local
+            prod_local = None
+            codigo = d.get('codigo_barras') or ''
+            nombre_det = d.get('producto_nombre', '')
+
+            if codigo:
+                prod_local = Producto.query.filter_by(codigo_barras=codigo).first()
+            if not prod_local and nombre_det:
+                prod_local = Producto.query.filter_by(nombre=nombre_det).first()
+            if not prod_local:
+                prod_local = Producto.query.first()
+            if not prod_local:
+                continue
+
             detalle = DetalleFactura(
                 factura_id=factura.id,
-                producto_id=d.get('producto_id') or 1,
-                producto_nombre=d.get('producto_nombre', ''),
+                producto_id=prod_local.id,
+                producto_nombre=nombre_det,
                 cantidad=int(d.get('cantidad', 0)),
                 precio_unitario=Decimal(str(d.get('precio_unitario', 0))),
                 subtotal=Decimal(str(d.get('subtotal', 0))),
@@ -887,6 +903,7 @@ def _factura_to_dict_extendida(f):
     for d in f.detalles.all():
         detalles.append({
             'producto_id': d.producto_id,
+            'codigo_barras': d.producto.codigo_barras if d.producto else '',
             'producto_nombre': d.producto_nombre,
             'cantidad': d.cantidad,
             'precio_unitario': float(d.precio_unitario or 0),
