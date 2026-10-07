@@ -82,11 +82,42 @@
         timeout = setTimeout(() => buscar(q), 150);
     });
 
+    // v2.16-flechas-busqueda: navegacion con flechas arriba/abajo
+    let indiceActivo = -1;
+
+    function actualizarActivo(items) {
+        items.forEach((it, i) => {
+            if (i === indiceActivo) {
+                it.classList.add('active');
+                it.scrollIntoView({ block: 'nearest' });
+            } else {
+                it.classList.remove('active');
+            }
+        });
+    }
+
     inputBuscar.addEventListener('keydown', function(e) {
+        const items = resultados.querySelectorAll('.list-group-item');
+
         if (e.key === 'Enter') {
             e.preventDefault();
-            const items = resultados.querySelectorAll('.list-group-item');
-            if (items.length >= 1) items[0].click();
+            if (items.length === 0) return;
+            const idx = (indiceActivo >= 0 && indiceActivo < items.length) ? indiceActivo : 0;
+            items[idx].click();
+            indiceActivo = -1;
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (items.length === 0) return;
+            indiceActivo = (indiceActivo + 1) % items.length;
+            actualizarActivo(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (items.length === 0) return;
+            indiceActivo = indiceActivo <= 0 ? items.length - 1 : indiceActivo - 1;
+            actualizarActivo(items);
+        } else if (e.key === 'Escape') {
+            resultados.innerHTML = '';
+            indiceActivo = -1;
         }
     });
 
@@ -102,6 +133,7 @@
 
     function pintarResultados(data) {
         resultados.innerHTML = '';
+        indiceActivo = -1;  // v2.16-flechas-busqueda: resetear navegacion
         if (!data.length) {
             resultados.innerHTML = '<div class="list-group-item text-muted text-center py-3">Sin resultados o sin stock</div>';
             return;
