@@ -184,6 +184,19 @@ def main():
     log('[3.5/5] Migraciones manuales')
     correr_migraciones_manuales(python_exe)
 
+    # ============ 3.6. ASEGURAR EXTENSIONES POSTGRESQL (idempotente) ============
+    # Garantiza que unaccent y otras extensiones existan antes de arrancar
+    # el servicio. Sin esto, busquedas con tildes fallan en tiendas nuevas.
+    guardar_estado('Asegurando extensiones PostgreSQL...', 80)
+    log('[3.6/5] Asegurar extensiones PostgreSQL')
+    ok, out, err = ejecutar(
+        [python_exe, 'scripts/asegurar_extensiones.py'],
+        timeout=60,
+    )
+    if not ok:
+        log(f'Aviso en asegurar_extensiones: {err}')
+        # No es fatal, continuamos
+
     # ============ 4. REINICIAR SERVICIO ============
     guardar_estado('Reiniciando servicio...', 90)
     log('[4/5] Reiniciando servicio Flask')
