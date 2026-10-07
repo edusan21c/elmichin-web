@@ -631,6 +631,24 @@ def procesar_push(tienda_id, datos):
                     errores.append(f'Producto {producto_id}: no se pudo crear ({e})')
                     continue
 
+            # v2.19-fix-barcode-push: si el codigo cambio en la tienda, actualizarlo
+            if producto and codigo and producto.codigo_barras != codigo:
+                codigo_anterior = producto.codigo_barras
+                # Verificar que el nuevo codigo no este en uso por OTRO producto
+                otro = Producto.query.filter(
+                    Producto.codigo_barras == codigo,
+                    Producto.id != producto.id
+                ).first()
+                if otro:
+                    errores.append(
+                        f'Producto {producto_id}: codigo {codigo} ya existe en '
+                        f'"{otro.nombre}" (id={otro.id}), no se actualiza'
+                    )
+                else:
+                    producto.codigo_barras = codigo
+                    print(f'  [push] Barcode actualizado: "{producto.nombre}" '
+                          f'{codigo_anterior} -> {codigo}')
+
             pres = ProductoTienda.query.filter_by(
                 producto_id=producto.id, tienda_id=t_id
             ).first()
