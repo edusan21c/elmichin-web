@@ -152,6 +152,16 @@ def marcar_sincronizados(tienda_id, resultado):
                   'sync_fecha': datetime.utcnow()},
                  synchronize_session=False))
 
+    # v2.29-fix-commit-config: marcar configs propias como sincronizadas
+    if resultado.get('configuracion_ok'):
+        from app.models.configuracion import Configuracion
+        (Configuracion.query
+         .filter(Configuracion.tienda_id.is_(None),
+                 Configuracion.sync_estado == 'pendiente')
+         .update({'sync_estado': 'sincronizado',
+                  'sync_fecha': datetime.utcnow()},
+                 synchronize_session=False))
+
     db.session.commit()
 
 
@@ -1321,6 +1331,8 @@ def procesar_config_push(tienda_id, configs):
         except Exception as e:
             errores.append(f'Config {clave}: {e}')
 
+    # v2.29-fix-commit-config: faltaba el commit — la config se perdia
+    db.session.commit()
     return aplicadas, errores
 
 
