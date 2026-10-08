@@ -361,6 +361,7 @@
                 stock_max: prod.stock,
                 prod_data: prod,
                 precio_editado: false,
+                _empacado: false,   // v2.33-carrito-empacado
             });
         }
 
@@ -372,6 +373,7 @@
         renderPestanas();
         renderCarrito();
     }
+
     // ==================== RENDER CARRITO ====================
     function renderCarrito() {
         const p = pestanaActual();
@@ -393,6 +395,10 @@
             tabla.classList.remove('d-none');
             vacio.classList.add('d-none');
             carrito.forEach((item, idx) => {
+                // v2.33-carrito-empacado: estado del check
+                const empacado = !!item._empacado;
+                const checked = empacado ? 'checked' : '';
+
                 // Celda de precio: input si modo libre, texto si no
                 const celdaPrecio = modoLibre
                     ? `<input type="number" class="form-control form-control-sm text-end"
@@ -402,9 +408,14 @@
                     : fmt(item.precio_unitario);
 
                 const tr = document.createElement('tr');
+                if (empacado) tr.classList.add('fila-empacada');
                 tr.innerHTML = `
+                    <td class="text-center" style="width: 40px;">
+                        <input type="checkbox" class="form-check-input"
+                               data-idx="${idx}" data-accion="empacado" ${checked}>
+                    </td>
                     <td>
-                        <div class="fw-semibold small">${item.nombre}</div>
+                        <div class="fw-semibold small nombre-producto">${item.nombre}</div>
                         ${item.precio_editado ? '<small class="text-warning">✏️ precio editado</small>' : ''}
                     </td>
                     <td class="text-center">
@@ -470,6 +481,16 @@
                     carrito.splice(idx, 1);
                     guardarEstado();
                     renderPestanas();
+                    renderCarrito();
+                });
+            });
+
+            // v2.33-carrito-empacado: listener del checkbox
+            body.querySelectorAll('input[data-accion="empacado"]').forEach(chk => {
+                chk.addEventListener('change', function() {
+                    const idx = parseInt(this.dataset.idx);
+                    carrito[idx]._empacado = this.checked;
+                    guardarEstado();
                     renderCarrito();
                 });
             });
