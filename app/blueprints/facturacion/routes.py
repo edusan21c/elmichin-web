@@ -12,6 +12,7 @@ from app.models.producto import Producto, ProductoTienda
 from app.models.tienda import Tienda
 from app.models.cliente import Cliente
 from app.models.factura import Factura, DetalleFactura
+from app.blueprints.configuracion.routes import get_valor
 from app.services.facturacion_service import (
     crear_factura_completa, obtener_o_crear_cliente
 )
@@ -35,12 +36,19 @@ def nueva():
     tiendas = Tienda.query.filter_by(activa=True).all()
     recargo = current_app.config.get('RECARGO_NEQUI', 0.4)
 
+    # v2.28-fix-valor-bolsa-hardcoded: leer de la configuracion global
+    from app.blueprints.configuracion.routes import get_valor
+    try:
+        valor_bolsa_config = int(get_valor('valor_bolsa', None) or 100)
+    except (ValueError, TypeError):
+        valor_bolsa_config = 100
+
     return render_template(
         'facturacion/nueva.html',
         tienda_id=tienda_id,
         tiendas=tiendas,
         recargo_porcentaje=recargo,
-        valor_bolsa=100,
+        valor_bolsa=valor_bolsa_config,
     )
 
 
@@ -141,7 +149,9 @@ def crear():
             metodo_pago=data.get('metodo_pago', 'efectivo'),
             recargo_porcentaje=Decimal(str(data.get('recargo_porcentaje', 0.4))),
             bolsas_cantidad=int(data.get('bolsas', 0)),
-            valor_bolsa=Decimal('100'),
+            valor_bolsa=Decimal(str(
+                int(get_valor('valor_bolsa', None) or 100)
+            )),  # v2.28: leer config, no hardcodear 100
             valor_pagado=Decimal(str(data.get('valor_pagado', 0))),
             precio_manual=bool(data.get('precio_manual', False)),
         )
