@@ -215,7 +215,7 @@ def registrar_abono():
         factura_id=factura.id,
         tienda_id=factura.tienda_id,
         monto=monto_base,
-        recargo=recargo,
+        #recargo=recargo,
         metodo_pago=metodo,
     )
     db.session.add(pago)
