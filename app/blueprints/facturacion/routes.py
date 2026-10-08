@@ -154,7 +154,7 @@ def crear():
             metodo_pago=data.get('metodo_pago', 'efectivo'),
             recargo_porcentaje=Decimal(str(data.get('recargo_porcentaje', 0.4))),
             bolsas_cantidad=int(data.get('bolsas', 0)),
-            valor_bolsa=Decimal('100'),
+            valor_bolsa=Decimal(str(int(get_valor('valor_bolsa', None) or 100))),
             valor_pagado=Decimal(str(data.get('valor_pagado', 0))),
             pagos=data.get('pagos'),   # v2.34-pagos-mixtos
             precio_manual=bool(data.get('precio_manual', False)),
