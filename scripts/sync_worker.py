@@ -213,11 +213,16 @@ def hacer_push(app, central_url, sync_key, tienda_id):
         productos_pendientes = sync_service.obtener_productos_pendientes_push(tienda_id)
         pendientes['productos'] = productos_pendientes
 
+        # v2.27-sync-configuracion: agregar configs globales pendientes
+        config_pendientes = sync_service.obtener_config_pendientes_push(tienda_id)
+        pendientes['configuracion'] = config_pendientes
+
         total = (
             len(pendientes['facturas']) +
             len(pendientes['pagos']) +
             len(pendientes['clientes']) +
-            len(pendientes['productos'])
+            len(pendientes['productos']) +
+            len(pendientes['configuracion'])
         )
 
         if total == 0:
@@ -361,6 +366,36 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
         else:
             log('  PULL productos: sin cambios')
 
+        # ============ PULL CONFIGURACION GLOBAL (v2.27) ============
+        try:
+            r = requests.get(
+                central_url.rstrip('/') + '/api/sync/pull-config',
+                params={'tienda_id': tienda_id},
+                headers={'X-Sync-Key': sync_key},
+                timeout=TIMEOUT_REQUEST,
+            )
+            if r.status_code == 200:
+                datos_conf = r.json()
+                configs = datos_conf.get('configuracion', [])
+                if configs:
+                    aplicadas, ids_conf = sync_service.aplicar_config_recibida(configs)
+                    log(f'  PULL config: {aplicadas} aplicadas')
+                    # ACK a Central para que no las reenvie
+                    if ids_conf:
+                        try:
+                            requests.post(
+                                central_url.rstrip('/') + '/api/sync/marcar-config-enviada',
+                                json={'ids_configs': ids_conf},
+                                headers={'X-Sync-Key': sync_key},
+                                timeout=TIMEOUT_REQUEST,
+                            )
+                        except requests.RequestException:
+                            pass
+        except requests.RequestException as e:
+            log(f'  PULL config: fallo red - {e}')
+            hubo_error_pull = True
+
+       
         # ============ 2. PULL FACTURAS REMOTAS ============
         log(f'  PULL facturas desde {desde[:10]}...')
         try:

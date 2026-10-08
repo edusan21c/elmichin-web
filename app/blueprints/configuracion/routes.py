@@ -114,7 +114,22 @@ def index():
                 flash('Hay valores numericos invalidos.', 'danger')
                 return redirect(url_for('configuracion.index', tienda=tienda_post))
 
-            db.session.commit()
+            # v2.27-sync-configuracion: marcar globales editables como pendiente
+            # para que el worker los sincronice con las tiendas.
+            try:
+                from app.models.configuracion import Configuracion
+                for clave in ADMIN_EDITABLE_GLOBALES:
+                    conf = Configuracion.query.filter(
+                        Configuracion.tienda_id.is_(None),
+                        Configuracion.clave == clave,
+                    ).first()
+                    if conf:
+                        conf.sync_estado = 'pendiente'
+                        conf.sync_fecha = datetime.utcnow()
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print(f'[config sync] aviso: {e}')
 
             # Auditoría
             try:

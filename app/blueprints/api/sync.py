@@ -39,8 +39,23 @@ def sync_push():
         traceback.print_exc()
         return jsonify({'ok': False, 'error': f'Error procesando: {e}'}), 500
 
+    # v2.27-sync-configuracion: procesar configs globales (bolsa, nequi, etc.)
+    configs_ok = 0
+    if data.get('configuracion'):
+        try:
+            configs_ok, errores_conf = sync_service.procesar_config_push(
+                tienda_id, data['configuracion']
+            )
+            if errores_conf:
+                resultado.setdefault('errores', []).extend(errores_conf)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            resultado.setdefault('errores', []).append(f'config: {e}')
+
     return jsonify({
         'ok': True,
+        'configuracion_ok': configs_ok,
         'facturas_ok': resultado.get('facturas_ok', []),
         'pagos_ok': resultado.get('pagos_ok', []),
         'clientes_ok': resultado.get('clientes_ok', []),
@@ -146,6 +161,8 @@ def sync_pull_facturas():
         'timestamp': datetime.utcnow().isoformat(),
     })
 
+
+# ==================== PULL PAGOS (CENTRAL -> TIENDA) ====================
 @bp.route('/sync/pull-pagos', methods=['GET'])
 @requiere_sync_key
 def sync_pull_pagos():
@@ -166,6 +183,7 @@ def sync_pull_pagos():
         'total': len(pagos),
     })
 
+
 @bp.route('/sync/marcar-pagos-enviados', methods=['POST'])
 @requiere_sync_key
 def sync_marcar_pagos_enviados():
@@ -180,6 +198,57 @@ def sync_marcar_pagos_enviados():
     marcados = sync_service.marcar_pagos_enviados_tienda(ids_pagos)
 
     return jsonify({'ok': True, 'marcados': marcados})
+
+
+# ==================== PULL CONFIGURACION (CENTRAL -> TIENDA) — v2.27 ====================
+@bp.route('/sync/pull-config', methods=['GET'])
+@requiere_sync_key
+def sync_pull_config():
+    """v2.27: devuelve configs globales pendientes de enviar a una tienda."""
+    from app.services import sync_service
+
+    tienda_id = request.args.get('tienda_id', type=int)
+    desde = request.args.get('desde', '')
+
+    if not tienda_id or tienda_id <= 0:
+        return jsonify({'ok': False, 'error': 'tienda_id invalido'}), 400
+
+    try:
+        configs = sync_service.obtener_config_para_tienda(tienda_id, desde)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+    return jsonify({
+        'ok': True,
+        'configuracion': configs,
+        'total': len(configs),
+    })
+
+
+@bp.route('/sync/marcar-config-enviada', methods=['POST'])
+@requiere_sync_key
+def sync_marcar_config_enviada():
+    """v2.27: la tienda confirma que aplico N configs. Central las marca
+    como sincronizadas para que no se reenvien."""
+    from app.services import sync_service
+
+    data = request.get_json(silent=True) or {}
+    ids_configs = data.get('ids_configs', [])
+
+    if not ids_configs:
+        return jsonify({'ok': True, 'marcados': 0})
+
+    try:
+        marcados = sync_service.marcar_config_enviada_tienda(ids_configs)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+    return jsonify({'ok': True, 'marcados': marcados})
+
 
 # ==================== RECUPERAR FACTURA INDIVIDUAL (SIN MARCAR) ====================
 @bp.route('/sync/factura/<numero_factura>', methods=['GET'])
@@ -243,6 +312,7 @@ def sync_facturas_existen():
         'faltan': faltan,
     })
 
+
 # ==================== PANEL DE SALUD DEL SYNC (HTML) ====================
 @bp.route('/sync/health', methods=['GET'])
 def sync_health():
@@ -259,7 +329,6 @@ def sync_health():
     ahora = datetime.utcnow()
     hace_24h = ahora - timedelta(hours=24)
 
-    # Datos por tienda
     tiendas = Tienda.query.order_by(Tienda.id).all()
     filas_tiendas = []
 
@@ -282,7 +351,6 @@ def sync_health():
 
         hace = '—'
         if ultima_ok and ultima_ok.id:
-            # usamos created_at si existe; si no, es aprox
             hace = 'OK'
 
         filas_tiendas.append({
@@ -292,13 +360,11 @@ def sync_health():
             'errores_24h': errores_24h,
         })
 
-    # Ultimos 15 logs
     logs = (SyncLog.query
             .order_by(SyncLog.id.desc())
             .limit(15)
             .all())
 
-    # Totales globales
     total_productos = (db.session.query(func.count(ProductoTienda.producto_id))
                        .filter(ProductoTienda.tienda_id == 1)
                        .scalar() or 0)
@@ -307,7 +373,6 @@ def sync_health():
                                 ProductoTienda.sync_estado == 'pendiente')
                         .scalar() or 0)
 
-    # ============ HTML ============
     html = f'''<!DOCTYPE html>
 <html lang="es">
 <head>

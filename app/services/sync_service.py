@@ -1255,3 +1255,138 @@ def aplicar_pagos_recibidos(tienda_id, pagos):
 
     db.session.commit()
     return insertados, omitidos, errores
+
+# ==================== PULL/PUSH DE CONFIGURACION (v2.27-sync-configuracion) ====================
+def _config_to_dict(c):
+    """Convierte un registro Configuracion a dict para sincronizar."""
+    return {
+        'id': c.id,
+        'clave': c.clave,
+        'valor': c.valor,
+        'tienda_id': c.tienda_id,
+    }
+
+
+def obtener_config_pendientes_push(tienda_id):
+    """v2.27: configs GLOBALES (tienda_id IS NULL) pendientes de subir al central.
+    Solo globales: bolsa, nequi, nombre negocio, etc."""
+    from app.models.configuracion import Configuracion
+    query = Configuracion.query.filter(
+        Configuracion.tienda_id.is_(None),
+        Configuracion.sync_estado == 'pendiente',
+    ).all()
+    return [_config_to_dict(c) for c in query]
+
+
+def procesar_config_push(tienda_id, configs):
+    """v2.27: aplica configs globales recibidas desde una tienda.
+    Upsert por clave. Marca como pendiente para pull-back a todas las tiendas."""
+    from app.models.configuracion import Configuracion
+
+    aplicadas = 0
+    errores = []
+
+    for c_data in configs:
+        clave = (c_data.get('clave') or '').strip()
+        valor = c_data.get('valor')
+
+        if not clave or valor is None:
+            errores.append(f'Config invalida: {c_data}')
+            continue
+
+        try:
+            existente = Configuracion.query.filter(
+                Configuracion.tienda_id.is_(None),
+                Configuracion.clave == clave,
+            ).first()
+
+            if existente:
+                if existente.valor != str(valor):
+                    print(f'  [push] Config "{clave}": "{existente.valor}" -> "{valor}" '
+                          f'(desde tienda {tienda_id})')
+                    existente.valor = str(valor)
+            else:
+                existente = Configuracion(
+                    tienda_id=None,
+                    clave=clave,
+                    valor=str(valor),
+                )
+                db.session.add(existente)
+                print(f'  [push] Config "{clave}" creada en Central')
+
+            # Marcar pendiente para entregar a todas las tiendas
+            existente.sync_estado = 'pendiente'
+            existente.sync_fecha = datetime.utcnow()
+            aplicadas += 1
+        except Exception as e:
+            errores.append(f'Config {clave}: {e}')
+
+    return aplicadas, errores
+
+
+def obtener_config_para_tienda(tienda_id, desde=None):
+    """v2.27: devuelve configs globales pendientes de enviar a una tienda.
+    Central sirve estos al pull de la tienda."""
+    from app.models.configuracion import Configuracion
+    query = Configuracion.query.filter(
+        Configuracion.tienda_id.is_(None),
+        Configuracion.sync_estado == 'pendiente',
+    ).order_by(Configuracion.clave).limit(100)
+    return [_config_to_dict(c) for c in query.all()]
+
+
+def marcar_config_enviada_tienda(ids_configs):
+    """v2.27: marca configs como sincronizadas despues de que la tienda confirma."""
+    from app.models.configuracion import Configuracion
+    if not ids_configs:
+        return 0
+    n = (Configuracion.query
+         .filter(Configuracion.id.in_(ids_configs))
+         .update({'sync_estado': 'sincronizado',
+                  'sync_fecha': datetime.utcnow()},
+                 synchronize_session=False))
+    db.session.commit()
+    return n
+
+
+def aplicar_config_recibida(configs):
+    """v2.27: aplica configs globales recibidas del central en la BD local.
+    Idempotente: si ya tiene el valor, no cambia nada."""
+    from app.models.configuracion import Configuracion
+
+    aplicadas = 0
+    ids_aplicados = []
+
+    for c_data in configs:
+        clave = (c_data.get('clave') or '').strip()
+        valor = c_data.get('valor')
+        if not clave or valor is None:
+            continue
+
+        existente = Configuracion.query.filter(
+            Configuracion.tienda_id.is_(None),
+            Configuracion.clave == clave,
+        ).first()
+
+        if existente:
+            if existente.valor != str(valor):
+                print(f'  [pull] Config "{clave}": "{existente.valor}" -> "{valor}"')
+                existente.valor = str(valor)
+            existente.sync_estado = 'sincronizado'
+            existente.sync_fecha = datetime.utcnow()
+        else:
+            existente = Configuracion(
+                tienda_id=None,
+                clave=clave,
+                valor=str(valor),
+                sync_estado='sincronizado',
+                sync_fecha=datetime.utcnow(),
+            )
+            db.session.add(existente)
+            print(f'  [pull] Config "{clave}" creada: {valor}')
+
+        ids_aplicados.append(c_data.get('id'))
+        aplicadas += 1
+
+    db.session.commit()
+    return aplicadas, ids_aplicados
