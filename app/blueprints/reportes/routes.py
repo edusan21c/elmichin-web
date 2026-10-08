@@ -229,9 +229,13 @@ def registrar_abono():
 
     # Actualizar cliente
     cliente = factura.cliente
-    cliente.saldo_actual = redondear(
+    nuevo_saldo_cli = redondear(
         Decimal(str(cliente.saldo_actual or 0)) - monto_base
     )
+    # v2.32-fix-saldo-cliente: si queda residuo < 0.50, limpiar
+    if nuevo_saldo_cli <= Decimal('0.50'):
+        nuevo_saldo_cli = Decimal('0')
+    cliente.saldo_actual = nuevo_saldo_cli
 
     db.session.commit()
 
