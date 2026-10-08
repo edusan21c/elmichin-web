@@ -180,44 +180,70 @@
 
         <!-- Pago (solo si no es crédito) -->
                 <!-- Pagos parciales (solo si no es credito) -->
+                <!-- v2.34-pagos-mixtos: cada casilla tiene su método -->
         <div class="card mb-3" id="card-pago">
             <div class="card-header bg-white fw-semibold">
-                <i class="bi bi-cash-coin"></i> Pagos parciales
+                <i class="bi bi-cash-coin"></i> Pagos
             </div>
             <div class="card-body">
+
                 <div class="row g-2 align-items-center mb-2">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label small mb-0 fw-semibold">Pago 1</label>
                     </div>
-                    <div class="col-md-8">
-                        <div class="input-group">
+                    <div class="col-md-4">
+                        <select id="pago-metodo-1" class="form-select form-select-sm">
+                            <option value="efectivo">Efectivo</option>
+                            <option value="nequi">Nequi</option>
+                            <option value="daviplata">Daviplata</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="input-group input-group-sm">
                             <span class="input-group-text">$</span>
                             <input type="number" id="pago-1" class="form-control text-end" value="" min="0" step="50" placeholder="0">
                         </div>
                     </div>
                 </div>
+
                 <div class="row g-2 align-items-center mb-2">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label small mb-0 fw-semibold">Pago 2</label>
                     </div>
-                    <div class="col-md-8">
-                        <div class="input-group">
+                    <div class="col-md-4">
+                        <select id="pago-metodo-2" class="form-select form-select-sm">
+                            <option value="efectivo">Efectivo</option>
+                            <option value="nequi">Nequi</option>
+                            <option value="daviplata">Daviplata</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="input-group input-group-sm">
                             <span class="input-group-text">$</span>
                             <input type="number" id="pago-2" class="form-control text-end" value="" min="0" step="50" placeholder="0">
                         </div>
                     </div>
                 </div>
+
                 <div class="row g-2 align-items-center mb-2">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label small mb-0 fw-semibold">Pago 3</label>
                     </div>
-                    <div class="col-md-8">
-                        <div class="input-group">
+                    <div class="col-md-4">
+                        <select id="pago-metodo-3" class="form-select form-select-sm">
+                            <option value="efectivo">Efectivo</option>
+                            <option value="nequi">Nequi</option>
+                            <option value="daviplata">Daviplata</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="input-group input-group-sm">
                             <span class="input-group-text">$</span>
                             <input type="number" id="pago-3" class="form-control text-end" value="" min="0" step="50" placeholder="0">
                         </div>
                     </div>
                 </div>
+
                 <hr class="my-2">
                 <div class="d-flex justify-content-between">
                     <span class="fw-semibold">Total recibido:</span>

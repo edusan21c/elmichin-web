@@ -83,13 +83,20 @@ def crear_factura_completa(
     bolsas_cantidad=0,
     valor_bolsa=Decimal('100'),
     valor_pagado=Decimal('0'),
-    origen=None,                     # None = autodetectar por MODO
+    pagos=None,                       # v2.34-pagos-mixtos: [{metodo, monto}]
+    origen=None,
     precio_manual=False,
 ):
-    """Crea factura completa con validaciones y actualizaciones."""
+    """Crea factura completa con validaciones y actualizaciones.
+
+    v2.34-pagos-mixtos: acepta lista `pagos` con métodos individuales.
+    Si `pagos` es None, se mantiene el comportamiento legacy usando
+    `metodo_pago + valor_pagado`.
+    """
+    from app.models.pago import Pago
+
     if not carrito:
         return None, 'El carrito esta vacio'
-
     # Autodetectar origen según MODO si no viene explícito
     if origen is None:
         from flask import current_app
@@ -130,8 +137,34 @@ def crear_factura_completa(
             'subtotal': item_subtotal,
         })
 
+    # v2.34-pagos-mixtos: si viene lista de pagos, recalc metodo/valor/recargo
+    pagos_limpios = []
+    if pagos:
+        for p in pagos:
+            try:
+                monto_p = Decimal(str(p.get('monto', 0) or 0))
+            except (ValueError, TypeError):
+                monto_p = Decimal('0')
+            if monto_p > 0:
+                pagos_limpios.append({
+                    'metodo': p.get('metodo', 'efectivo'),
+                    'monto': redondear(monto_p),
+                })
+
+        if pagos_limpios:
+            metodos_unicos = set(p['metodo'] for p in pagos_limpios)
+            metodo_pago = list(metodos_unicos)[0] if len(metodos_unicos) == 1 else 'mixto'
+            valor_pagado = sum(p['monto'] for p in pagos_limpios)
+        else:
+            # Si todos los pagos son 0, tratar como credito
+            metodo_pago = 'credito'
+
     recargo = Decimal('0')
-    if metodo_pago in ('nequi', 'daviplata'):
+    if metodo_pago == 'mixto':
+        # Si cualquiera de los pagos es digital, aplicar recargo sobre subtotal
+        if any(p['metodo'] in ('nequi', 'daviplata') for p in pagos_limpios):
+            recargo = redondear(subtotal * (Decimal(str(recargo_porcentaje)) / Decimal('100')))
+    elif metodo_pago in ('nequi', 'daviplata'):
         recargo = redondear(subtotal * (Decimal(str(recargo_porcentaje)) / Decimal('100')))
 
     total_bolsas = redondear(Decimal(str(bolsas_cantidad)) * Decimal(str(valor_bolsa)))
@@ -187,6 +220,20 @@ def crear_factura_completa(
     )
     db.session.add(factura)
     db.session.flush()
+
+    # v2.34-pagos-mixtos: crear registro Pago por cada metodo usado
+    if pagos_limpios and metodo_pago != 'credito':
+        for p in pagos_limpios:
+            nuevo_pago = Pago(
+                factura_id=factura.id,
+                tienda_id=tienda_id,
+                fecha=datetime.utcnow(),
+                monto=p['monto'],
+                metodo_pago=p['metodo'],
+                origen='local',
+                sync_estado='pendiente',
+            )
+            db.session.add(nuevo_pago)
 
     for item in items_procesados:
         detalle = DetalleFactura(

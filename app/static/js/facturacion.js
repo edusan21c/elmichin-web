@@ -20,7 +20,8 @@
             cliente: { nombre: '', documento: '', telefono: '', direccion: '' },
             metodoPago: 'efectivo',
             bolsas: 0,
-            pagos: ['', '', ''],
+            pagos: ['', '', ''],                        // montos
+            pagosMetodos: ['efectivo', 'efectivo', 'efectivo'],  // v2.34-pagos-mixtos
             modoPrecioLibre: false,
         };
     }
@@ -63,6 +64,10 @@
                         p.pagos = ['', '', ''];
                         if (p.valorPagado) p.pagos[0] = String(p.valorPagado);
                         delete p.valorPagado;
+                    }
+                    // v2.34-pagos-mixtos: migrar pagosMetodos
+                    if (!Array.isArray(p.pagosMetodos) || p.pagosMetodos.length !== 3) {
+                        p.pagosMetodos = ['efectivo', 'efectivo', 'efectivo'];
                     }
                 });
             }
@@ -211,6 +216,12 @@
         $('#pago-1').value = (p.pagos && p.pagos[0]) || '';
         $('#pago-2').value = (p.pagos && p.pagos[1]) || '';
         $('#pago-3').value = (p.pagos && p.pagos[2]) || '';
+        // v2.34-pagos-mixtos
+        const metodos = p.pagosMetodos || ['efectivo', 'efectivo', 'efectivo'];
+        ['#pago-metodo-1', '#pago-metodo-2', '#pago-metodo-3'].forEach((sel, i) => {
+            const el = $(sel);
+            if (el) el.value = metodos[i] || 'efectivo';
+        });
 
         // Switch Precio Libre
         const sw = $('#switch-precio-libre');
@@ -509,8 +520,15 @@
         const bolsas = parseInt(p.bolsas) || 0;
         const totalBolsas = bolsas * CFG.valorBolsa;
 
+        // v2.34-pagos-mixtos: detectar si algun pago es digital
+        const metodos = p.pagosMetodos || ['efectivo', 'efectivo', 'efectivo'];
+        const hayDigital = metodos.some(m => m === 'nequi' || m === 'daviplata');
+
         let recargo = 0;
-        if (metodo === 'nequi' || metodo === 'daviplata') {
+        if (metodo === 'credito') {
+            // Credito no aplica recargo
+        } else if (hayDigital) {
+            // v2.34: recargo solo depende de los metodos de las casillas
             recargo = subtotal * (CFG.recargoPorcentaje / 100);
         }
 
@@ -580,6 +598,19 @@
         });
     });
 
+    // v2.34-pagos-mixtos: selectores de método por casilla
+    ['#pago-metodo-1', '#pago-metodo-2', '#pago-metodo-3'].forEach((sel, idx) => {
+        const el = $(sel);
+        if (!el) return;
+        el.addEventListener('change', function() {
+            const p = pestanaActual();
+            if (!Array.isArray(p.pagosMetodos)) p.pagosMetodos = ['efectivo', 'efectivo', 'efectivo'];
+            p.pagosMetodos[idx] = this.value;
+            guardarEstado();
+            renderTotales();
+        });
+    });
+
     // Switch Precio Libre
     const switchPrecio = $('#switch-precio-libre');
     if (switchPrecio) {
@@ -628,7 +659,20 @@
         const metodo = p.metodoPago || 'efectivo';
         const bolsas = parseInt(p.bolsas) || 0;
         const pagos = p.pagos || ['', '', ''];
+        const pagosMetodos = p.pagosMetodos || ['efectivo', 'efectivo', 'efectivo'];
         const valorPagado = (parseFloat(pagos[0]) || 0) + (parseFloat(pagos[1]) || 0) + (parseFloat(pagos[2]) || 0);
+
+        // v2.34-pagos-mixtos: construir lista de pagos
+        const listaPagos = [];
+        for (let i = 0; i < 3; i++) {
+            const monto = parseFloat(pagos[i]) || 0;
+            if (monto > 0) {
+                listaPagos.push({
+                    metodo: pagosMetodos[i] || 'efectivo',
+                    monto: monto,
+                });
+            }
+        }
 
         const subtotal = carrito.reduce((s, it) => s + it.subtotal, 0);
         let recargo = 0;
@@ -664,6 +708,7 @@
             recargo_porcentaje: CFG.recargoPorcentaje,
             bolsas: bolsas,
             valor_pagado: valorPagado,
+            pagos: listaPagos,          // v2.34-pagos-mixtos
             precio_manual: tienePrecioManual,
         };
 
@@ -689,6 +734,7 @@
                 p.metodoPago = 'efectivo';
                 p.bolsas = 0;
                 p.pagos = ['', '', ''];
+                p.pagosMetodos = ['efectivo', 'efectivo', 'efectivo'];  // v2.34
                 p.modoPrecioLibre = false;
                 guardarEstado();
 
@@ -715,6 +761,7 @@
         p.metodoPago = 'efectivo';
         p.bolsas = 0;
         p.pagos = ['', '', ''];
+        p.pagosMetodos = ['efectivo', 'efectivo', 'efectivo'];  // v2.34
         p.modoPrecioLibre = false;
         guardarEstado();
         renderPestanas();
