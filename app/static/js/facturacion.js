@@ -574,7 +574,20 @@
 
     // ==================== EVENTOS UI ====================
     $('#metodo-pago').addEventListener('change', function() {
-        pestanaActual().metodoPago = this.value;
+        const p = pestanaActual();
+        const metodoNuevo = this.value;
+        p.metodoPago = metodoNuevo;
+
+        // v2.34-fix-metodo-global: propagar el método global a las 3 casillas
+        // (excepto Crédito, que oculta las casillas)
+        if (metodoNuevo !== 'credito') {
+            p.pagosMetodos = [metodoNuevo, metodoNuevo, metodoNuevo];
+            ['#pago-metodo-1', '#pago-metodo-2', '#pago-metodo-3'].forEach(sel => {
+                const el = $(sel);
+                if (el) el.value = metodoNuevo;
+            });
+        }
+
         guardarEstado();
         renderTotales();
     });
