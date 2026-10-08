@@ -51,6 +51,8 @@ def _factura_to_dict(f):
         'tienda_id': f.tienda_id,
         'fecha_hora': f.fecha_hora.isoformat() if f.fecha_hora else None,
         'cliente_id': f.cliente_id,
+        'cliente_nombre': f.cliente.nombre if f.cliente else None,
+        'cliente_documento': f.cliente.documento if f.cliente else None,
         'usuario_id': f.usuario_id,
         'subtotal': float(f.subtotal or 0),
         'total': float(f.total or 0),
@@ -442,7 +444,41 @@ def procesar_push(tienda_id, datos):
             cliente_local_id = f_data.get('cliente_id')
             cliente_id_central = mapa_clientes.get(cliente_local_id, cliente_local_id)
 
+            # v2.25-fix-cliente-factura: si el cliente no existe en Central,
+            # intentar matchear por nombre/documento antes del generico
             if cliente_id_central and not Cliente.query.get(cliente_id_central):
+                nombre_cli = (f_data.get('cliente_nombre') or '').strip()
+                doc_cli = (f_data.get('cliente_documento') or '').strip()
+
+                cliente_encontrado = None
+
+                if nombre_cli:
+                    q = Cliente.query.filter_by(tienda_id=tienda_id, nombre=nombre_cli)
+                    if doc_cli:
+                        q = q.filter_by(documento=doc_cli)
+                    cliente_encontrado = q.first()
+
+                if cliente_encontrado:
+                    cliente_id_central = cliente_encontrado.id
+                    print(f'  [push] Factura {numero}: cliente "{nombre_cli}" '
+                          f'encontrado por nombre (id={cliente_encontrado.id})')
+                elif nombre_cli:
+                    nuevo_cli = Cliente(
+                        tienda_id=tienda_id,
+                        nombre=nombre_cli,
+                        documento=doc_cli or None,
+                        saldo_actual=Decimal('0'),
+                        sync_estado='sincronizado',
+                        sync_fecha=datetime.utcnow(),
+                    )
+                    db.session.add(nuevo_cli)
+                    db.session.flush()
+                    cliente_id_central = nuevo_cli.id
+                    print(f'  [push] Factura {numero}: cliente "{nombre_cli}" '
+                          f'creado en Central (id={nuevo_cli.id})')
+
+            # Fallback final: si aun no hay cliente valido, usar generico
+            if not cliente_id_central or not Cliente.query.get(cliente_id_central):
                 cliente_gen = Cliente.query.filter_by(
                     tienda_id=tienda_id, nombre='Cliente sincronizado'
                 ).first()
@@ -1082,6 +1118,7 @@ def obtener_productos_pendientes_push(tienda_id):
         })
 
     return resultado
+
 
 # ==================== PULL DE PAGOS (CENTRAL → TIENDA) ====================
 def obtener_pagos_para_tienda(tienda_id, desde=None):
