@@ -24,7 +24,8 @@ PARAMETROS = [
     ('impresora_ip',      '192.168.0.14',                           False),
     ('impresora_puerto',  '9100',                                   False),
 ]
-
+# v2.26-admin-bolsa-nequi: globales que el admin tambien puede editar
+ADMIN_EDITABLE_GLOBALES = {'recargo_nequi', 'valor_bolsa'}
 
 def get_valor(clave, tienda_id=None):
     q = Configuracion.query.filter_by(clave=clave)
@@ -95,7 +96,11 @@ def index():
                     continue
 
                 if es_global:
-                    if current_user.es_programador():
+                    puede_editar = (
+                        current_user.es_programador()
+                        or (current_user.es_admin() and clave in ADMIN_EDITABLE_GLOBALES)
+                    )
+                    if puede_editar:
                         set_valor(clave, valor, None)
                 else:
                     if tienda_post:

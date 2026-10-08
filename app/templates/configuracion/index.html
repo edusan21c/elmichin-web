@@ -118,7 +118,7 @@
                             <div class="input-group">
                                 <input type="number" name="recargo_nequi" class="form-control"
                                        value="{{ config_global.recargo_nequi }}" step="0.01" min="0" max="10"
-                                       {% if not current_user.es_programador() %}readonly{% endif %}>
+                                       {% if not (current_user.es_programador() or current_user.es_admin()) %}readonly{% endif %}>
                                 <span class="input-group-text">%</span>
                             </div>
                         </div>
@@ -128,7 +128,7 @@
                                 <span class="input-group-text">$</span>
                                 <input type="number" name="valor_bolsa" class="form-control"
                                        value="{{ config_global.valor_bolsa }}" min="0"
-                                       {% if not current_user.es_programador() %}readonly{% endif %}>
+                                       {% if not (current_user.es_programador() or current_user.es_admin()) %}readonly{% endif %}>
                             </div>
                         </div>
                     </div>
