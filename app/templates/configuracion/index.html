@@ -86,7 +86,7 @@
     <input type="hidden" name="tienda_id" value="{{ tienda_id or '' }}">
 
     <div class="row g-3">
-        {% if current_user.es_programador() or not tienda_id %}
+        {% if current_user.es_programador() or current_user.es_admin() or not tienda_id %}
         <div class="col-12">
             <div class="card border-primary">
                 <div class="card-header bg-primary text-white">
