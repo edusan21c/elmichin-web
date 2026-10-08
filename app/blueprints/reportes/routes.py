@@ -192,7 +192,7 @@ def registrar_abono():
         monto = saldo_actual
 
     # Redondear al saldo exacto si está muy cerca
-    if abs(monto - saldo_actual) < 0.10:
+    if abs(monto - saldo_actual) < 1.0:
         monto = saldo_actual
 
     monto_base = redondear(monto)
@@ -223,7 +223,7 @@ def registrar_abono():
     # Actualizar factura
     nuevo_saldo = redondear(Decimal(str(saldo_actual)) - monto_base)
     factura.saldo_pendiente = nuevo_saldo
-    if nuevo_saldo <= 0.01:
+    if nuevo_saldo <= 0.5:
         factura.estado_credito = 'pagado'
         factura.saldo_pendiente = Decimal('0')
 
