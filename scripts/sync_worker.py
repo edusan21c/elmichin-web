@@ -392,7 +392,45 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
             log(f'  PULL facturas: fallo red - {e}')
             hubo_error_pull = True
 
-        # v2.14-backoff: registrar exito o falla
+        # ============ 3. PULL PAGOS (v2.24) ============
+        log(f'  PULL pagos desde {desde[:10]}...')
+        try:
+            r = requests.get(
+                central_url.rstrip('/') + '/api/sync/pull-pagos',
+                params={'tienda_id': tienda_id, 'desde': desde},
+                headers={'X-Sync-Key': sync_key},
+                timeout=TIMEOUT_REQUEST,
+            )
+            if r.status_code == 200:
+                datos = r.json()
+                pagos = datos.get('pagos', [])
+                if pagos:
+                    insertados, omitidos, errores = sync_service.aplicar_pagos_recibidos(
+                        tienda_id, pagos
+                    )
+                    log(f'  PULL pagos: {insertados} nuevos, {omitidos} omitidos, '
+                        f'{len(errores)} errores')
+                    ids_ok = [p['id'] for p in pagos]
+                    if ids_ok:
+                        try:
+                            requests.post(
+                                central_url.rstrip('/') + '/api/sync/marcar-pagos-enviados',
+                                json={'tienda_id': tienda_id, 'ids_pagos': ids_ok},
+                                headers={'X-Sync-Key': sync_key},
+                                timeout=TIMEOUT_REQUEST,
+                            )
+                        except requests.RequestException:
+                            pass
+                else:
+                    log('  PULL pagos: sin cambios')
+            else:
+                log(f'  PULL pagos: HTTP {r.status_code}')
+                hubo_error_pull = True
+        except requests.RequestException as e:
+            log(f'  PULL pagos: fallo red - {e}')
+            hubo_error_pull = True
+
+        # v2.14-backoff: registrar exito o falla (AL FINAL, después de todo)
         if hubo_error_pull:
             registrar_falla('pull', 'Error en algun paso del pull')
         else:

@@ -146,6 +146,40 @@ def sync_pull_facturas():
         'timestamp': datetime.utcnow().isoformat(),
     })
 
+@bp.route('/sync/pull-pagos', methods=['GET'])
+@requiere_sync_key
+def sync_pull_pagos():
+    """Devuelve pagos del central que la tienda aun no tiene."""
+    from app.services import sync_service
+
+    tienda_id = request.args.get('tienda_id', type=int)
+    desde = request.args.get('desde', '')
+
+    if not tienda_id:
+        return jsonify({'ok': False, 'error': 'Falta tienda_id'}), 400
+
+    pagos = sync_service.obtener_pagos_para_tienda(tienda_id, desde)
+
+    return jsonify({
+        'ok': True,
+        'pagos': pagos,
+        'total': len(pagos),
+    })
+
+@bp.route('/sync/marcar-pagos-enviados', methods=['POST'])
+@requiere_sync_key
+def sync_marcar_pagos_enviados():
+    """La tienda confirma que ya recibio los pagos."""
+    from app.services import sync_service
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'ok': False, 'error': 'Sin datos'}), 400
+
+    ids_pagos = data.get('ids_pagos', [])
+    marcados = sync_service.marcar_pagos_enviados_tienda(ids_pagos)
+
+    return jsonify({'ok': True, 'marcados': marcados})
 
 # ==================== RECUPERAR FACTURA INDIVIDUAL (SIN MARCAR) ====================
 @bp.route('/sync/factura/<numero_factura>', methods=['GET'])

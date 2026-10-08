@@ -1082,3 +1082,139 @@ def obtener_productos_pendientes_push(tienda_id):
         })
 
     return resultado
+
+# ==================== PULL DE PAGOS (CENTRAL → TIENDA) ====================
+def obtener_pagos_para_tienda(tienda_id, desde=None):
+    """Devuelve pagos que estan en el central pero no en la tienda.
+    Cualquier factura de la tienda (remota o local) que tenga pagos marcados
+    como NO enviados a la tienda, se envia."""
+    from app.models.pago import Pago
+
+    if isinstance(desde, str) and desde:
+        try:
+            desde = datetime.fromisoformat(desde.replace('Z', '+00:00'))
+        except ValueError:
+            desde = None
+
+    query = (
+        Pago.query
+        .join(Factura, Factura.id == Pago.factura_id)
+        .filter(Factura.tienda_id == tienda_id)
+        .filter(Pago.sync_estado != 'enviado_tienda')      # aun no bajados
+        .filter(Pago.origen == 'local')                    # creados en el central
+    )
+
+    if desde:
+        query = query.filter(Pago.fecha >= desde)
+
+    query = query.order_by(Pago.fecha.asc()).limit(200)
+    pagos = query.all()
+
+    resultado = []
+    for p in pagos:
+        resultado.append({
+            'id': p.id,
+            'factura_id': p.factura_id,
+            'numero_factura': p.factura.numero_factura if p.factura else None,
+            'tienda_id': p.tienda_id,
+            'fecha': p.fecha.isoformat() if p.fecha else None,
+            'monto': float(p.monto or 0),
+            'metodo_pago': p.metodo_pago or 'efectivo',
+        })
+
+    return resultado
+
+
+def marcar_pagos_enviados_tienda(ids_pagos):
+    """Marca los pagos como enviados a la tienda."""
+    from app.models.pago import Pago
+    if not ids_pagos:
+        return 0
+    actualizados = (
+        Pago.query
+        .filter(Pago.id.in_(ids_pagos))
+        .update({'sync_estado': 'enviado_tienda'}, synchronize_session=False)
+    )
+    db.session.commit()
+    return actualizados
+
+
+def aplicar_pagos_recibidos(tienda_id, pagos):
+    """Aplica los pagos recibidos del central en la BD local.
+    Idempotente: si el pago ya existe (mismo factura+monto+fecha), lo omite."""
+    from app.models.pago import Pago
+
+    insertados = 0
+    omitidos = 0
+    errores = []
+
+    for p_data in pagos:
+        try:
+            factura_id = p_data.get('factura_id')
+            numero = p_data.get('numero_factura')
+            monto = Decimal(str(p_data.get('monto', 0)))
+
+            # Buscar factura local (por numero, no por id - pueden diferir)
+            factura = None
+            if numero:
+                factura = Factura.query.filter_by(
+                    tienda_id=tienda_id, numero_factura=numero
+                ).first()
+            if not factura:
+                errores.append(f'Pago {p_data.get("id")}: factura {numero} no encontrada')
+                continue
+
+            # Idempotencia: ya existe pago con mismo factura+monto
+            existente = Pago.query.filter_by(
+                factura_id=factura.id, monto=monto
+            ).first()
+            if existente:
+                omitidos += 1
+                continue
+
+            fecha_str = p_data.get('fecha')
+            try:
+                fecha_pago = datetime.fromisoformat(fecha_str) if fecha_str else datetime.utcnow()
+            except (ValueError, TypeError):
+                fecha_pago = datetime.utcnow()
+
+            nuevo_pago = Pago(
+                factura_id=factura.id,
+                tienda_id=tienda_id,
+                fecha=fecha_pago,
+                monto=monto,
+                metodo_pago=p_data.get('metodo_pago', 'efectivo'),
+                origen='remota',
+                sync_estado='sincronizado',
+                sync_fecha=datetime.utcnow(),
+            )
+            db.session.add(nuevo_pago)
+
+            # Actualizar saldo de la factura local
+            factura.valor_pagado = (factura.valor_pagado or Decimal('0')) + monto
+            nuevo_saldo = (factura.saldo_pendiente or Decimal('0')) - monto
+            if nuevo_saldo <= 0:
+                nuevo_saldo = Decimal('0')
+                factura.estado_credito = 'pagado'
+            factura.saldo_pendiente = nuevo_saldo
+            factura.sync_fecha = datetime.utcnow()
+
+            # Actualizar saldo del cliente local
+            if factura.cliente_id:
+                nuevo_saldo_cli = (
+                    db.session.query(
+                        db.func.coalesce(db.func.sum(Factura.saldo_pendiente), 0)
+                    )
+                    .filter(Factura.cliente_id == factura.cliente_id)
+                    .scalar()
+                )
+                cli = Cliente.query.get(factura.cliente_id)
+                if cli:
+                    cli.saldo_actual = Decimal(str(nuevo_saldo_cli))
+
+            insertados += 1
+        except Exception as e:
+            errores.append(f'Pago {p_data.get("id")}: {e}')
+
+    db.session.commit()
+    return insertados, omitidos, errores
