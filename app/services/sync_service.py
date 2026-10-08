@@ -632,9 +632,21 @@ def procesar_push(tienda_id, datos):
 
             # v2.13-fix-H: actualizar factura con el monto del pago
             # v2.13-fix-F: recalcular saldo del cliente
+            # v2.36-fix-doble-pago: NO sumar valor_pagado si la factura
+            # vino en el mismo push (ya trae el valor_pagado correcto).
+            # Solo sumar en abonos posteriores (CxC).
             factura_afectada = Factura.query.get(factura_central_id)
             if factura_afectada:
-                factura_afectada.valor_pagado = (factura_afectada.valor_pagado or Decimal('0')) + monto
+                factura_en_mismo_push = (factura_local_id in mapa_facturas)
+
+                if not factura_en_mismo_push:
+                    # Abono posterior (CxC): acumular el monto
+                    factura_afectada.valor_pagado = (
+                        (factura_afectada.valor_pagado or Decimal('0')) + monto
+                    )
+                # else: venta nueva del mismo push — la factura ya tiene
+                # el valor_pagado calculado en T1, no hay que tocarlo.
+
                 nuevo_saldo_factura = (factura_afectada.saldo_pendiente or Decimal('0')) - monto
                 if nuevo_saldo_factura <= 0:
                     nuevo_saldo_factura = Decimal('0')
