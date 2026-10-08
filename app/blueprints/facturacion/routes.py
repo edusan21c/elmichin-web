@@ -34,10 +34,15 @@ def tienda_actual():
 def nueva():
     tienda_id = tienda_actual()
     tiendas = Tienda.query.filter_by(activa=True).all()
-    recargo = current_app.config.get('RECARGO_NEQUI', 0.4)
 
-    # v2.28-fix-valor-bolsa-hardcoded: leer de la configuracion global
+    # v2.29: import local para evitar ciclo, arriba del primer uso
     from app.blueprints.configuracion.routes import get_valor
+
+    try:
+        recargo = float(get_valor('recargo_nequi', None) or 0.4)
+    except (ValueError, TypeError):
+        recargo = 0.4
+
     try:
         valor_bolsa_config = int(get_valor('valor_bolsa', None) or 100)
     except (ValueError, TypeError):
