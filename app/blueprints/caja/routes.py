@@ -244,3 +244,59 @@ def api_datos():
             'credito': top_clientes_metodo(clientes_por_metodo['credito']),
         },
     })
+
+
+
+# ==================== API: PRODUCTOS DE UNA CATEGORÍA (drill-down) ====================
+@bp.route('/api/categoria-productos')
+@login_required
+def api_categoria_productos():
+    if not current_user.es_admin() and not current_user.es_programador():
+        return jsonify({'ok': False, 'error': 'No autorizado'}), 403
+
+    categoria = request.args.get('categoria', '', type=str).strip()
+    if not categoria:
+        return jsonify({'ok': False, 'error': 'Sin categoría'}), 400
+
+    tienda_id = tienda_actual()
+    periodo = request.args.get('periodo', 'dia')
+    desde_utc, hasta_utc, etiqueta = calcular_rango(periodo)
+
+    q = Factura.query.filter(
+        Factura.fecha_hora >= desde_utc,
+        Factura.fecha_hora <= hasta_utc,
+    )
+    if tienda_id:
+        q = q.filter(Factura.tienda_id == tienda_id)
+    facturas = q.all()
+
+    productos = {}
+    for f in facturas:
+        for d in f.detalles:
+            prod = db.session.get(Producto, d.producto_id) if d.producto_id else None
+            cat = (prod.categoria if prod and prod.categoria else 'Sin categoría').strip()
+            if cat != categoria:
+                continue
+            nombre = d.producto_nombre or '?'
+            if nombre not in productos:
+                productos[nombre] = {'unidades': 0, 'ingresos': 0.0}
+            productos[nombre]['unidades'] += int(d.cantidad or 0)
+            productos[nombre]['ingresos'] += float(d.subtotal or 0)
+
+    lista = sorted(
+        [{'nombre': k, **v} for k, v in productos.items()],
+        key=lambda x: x['ingresos'],
+        reverse=True
+    )
+
+    total_unidades = sum(p['unidades'] for p in lista)
+    total_ingresos = sum(p['ingresos'] for p in lista)
+
+    return jsonify({
+        'ok': True,
+        'categoria': categoria,
+        'etiqueta': etiqueta,
+        'productos': lista,
+        'total_unidades': total_unidades,
+        'total_ingresos': total_ingresos,
+    })
