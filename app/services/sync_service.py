@@ -1134,6 +1134,7 @@ def obtener_productos_pendientes_push(tienda_id):
             'tienda_id': pres.tienda_id,
             'nombre': prod.nombre if prod else None,
             'codigo_barras': prod.codigo_barras if prod else None,
+            'categoria': prod.categoria if prod else None,
             'cantidad': int(pres.cantidad or 0),
             'precio_venta': float(pres.precio_venta or 0),
             'precio_venta1': float(pres.precio_venta1 or 0),
