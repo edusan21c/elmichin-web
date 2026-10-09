@@ -709,8 +709,14 @@ def procesar_push(tienda_id, datos):
                     errores.append(f'Producto {producto_id}: no se pudo crear ({e})')
                     continue
 
-            # v2.19-fix-barcode-push: si el codigo cambio en la tienda, actualizarlo
-            if producto and codigo and producto.codigo_barras != codigo:
+            # v2.49-fix-categoria-push: actualizar categoria si viene en el push
+            if producto and p_data.get('categoria') is not None:
+                cat_nueva = (p_data.get('categoria') or '').strip()
+                if cat_nueva and producto.categoria != cat_nueva:
+                    producto.categoria = cat_nueva
+                    print(f'  [push] Categoria actualizada: "{producto.nombre}" '
+                          f'-> {cat_nueva}')
+
                 codigo_anterior = producto.codigo_barras
                 # Verificar que el nuevo codigo no este en uso por OTRO producto
                 otro = Producto.query.filter(
