@@ -2,6 +2,7 @@
 # Worker de sincronizacion. Corre en cada TIENDA y sincroniza con el central.
 # v2.14-backoff: retry exponencial en fallas de push/pull.
 # v2.15-alertas: notificaciones por Telegram en fallas consecutivas.
+# v2.37-fix-saldo-negativo: sanitizador de clientes con saldo negativo.
 
 import os
 import sys
@@ -9,6 +10,7 @@ import json
 import socket
 import warnings
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import requests
 
@@ -198,6 +200,42 @@ def detectar_fantasmas(app, tienda_id):
             return faltantes
         except Exception as e:
             log(f'  Error: {e}')
+            return 0
+
+
+def corregir_saldos_negativos(app):
+    """v2.37-fix-saldo-negativo: red de seguridad.
+    Si algun cliente quedo con saldo_actual < 0 por un bug del sync,
+    lo recalcula a partir de las facturas y lo clampea a 0."""
+    from app.models.cliente import Cliente
+    from app.models.factura import Factura
+
+    with app.app_context():
+        try:
+            negativos = Cliente.query.filter(Cliente.saldo_actual < 0).all()
+            if not negativos:
+                log('  Sin clientes con saldo negativo')
+                return 0
+
+            corregidos = 0
+            for c in negativos:
+                real = (db.session.query(
+                    db.func.coalesce(db.func.sum(Factura.saldo_pendiente), 0)
+                ).filter(Factura.cliente_id == c.id).scalar())
+                if real is None or real < 0:
+                    real = Decimal('0')
+                log(f'  FIX saldo cliente {c.id} ({c.nombre}): '
+                    f'{c.saldo_actual} -> {real}')
+                c.saldo_actual = Decimal(str(real))
+                c.sync_fecha = datetime.utcnow()
+                corregidos += 1
+
+            db.session.commit()
+            log(f'  {corregidos} clientes corregidos')
+            return corregidos
+        except Exception as e:
+            log(f'  Error corregir_saldos_negativos: {e}')
+            db.session.rollback()
             return 0
 
 
@@ -513,6 +551,10 @@ def main():
     # PULL
     log('--- PULL (recibir cambios) ---')
     hacer_pull(app, central_url, sync_key, tienda_id)
+
+    # v2.37-fix-saldo-negativo: red de seguridad despues de sync
+    log('--- FIX SALDOS NEGATIVOS (v2.37) ---')
+    corregir_saldos_negativos(app)
 
     log('Ciclo completado.')
     log('')

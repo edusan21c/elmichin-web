@@ -660,6 +660,11 @@ def procesar_push(tienda_id, datos):
                     ).filter(Factura.cliente_id == factura_afectada.cliente_id).scalar())
                     cliente_afectado = Cliente.query.get(factura_afectada.cliente_id)
                     if cliente_afectado:
+                        # v2.37-fix-saldo-negativo: nunca dejar saldo negativo
+                        if nuevo_saldo is None:
+                            nuevo_saldo = Decimal('0')
+                        if nuevo_saldo < 0:
+                            nuevo_saldo = Decimal('0')
                         cliente_afectado.saldo_actual = Decimal(str(nuevo_saldo))
                         cliente_afectado.sync_fecha = datetime.utcnow()
         except Exception as e:
@@ -1269,6 +1274,11 @@ def aplicar_pagos_recibidos(tienda_id, pagos):
                 )
                 cli = Cliente.query.get(factura.cliente_id)
                 if cli:
+                    # v2.37-fix-saldo-negativo: nunca dejar saldo negativo
+                    if nuevo_saldo_cli is None:
+                        nuevo_saldo_cli = Decimal('0')
+                    if nuevo_saldo_cli < 0:
+                        nuevo_saldo_cli = Decimal('0')
                     cli.saldo_actual = Decimal(str(nuevo_saldo_cli))
 
             insertados += 1
@@ -1277,6 +1287,7 @@ def aplicar_pagos_recibidos(tienda_id, pagos):
 
     db.session.commit()
     return insertados, omitidos, errores
+
 
 # ==================== PULL/PUSH DE CONFIGURACION (v2.27-sync-configuracion) ====================
 def _config_to_dict(c):
