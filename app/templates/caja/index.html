@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% block titulo %}Caja — Medios de Pago{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-cash-coin"></i> Caja — Medios de Pago
+        {% if current_user.es_programador() and tiendas|length > 1 %}
+            <small class="text-muted">- Tienda:
+                <select id="selector-tienda" class="form-select form-select-sm d-inline-block" style="width:auto;">
+                    {% for t in tiendas %}
+                        <option value="{{ t.id }}" {% if t.id == tienda_id %}selected{% endif %}>{{ t.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </small>
+        {% endif %}
+    </h1>
+    <div class="btn-group">
+        <a href="?periodo=dia{% if tienda_id %}&tienda={{ tienda_id }}{% endif %}"
+           class="btn btn-sm {% if periodo == 'dia' %}btn-primary{% else %}btn-outline-primary{% endif %}">Día</a>
+        <a href="?periodo=semana{% if tienda_id %}&tienda={{ tienda_id }}{% endif %}"
+           class="btn btn-sm {% if periodo == 'semana' %}btn-primary{% else %}btn-outline-primary{% endif %}">Semana</a>
+        <a href="?periodo=mes{% if tienda_id %}&tienda={{ tienda_id }}{% endif %}"
+           class="btn btn-sm {% if periodo == 'mes' %}btn-primary{% else %}btn-outline-primary{% endif %}">Mes</a>
+        <a href="?periodo=año{% if tienda_id %}&tienda={{ tienda_id }}{% endif %}"
+           class="btn btn-sm {% if periodo == 'año' %}btn-primary{% else %}btn-outline-primary{% endif %}">Año</a>
+    </div>
+</div>
+
+<div class="mb-3">
+    <span class="badge bg-secondary" id="periodo-etiqueta">Cargando...</span>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="card border-success h-100">
+            <div class="card-body">
+                <div class="text-muted small">💵 Efectivo</div>
+                <div class="fs-3 fw-bold text-success" id="kpi-efectivo">$0</div>
+                <div class="small text-muted" id="kpi-efectivo-n">0 facturas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card border-primary h-100">
+            <div class="card-body">
+                <div class="text-muted small">📱 Nequi</div>
+                <div class="fs-3 fw-bold text-primary" id="kpi-nequi">$0</div>
+                <div class="small text-muted" id="kpi-nequi-n">0 facturas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card border-danger h-100">
+            <div class="card-body">
+                <div class="text-muted small">📱 Daviplata</div>
+                <div class="fs-3 fw-bold text-danger" id="kpi-daviplata">$0</div>
+                <div class="small text-muted" id="kpi-daviplata-n">0 facturas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card border-warning h-100">
+            <div class="card-body">
+                <div class="text-muted small">📝 Crédito otorgado</div>
+                <div class="fs-3 fw-bold text-warning" id="kpi-credito">$0</div>
+                <div class="small text-muted" id="kpi-credito-n">0 facturas</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card border-primary">
+            <div class="card-body">
+                <div class="text-muted small">💰 Total vendido (todos los métodos)</div>
+                <div class="fs-2 fw-bold text-primary" id="kpi-total-vendido">$0</div>
+                <div class="small text-muted" id="kpi-total-facturas">0 facturas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-success">
+            <div class="card-body">
+                <div class="text-muted small">✅ Total cobrado (efectivo + digitales)</div>
+                <div class="fs-2 fw-bold text-success" id="kpi-total-cobrado">$0</div>
+                <div class="small text-muted">Sin crédito otorgado</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold">
+                🍩 Distribución de métodos
+            </div>
+            <div class="card-body">
+                <canvas id="chart-metodos" style="width:100%; height:300px;"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold">
+                📊 Facturas por método
+            </div>
+            <div class="card-body">
+                <canvas id="chart-facturas" style="width:100%; height:300px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-white fw-semibold">
+        📝 Detalle del crédito en el período
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="text-muted small">Crédito otorgado</div>
+                <div class="fs-4 fw-bold text-warning" id="cred-otorgado">$0</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Crédito cobrado</div>
+                <div class="fs-4 fw-bold text-success" id="cred-cobrado">$0</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Crédito pendiente</div>
+                <div class="fs-4 fw-bold text-danger" id="cred-pendiente">$0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    window.CAJA_CONFIG = {
+        tiendaId: {{ tienda_id or 0 }},
+        periodo: "{{ periodo }}",
+        urlDatos: "{{ url_for('caja.api_datos') }}",
+    };
+</script>
+<script>
+(function() {
+    'use strict';
+    const CFG = window.CAJA_CONFIG || {};
+    let charts = {};
+
+    function fmt(n) {
+        return '$' + Math.round(n || 0).toLocaleString('es-CO');
+    }
+
+    async function cargarDatos() {
+        try {
+            const url = CFG.urlDatos + '?periodo=' + CFG.periodo + '&tienda=' + CFG.tiendaId;
+            const r = await fetch(url);
+            const data = await r.json();
+            if (!data.ok) { console.error('Error:', data.error); return; }
+            render(data);
+        } catch (e) {
+            console.error('Error:', e);
+        }
+    }
+
+    function render(data) {
+        Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+        charts = {};
+
+        document.getElementById('periodo-etiqueta').textContent = data.etiqueta;
+
+        document.getElementById('kpi-efectivo').textContent = fmt(data.totales.efectivo);
+        document.getElementById('kpi-efectivo-n').textContent = data.facturas.efectivo + ' facturas';
+        document.getElementById('kpi-nequi').textContent = fmt(data.totales.nequi);
+        document.getElementById('kpi-nequi-n').textContent = data.facturas.nequi + ' facturas';
+        document.getElementById('kpi-daviplata').textContent = fmt(data.totales.daviplata);
+        document.getElementById('kpi-daviplata-n').textContent = data.facturas.daviplata + ' facturas';
+        document.getElementById('kpi-credito').textContent = fmt(data.credito_detalle.otorgado);
+        document.getElementById('kpi-credito-n').textContent = data.facturas.credito + ' facturas';
+        document.getElementById('kpi-total-vendido').textContent = fmt(data.totales.total_vendido);
+        document.getElementById('kpi-total-facturas').textContent = data.facturas.total + ' facturas';
+        document.getElementById('kpi-total-cobrado').textContent = fmt(data.totales.total_cobrado);
+
+        document.getElementById('cred-otorgado').textContent = fmt(data.credito_detalle.otorgado);
+        document.getElementById('cred-cobrado').textContent = fmt(data.credito_detalle.cobrado);
+        document.getElementById('cred-pendiente').textContent = fmt(data.credito_detalle.pendiente);
+
+        charts.metodos = new Chart(document.getElementById('chart-metodos'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Efectivo', 'Nequi', 'Daviplata', 'Crédito'],
+                datasets: [{
+                    data: [
+                        data.totales.efectivo,
+                        data.totales.nequi,
+                        data.totales.daviplata,
+                        data.credito_detalle.otorgado,
+                    ],
+                    backgroundColor: ['#198754', '#7B2FBE', '#dc3545', '#ffc107']
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: { callbacks: { label: (c) => c.label + ': ' + fmt(c.parsed) } }
+                }
+            }
+        });
+
+        charts.facturas = new Chart(document.getElementById('chart-facturas'), {
+            type: 'bar',
+            data: {
+                labels: ['Efectivo', 'Nequi', 'Daviplata', 'Crédito'],
+                datasets: [{
+                    label: 'Facturas',
+                    data: [
+                        data.facturas.efectivo,
+                        data.facturas.nequi,
+                        data.facturas.daviplata,
+                        data.facturas.credito,
+                    ],
+                    backgroundColor: ['#198754', '#7B2FBE', '#dc3545', '#ffc107']
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+    }
+
+    const st = document.getElementById('selector-tienda');
+    if (st) {
+        st.addEventListener('change', function() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tienda', this.value);
+            window.location.href = url.toString();
+        });
+    }
+
+    cargarDatos();
+})();
+</script>
+{% endblock %}

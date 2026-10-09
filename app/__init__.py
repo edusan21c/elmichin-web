@@ -59,6 +59,7 @@ def create_app(config_class=None):
     from .blueprints.configuracion import bp as configuracion_bp
     from .blueprints.estadisticas import bp as estadisticas_bp
     from .blueprints.bi import bp as bi_bp
+    from .blueprints.caja import bp as caja_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp)
@@ -69,6 +70,7 @@ def create_app(config_class=None):
     app.register_blueprint(api_bp)
     app.register_blueprint(estadisticas_bp)
     app.register_blueprint(bi_bp)
+    app.register_blueprint(caja_bp)
 
     # Excluir la API del CSRF (usa autenticación por SYNC_KEY, no por sesión)
     csrf.exempt(api_bp)
