@@ -4,7 +4,7 @@
 {% block contenido %}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h1 class="h3 mb-0">
-        <i class="bi bi-graph-up-arrow"></i> BI — Business Intelligence
+        <i class="bi bi-graph-up"></i> BI — Business Intelligence
         {% if current_user.es_programador() and tiendas|length > 1 %}
             <small class="text-muted">- Tienda:
                 <select id="selector-tienda" class="form-select form-select-sm d-inline-block" style="width:auto;">
@@ -15,17 +15,27 @@
             </small>
         {% endif %}
     </h1>
-    <div class="btn-group">
-        <label class="me-2 align-self-center text-muted small">Año:</label>
-        <select id="selector-anio" class="form-select form-select-sm" style="width:auto;">
-            {% for a in anios %}
-                <option value="{{ a }}" {% if a == anio %}selected{% endif %}>{{ a }}</option>
-            {% endfor %}
-        </select>
+    <div class="d-flex gap-2">
+        <div>
+            <label class="me-1 text-muted small">Mes:</label>
+            <select id="selector-mes" class="form-select form-select-sm d-inline-block" style="width:auto;">
+                {% for m in meses %}
+                    <option value="{{ loop.index }}" {% if loop.index == mes %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="me-1 text-muted small">Año:</label>
+            <select id="selector-anio" class="form-select form-select-sm d-inline-block" style="width:auto;">
+                {% for a in anios %}
+                    <option value="{{ a }}" {% if a == anio %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
 </div>
 
-<!-- KPIs -->
+<!-- KPIs anuales -->
 <div class="row g-3 mb-4">
     <div class="col-md-3">
         <div class="card border-primary h-100">
@@ -71,6 +81,62 @@
     </div>
     <div class="card-body">
         <canvas id="chart-meses" style="width:100%; height:340px;"></canvas>
+    </div>
+</div>
+
+<!-- ============ DETALLE DEL MES (Fase 2) ============ -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="h4 mb-0" id="titulo-mes">📅 Detalle del mes</h2>
+    <div>
+        <span class="badge bg-primary" id="mes-vendido">$0</span>
+        <span class="badge bg-secondary" id="mes-facturas">0 facturas</span>
+        <span class="badge bg-success" id="mes-ticket">Ticket $0</span>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold">
+                🏆 Top 20 productos del mes
+            </div>
+            <div class="card-body">
+                <canvas id="chart-top-productos" style="width:100%; height:600px;"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold">
+                👥 Top 20 clientes del mes
+            </div>
+            <div class="card-body">
+                <canvas id="chart-top-clientes" style="width:100%; height:600px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold">
+                ⚡ Ventas rápidas vs normales
+            </div>
+            <div class="card-body">
+                <canvas id="chart-ventas-tipo" style="width:100%; height:280px;"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold">
+                🏷️ Ventas por categoría
+            </div>
+            <div class="card-body">
+                <canvas id="chart-categorias" style="width:100%; height:280px;"></canvas>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -120,6 +186,7 @@
     window.BI_CONFIG = {
         tiendaId: {{ tienda_id or 0 }},
         anio: {{ anio }},
+        mes: {{ mes }},
         urlDatos: "{{ url_for('bi.api_datos') }}",
     };
 </script>
@@ -128,20 +195,23 @@
     'use strict';
 
     const CFG = window.BI_CONFIG || {};
+    let charts = {};
 
     function fmt(n) {
         return '$' + Math.round(n || 0).toLocaleString('es-CO');
     }
 
+    function destruirCharts() {
+        Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+        charts = {};
+    }
+
     async function cargarDatos() {
         try {
-            const url = CFG.urlDatos + '?anio=' + CFG.anio + '&tienda=' + CFG.tiendaId;
+            const url = CFG.urlDatos + '?anio=' + CFG.anio + '&mes=' + CFG.mes + '&tienda=' + CFG.tiendaId;
             const r = await fetch(url);
             const data = await r.json();
-            if (!data.ok) {
-                console.error('Error:', data.error);
-                return;
-            }
+            if (!data.ok) { console.error('Error:', data.error); return; }
             render(data);
         } catch (e) {
             console.error('Error cargando datos:', e);
@@ -149,81 +219,151 @@
     }
 
     function render(data) {
-        // KPIs
+        destruirCharts();
+
+        // KPIs anuales
         document.getElementById('kpi-total').textContent = fmt(data.kpis.total_anual);
-        document.getElementById('kpi-total-facturas').textContent =
-            data.kpis.total_facturas + ' facturas';
+        document.getElementById('kpi-total-facturas').textContent = data.kpis.total_facturas + ' facturas';
         document.getElementById('kpi-mejor-mes').textContent = data.kpis.mejor_mes.nombre;
         document.getElementById('kpi-mejor-val').textContent = fmt(data.kpis.mejor_mes.valor);
         document.getElementById('kpi-peor-mes').textContent = data.kpis.peor_mes.nombre;
         document.getElementById('kpi-peor-val').textContent = fmt(data.kpis.peor_mes.valor);
         document.getElementById('kpi-promedio').textContent = fmt(data.kpis.promedio_mensual);
 
-        // Gráfica de meses
-        new Chart(document.getElementById('chart-meses'), {
+        // Gráfica meses
+        charts.meses = new Chart(document.getElementById('chart-meses'), {
             type: 'bar',
             data: {
                 labels: data.meses.labels,
                 datasets: [{
                     label: 'Ventas ($)',
                     data: data.meses.datos,
-                    backgroundColor: 'rgb(13, 110, 253)',
+                    backgroundColor: data.meses.labels.map((_, i) => i === (data.mes - 1) ? '#0d6efd' : '#93c5fd'),
                 }]
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                responsive: true, maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
                             label: (c) => 'Ventas: ' + fmt(c.parsed.y),
-                            afterLabel: (c) => {
-                                const f = data.meses.facturas[c.dataIndex] || 0;
-                                return 'Facturas: ' + f;
-                            }
+                            afterLabel: (c) => 'Facturas: ' + (data.meses.facturas[c.dataIndex] || 0)
                         }
                     }
                 },
-                scales: {
-                    y: { ticks: { callback: (v) => '$' + (v/1000).toFixed(0) + 'k' } }
+                scales: { y: { ticks: { callback: (v) => '$' + (v/1000).toFixed(0) + 'k' } } }
+            }
+        });
+
+        // Título mes
+        document.getElementById('titulo-mes').textContent = '📅 Detalle de ' + data.mes_actual.nombre + ' ' + data.anio;
+        document.getElementById('mes-vendido').textContent = fmt(data.mes_actual.total_vendido);
+        document.getElementById('mes-facturas').textContent = data.mes_actual.total_facturas + ' facturas';
+        document.getElementById('mes-ticket').textContent = 'Ticket ' + fmt(data.mes_actual.ticket_promedio);
+
+        // Top productos
+        const tp = data.top_productos || [];
+        charts.topProductos = new Chart(document.getElementById('chart-top-productos'), {
+            type: 'bar',
+            data: {
+                labels: tp.map(p => p.nombre.length > 25 ? p.nombre.substring(0,25)+'...' : p.nombre),
+                datasets: [{ label: 'Unidades', data: tp.map(p => p.cantidad), backgroundColor: '#198754' }]
+            },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true } }
+            }
+        });
+
+        // Top clientes
+        const tc = data.top_clientes || [];
+        charts.topClientes = new Chart(document.getElementById('chart-top-clientes'), {
+            type: 'bar',
+            data: {
+                labels: tc.map(c => c.nombre.length > 25 ? c.nombre.substring(0,25)+'...' : c.nombre),
+                datasets: [{ label: 'Total ($)', data: tc.map(c => c.total), backgroundColor: '#0d6efd' }]
+            },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (c) => fmt(c.parsed.x) } }
+                },
+                scales: { x: { beginAtZero: true, ticks: { callback: (v) => '$' + (v/1000).toFixed(0) + 'k' } } }
+            }
+        });
+
+        // Ventas rápidas vs normales
+        charts.ventasTipo = new Chart(document.getElementById('chart-ventas-tipo'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Ventas Rápidas', 'Ventas Normales'],
+                datasets: [{
+                    data: [data.ventas_rapidas.total, data.ventas_normales.total],
+                    backgroundColor: ['#ffc107', '#0d6efd']
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: { callbacks: {
+                        label: (c) => c.label + ': ' + fmt(c.parsed),
+                        afterLabel: (c) => {
+                            const d = c.dataIndex === 0 ? data.ventas_rapidas : data.ventas_normales;
+                            return d.facturas + ' facturas';
+                        }
+                    } }
                 }
             }
         });
 
-        // Estadísticas
+        // Categorías
+        const cat = data.categorias || [];
+        charts.categorias = new Chart(document.getElementById('chart-categorias'), {
+            type: 'doughnut',
+            data: {
+                labels: cat.map(c => c.nombre),
+                datasets: [{
+                    data: cat.map(c => c.total),
+                    backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6c757d', '#6f42c1', '#fd7e14']
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: { callbacks: { label: (c) => c.label + ': ' + fmt(c.parsed) } }
+                }
+            }
+        });
+
+        // Estadísticas anuales
         const est = data.estadisticas;
         document.getElementById('est-media').textContent = fmt(est.media);
         document.getElementById('est-mediana').textContent = fmt(est.mediana);
         document.getElementById('est-moda').textContent = est.moda;
-        document.getElementById('est-moda-info').textContent =
-            'Facturas/día (' + est.moda_repeticiones + ' veces)';
+        document.getElementById('est-moda-info').textContent = 'Facturas/día (' + est.moda_repeticiones + ' veces)';
         document.getElementById('est-desv').textContent = fmt(est.desviacion);
         document.getElementById('est-var').textContent = Number(est.varianza).toLocaleString('es-CO', {maximumFractionDigits: 0});
-        document.getElementById('est-dias').textContent = est.dias_con_vendas !== undefined
-            ? est.dias_con_vendas
-            : est.dias_con_ventas;
+        document.getElementById('est-dias').textContent = est.dias_con_ventas;
     }
 
-    // Selector de año
-    const selAnio = document.getElementById('selector-anio');
-    if (selAnio) {
-        selAnio.addEventListener('change', function() {
+    // Selectores
+    function onCambio(id, param) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', function() {
             const url = new URL(window.location.href);
-            url.searchParams.set('anio', this.value);
+            url.searchParams.set(param, this.value);
             window.location.href = url.toString();
         });
     }
-
-    // Selector de tienda
-    const st = document.getElementById('selector-tienda');
-    if (st) {
-        st.addEventListener('change', function() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('tienda', this.value);
-            window.location.href = url.toString();
-        });
-    }
+    onCambio('selector-anio', 'anio');
+    onCambio('selector-mes', 'mes');
+    onCambio('selector-tienda', 'tienda');
 
     cargarDatos();
 })();

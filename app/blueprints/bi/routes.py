@@ -8,7 +8,8 @@ from sqlalchemy import func
 from . import bp
 from app.extensions import db
 from app.models.tienda import Tienda
-from app.models.factura import Factura
+from app.models.factura import Factura, DetalleFactura
+from app.models.producto import Producto
 
 
 MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -34,7 +35,6 @@ def anio_actual():
 
 
 def anios_disponibles(tienda_id):
-    """Devuelve los años con facturas ordenados desc."""
     q = db.session.query(
         func.extract('year', Factura.fecha_hora).label('anio')
     )
@@ -57,6 +57,7 @@ def index():
     tiendas = Tienda.query.filter_by(activa=True).all()
     anios = anios_disponibles(tienda_id)
     anio = request.args.get('anio', type=int) or anios[0]
+    mes = request.args.get('mes', type=int) or hora_local().month
 
     return render_template(
         'bi/index.html',
@@ -64,6 +65,8 @@ def index():
         tiendas=tiendas,
         anios=anios,
         anio=anio,
+        mes=mes,
+        meses=MESES_ES,
     )
 
 
@@ -76,14 +79,14 @@ def api_datos():
 
     tienda_id = tienda_actual()
     anio = request.args.get('anio', type=int) or anio_actual()
+    mes = request.args.get('mes', type=int) or hora_local().month
+    if mes < 1 or mes > 12:
+        mes = hora_local().month
 
-    # Rango del año seleccionado (en hora local UTC-5)
-    desde_local = datetime(anio, 1, 1, 0, 0, 0)
-    hasta_local = datetime(anio + 1, 1, 1, 0, 0, 0)
-    desde_utc = desde_local + timedelta(hours=5)
-    hasta_utc = hasta_local + timedelta(hours=5)
+    # Rango del año seleccionado
+    desde_utc = datetime(anio, 1, 1, 0, 0, 0) + timedelta(hours=5)
+    hasta_utc = datetime(anio + 1, 1, 1, 0, 0, 0) + timedelta(hours=5)
 
-    # Query base
     q = Factura.query.filter(
         Factura.fecha_hora >= desde_utc,
         Factura.fecha_hora < hasta_utc,
@@ -93,7 +96,7 @@ def api_datos():
 
     facturas = q.all()
 
-    # Ventas por mes (12 buckets)
+    # ============ VENTAS POR MES (12 buckets) ============
     ventas_mes = [0.0] * 12
     facturas_mes = [0] * 12
     for f in facturas:
@@ -102,7 +105,6 @@ def api_datos():
         ventas_mes[m] += float(f.total or 0)
         facturas_mes[m] += 1
 
-    # KPIs del año
     total_anual = sum(ventas_mes)
     meses_con_ventas = [(i, v) for i, v in enumerate(ventas_mes) if v > 0]
 
@@ -118,7 +120,6 @@ def api_datos():
         promedio_mensual = 0
 
     # ============ ESTADÍSTICAS DESCRIPTIVAS ============
-    # Serie de ventas diarias del año (todas las que tuvieron ventas)
     ventas_dia = {}
     facturas_dia = {}
     for f in facturas:
@@ -130,23 +131,19 @@ def api_datos():
     serie_dias = list(ventas_dia.values())
     serie_facturas = list(facturas_dia.values())
 
-    # Media, mediana, varianza, desviación (sobre ventas diarias)
     n = len(serie_dias)
     if n > 0:
         media = sum(serie_dias) / n
-
         serie_ordenada = sorted(serie_dias)
         if n % 2 == 1:
             mediana = serie_ordenada[n // 2]
         else:
             mediana = (serie_ordenada[n // 2 - 1] + serie_ordenada[n // 2]) / 2
-
         varianza = sum((x - media) ** 2 for x in serie_dias) / n
         desviacion = varianza ** 0.5
     else:
         media = mediana = varianza = desviacion = 0
 
-    # Moda: cantidad de facturas por día (la que más se repite)
     if serie_facturas:
         freq = {}
         for x in serie_facturas:
@@ -158,12 +155,83 @@ def api_datos():
         moda_valor = 0
         moda_repeticiones = 0
 
-    # Datos disponibles para dropdown
+    # ============ FASE 2: DETALLE DEL MES ============
+    facturas_mes_sel = []
+    for f in facturas:
+        fecha_local = f.fecha_hora - timedelta(hours=5)
+        if fecha_local.month == mes:
+            facturas_mes_sel.append(f)
+
+    # --- Top 5 productos del mes ---
+    productos_mes = {}
+    for f in facturas_mes_sel:
+        for d in f.detalles:
+            nombre = d.producto_nombre or '?'
+            if nombre not in productos_mes:
+                productos_mes[nombre] = {'cantidad': 0, 'ingresos': 0.0}
+            productos_mes[nombre]['cantidad'] += int(d.cantidad or 0)
+            productos_mes[nombre]['ingresos'] += float(d.subtotal or 0)
+
+    top_productos = sorted(
+        [{'nombre': k, **v} for k, v in productos_mes.items()],
+        key=lambda x: x['cantidad'],
+        reverse=True
+    )[:20]
+
+    # --- Top 5 clientes del mes ---
+    clientes_mes = {}
+    for f in facturas_mes_sel:
+        cid = f.cliente_id or 0
+        if cid not in clientes_mes:
+            clientes_mes[cid] = {'nombre': f.cliente.nombre if f.cliente else '?', 'total': 0.0, 'facturas': 0}
+        clientes_mes[cid]['total'] += float(f.total or 0)
+        clientes_mes[cid]['facturas'] += 1
+
+    top_clientes = sorted(
+        [{'id': k, **v} for k, v in clientes_mes.items()],
+        key=lambda x: x['total'],
+        reverse=True
+    )[:20]
+
+    # --- Ventas rápidas vs normales ---
+    ventas_rapidas = {'total': 0.0, 'facturas': 0}
+    ventas_normales = {'total': 0.0, 'facturas': 0}
+    for f in facturas_mes_sel:
+        nombre_cli = (f.cliente.nombre if f.cliente else '') or ''
+        if nombre_cli.lower().startswith('venta r'):
+            ventas_rapidas['total'] += float(f.total or 0)
+            ventas_rapidas['facturas'] += 1
+        else:
+            ventas_normales['total'] += float(f.total or 0)
+            ventas_normales['facturas'] += 1
+
+    # --- Ventas por categoría del mes ---
+    categorias_mes = {}
+    for f in facturas_mes_sel:
+        for d in f.detalles:
+            prod = db.session.get(Producto, d.producto_id) if d.producto_id else None
+            cat = (prod.categoria if prod and prod.categoria else 'Sin categoría')
+            if cat not in categorias_mes:
+                categorias_mes[cat] = 0.0
+            categorias_mes[cat] += float(d.subtotal or 0)
+
+    categorias_ordenadas = sorted(
+        [{'nombre': k, 'total': v} for k, v in categorias_mes.items()],
+        key=lambda x: x['total'],
+        reverse=True
+    )
+
+    # --- Total facturas del mes ---
+    total_fact_mes = len(facturas_mes_sel)
+    total_vendido_mes = sum(float(f.total or 0) for f in facturas_mes_sel)
+    ticket_prom_mes = total_vendido_mes / total_fact_mes if total_fact_mes > 0 else 0
+
     anios = anios_disponibles(tienda_id)
 
     return jsonify({
         'ok': True,
         'anio': anio,
+        'mes': mes,
         'tienda_id': tienda_id,
         'anios_disponibles': anios,
         'kpis': {
@@ -187,4 +255,17 @@ def api_datos():
             'desviacion': desviacion,
             'dias_con_ventas': n,
         },
+        # Fase 2
+        'mes_actual': {
+            'numero': mes,
+            'nombre': MESES_ES[mes - 1],
+            'total_vendido': total_vendido_mes,
+            'total_facturas': total_fact_mes,
+            'ticket_promedio': ticket_prom_mes,
+        },
+        'top_productos': top_productos,
+        'top_clientes': top_clientes,
+        'ventas_rapidas': ventas_rapidas,
+        'ventas_normales': ventas_normales,
+        'categorias': categorias_ordenadas,
     })
