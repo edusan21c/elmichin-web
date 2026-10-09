@@ -72,6 +72,36 @@ def index():
     )
 
 
+# ==================== HELPERS COMPARATIVAS ====================
+def rango_mes(anio_r, mes_r):
+    d = datetime(anio_r, mes_r, 1, 0, 0, 0) + timedelta(hours=5)
+    if mes_r == 12:
+        h = datetime(anio_r + 1, 1, 1, 0, 0, 0) + timedelta(hours=5)
+    else:
+        h = datetime(anio_r, mes_r + 1, 1, 0, 0, 0) + timedelta(hours=5)
+    return d, h
+
+
+def totales_rango(tienda_id, desde_r, hasta_r):
+    q_r = Factura.query.filter(Factura.fecha_hora >= desde_r, Factura.fecha_hora < hasta_r)
+    if tienda_id:
+        q_r = q_r.filter(Factura.tienda_id == tienda_id)
+    ff = q_r.all()
+    tot = sum(float(f.total or 0) for f in ff)
+    n = len(ff)
+    return {'total': tot, 'facturas': n, 'ticket': tot / n if n > 0 else 0}
+
+
+def calc_variacion(comp):
+    a = comp['periodo_actual']['total']
+    p = comp['periodo_anterior']['total']
+    if p > 0:
+        comp['variacion_pct'] = ((a - p) / p) * 100
+    else:
+        comp['variacion_pct'] = 0
+    return comp
+
+
 # ==================== API: DATOS ====================
 @bp.route('/api/datos')
 @login_required
@@ -262,7 +292,6 @@ def api_datos():
         })
 
     # ============ FASE 4: PROMEDIO MENSUAL POR CLIENTE ============
-    # Matriz cliente → [12 meses] con el total gastado cada mes
     clientes_matriz = {}
     clientes_total = {}
     clientes_facturas = {}
@@ -288,7 +317,6 @@ def api_datos():
         clientes_total[cid] += total_f
         clientes_facturas[cid] += 1
 
-    # Top 10 clientes (para gráfica de líneas)
     top_10_clientes = sorted(clientes_total.items(), key=lambda x: x[1], reverse=True)[:10]
 
     clientes_top10 = []
@@ -306,7 +334,6 @@ def api_datos():
             'meses': datos['meses'],
         })
 
-    # Tabla top 20 clientes con meses
     top_20_clientes = sorted(clientes_total.items(), key=lambda x: x[1], reverse=True)[:20]
 
     clientes_tabla20 = []
@@ -325,7 +352,6 @@ def api_datos():
             'meses': datos['meses'],
         })
 
-    # Cliente seleccionado (para detalle individual)
     cliente_sel = None
     if cliente_id and cliente_id in clientes_matriz:
         datos = clientes_matriz[cliente_id]
@@ -341,13 +367,89 @@ def api_datos():
             'facturas_mes': datos['facturas_mes'],
         }
 
-    # Lista de clientes para el dropdown (todos los que tengan facturas)
     clientes_lista = sorted(
         [{'id': cid, 'nombre': datos['nombre'], 'total': clientes_total[cid]}
          for cid, datos in clientes_matriz.items() if cid != 0],
         key=lambda x: x['total'],
         reverse=True
     )
+
+    # ============ FASE 5: COMPARATIVAS ============
+    # 1. Mes actual vs mes anterior
+    d_act, h_act = rango_mes(anio, mes)
+    if mes == 1:
+        d_ant, h_ant = rango_mes(anio - 1, 12)
+        etiq_mes_ant = f'{MESES_ES[11]} {anio - 1}'
+    else:
+        d_ant, h_ant = rango_mes(anio, mes - 1)
+        etiq_mes_ant = f'{MESES_ES[mes - 2]} {anio}'
+
+    comparativa_mes = {
+        'periodo_actual': {'etiqueta': f'{MESES_ES[mes - 1]} {anio}', **totales_rango(tienda_id, d_act, h_act)},
+        'periodo_anterior': {'etiqueta': etiq_mes_ant, **totales_rango(tienda_id, d_ant, h_ant)},
+    }
+
+    # 2. Trimestre actual vs anterior
+    trimestre_actual = (mes - 1) // 3 + 1
+    mes_inicio_trim = (trimestre_actual - 1) * 3 + 1
+    d_trim_act_ini = datetime(anio, mes_inicio_trim, 1, 0, 0, 0) + timedelta(hours=5)
+    if mes_inicio_trim == 10:
+        d_trim_act_fin = datetime(anio + 1, 1, 1, 0, 0, 0) + timedelta(hours=5)
+    else:
+        d_trim_act_fin = datetime(anio, mes_inicio_trim + 3, 1, 0, 0, 0) + timedelta(hours=5)
+
+    if trimestre_actual == 1:
+        d_trim_ant_ini = datetime(anio - 1, 10, 1, 0, 0, 0) + timedelta(hours=5)
+        d_trim_ant_fin = datetime(anio, 1, 1, 0, 0, 0) + timedelta(hours=5)
+        etiq_trim_ant = f'Q4 {anio - 1}'
+    else:
+        mes_ant_ini = mes_inicio_trim - 3
+        d_trim_ant_ini = datetime(anio, mes_ant_ini, 1, 0, 0, 0) + timedelta(hours=5)
+        d_trim_ant_fin = d_trim_act_ini
+        etiq_trim_ant = f'Q{trimestre_actual - 1} {anio}'
+
+    comparativa_trim = {
+        'periodo_actual': {'etiqueta': f'Q{trimestre_actual} {anio}', **totales_rango(tienda_id, d_trim_act_ini, d_trim_act_fin)},
+        'periodo_anterior': {'etiqueta': etiq_trim_ant, **totales_rango(tienda_id, d_trim_ant_ini, d_trim_ant_fin)},
+    }
+
+    # 3. Semestre actual vs anterior
+    if mes <= 6:
+        semestre_actual = 1
+        d_sem_act_ini = datetime(anio, 1, 1, 0, 0, 0) + timedelta(hours=5)
+        d_sem_act_fin = datetime(anio, 7, 1, 0, 0, 0) + timedelta(hours=5)
+        d_sem_ant_ini = datetime(anio - 1, 7, 1, 0, 0, 0) + timedelta(hours=5)
+        d_sem_ant_fin = datetime(anio, 1, 1, 0, 0, 0) + timedelta(hours=5)
+        etiq_sem_ant = f'S2 {anio - 1}'
+    else:
+        semestre_actual = 2
+        d_sem_act_ini = datetime(anio, 7, 1, 0, 0, 0) + timedelta(hours=5)
+        d_sem_act_fin = datetime(anio + 1, 1, 1, 0, 0, 0) + timedelta(hours=5)
+        d_sem_ant_ini = datetime(anio, 1, 1, 0, 0, 0) + timedelta(hours=5)
+        d_sem_ant_fin = datetime(anio, 7, 1, 0, 0, 0) + timedelta(hours=5)
+        etiq_sem_ant = f'S1 {anio}'
+
+    comparativa_sem = {
+        'periodo_actual': {'etiqueta': f'S{semestre_actual} {anio}', **totales_rango(tienda_id, d_sem_act_ini, d_sem_act_fin)},
+        'periodo_anterior': {'etiqueta': etiq_sem_ant, **totales_rango(tienda_id, d_sem_ant_ini, d_sem_ant_fin)},
+    }
+
+    # 4. Año actual vs año anterior (YoY)
+    d_yoy_act_ini = datetime(anio, 1, 1, 0, 0, 0) + timedelta(hours=5)
+    d_yoy_act_fin = datetime(anio + 1, 1, 1, 0, 0, 0) + timedelta(hours=5)
+    d_yoy_ant_ini = datetime(anio - 1, 1, 1, 0, 0, 0) + timedelta(hours=5)
+    d_yoy_ant_fin = datetime(anio, 1, 1, 0, 0, 0) + timedelta(hours=5)
+
+    comparativa_yoy = {
+        'periodo_actual': {'etiqueta': f'Año {anio}', **totales_rango(tienda_id, d_yoy_act_ini, d_yoy_act_fin)},
+        'periodo_anterior': {'etiqueta': f'Año {anio - 1}', **totales_rango(tienda_id, d_yoy_ant_ini, d_yoy_ant_fin)},
+    }
+
+    # Variaciones
+    comparativa_mes = calc_variacion(comparativa_mes)
+    comparativa_trim = calc_variacion(comparativa_trim)
+    comparativa_sem = calc_variacion(comparativa_sem)
+    comparativa_yoy = calc_variacion(comparativa_yoy)
 
     anios = anios_disponibles(tienda_id)
 
@@ -400,5 +502,11 @@ def api_datos():
             'tabla20': clientes_tabla20,
             'lista': clientes_lista,
             'seleccionado': cliente_sel,
+        },
+        'comparativas': {
+            'mes': comparativa_mes,
+            'trimestre': comparativa_trim,
+            'semestre': comparativa_sem,
+            'yoy': comparativa_yoy,
         },
     })

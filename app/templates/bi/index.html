@@ -84,6 +84,95 @@
     </div>
 </div>
 
+<!-- ============ FASE 5: COMPARATIVAS ============ -->
+<div class="d-flex justify-content-between align-items-center mb-3 mt-4">
+    <h2 class="h4 mb-0">📊 Comparativas de períodos</h2>
+    <small class="text-muted">Variación % entre el período actual y el anterior</small>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-3 col-md-6">
+        <div class="card h-100 border-primary">
+            <div class="card-header bg-white fw-semibold small">📅 Mes vs anterior</div>
+            <div class="card-body p-3">
+                <div class="mb-2">
+                    <div class="text-muted small" id="comp-mes-act-lbl">Mes actual</div>
+                    <div class="fs-5 fw-bold text-primary" id="comp-mes-act">$0</div>
+                    <div class="small text-muted" id="comp-mes-act-info">0 facturas</div>
+                </div>
+                <div class="mb-2">
+                    <div class="text-muted small" id="comp-mes-ant-lbl">Mes anterior</div>
+                    <div class="text-muted" id="comp-mes-ant">$0</div>
+                    <div class="small text-muted" id="comp-mes-ant-info">0 facturas</div>
+                </div>
+                <div class="border-top pt-2">
+                    <span class="fw-bold" id="comp-mes-var">0%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+        <div class="card h-100 border-success">
+            <div class="card-header bg-white fw-semibold small">📆 Trimestre vs anterior</div>
+            <div class="card-body p-3">
+                <div class="mb-2">
+                    <div class="text-muted small" id="comp-trim-act-lbl">Trimestre actual</div>
+                    <div class="fs-5 fw-bold text-success" id="comp-trim-act">$0</div>
+                    <div class="small text-muted" id="comp-trim-act-info">0 facturas</div>
+                </div>
+                <div class="mb-2">
+                    <div class="text-muted small" id="comp-trim-ant-lbl">Trimestre anterior</div>
+                    <div class="text-muted" id="comp-trim-ant">$0</div>
+                    <div class="small text-muted" id="comp-trim-ant-info">0 facturas</div>
+                </div>
+                <div class="border-top pt-2">
+                    <span class="fw-bold" id="comp-trim-var">0%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+        <div class="card h-100 border-warning">
+            <div class="card-header bg-white fw-semibold small">🗓️ Semestre vs anterior</div>
+            <div class="card-body p-3">
+                <div class="mb-2">
+                    <div class="text-muted small" id="comp-sem-act-lbl">Semestre actual</div>
+                    <div class="fs-5 fw-bold text-warning" id="comp-sem-act">$0</div>
+                    <div class="small text-muted" id="comp-sem-act-info">0 facturas</div>
+                </div>
+                <div class="mb-2">
+                    <div class="text-muted small" id="comp-sem-ant-lbl">Semestre anterior</div>
+                    <div class="text-muted" id="comp-sem-ant">$0</div>
+                    <div class="small text-muted" id="comp-sem-ant-info">0 facturas</div>
+                </div>
+                <div class="border-top pt-2">
+                    <span class="fw-bold" id="comp-sem-var">0%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+        <div class="card h-100 border-info">
+            <div class="card-header bg-white fw-semibold small">📊 Año vs anterior (YoY)</div>
+            <div class="card-body p-3">
+                <div class="mb-2">
+                    <div class="text-muted small" id="comp-yoy-act-lbl">Año actual</div>
+                    <div class="fs-5 fw-bold text-info" id="comp-yoy-act">$0</div>
+                    <div class="small text-muted" id="comp-yoy-act-info">0 facturas</div>
+                </div>
+                <div class="mb-2">
+                    <div class="text-muted small" id="comp-yoy-ant-lbl">Año anterior</div>
+                    <div class="text-muted" id="comp-yoy-ant">$0</div>
+                    <div class="small text-muted" id="comp-yoy-ant-info">0 facturas</div>
+                </div>
+                <div class="border-top pt-2">
+                    <span class="fw-bold" id="comp-yoy-var">0%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Detalle del mes -->
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="h4 mb-0" id="titulo-mes">📅 Detalle del mes</h2>
@@ -199,7 +288,6 @@
     </div>
 </div>
 
-<!-- Detalle del cliente seleccionado (solo si se elige uno) -->
 <div class="card mb-4" id="card-cliente-detalle" style="display:none;">
     <div class="card-header bg-white fw-semibold" id="cliente-detalle-titulo">
         Detalle del cliente
@@ -227,7 +315,6 @@
     </div>
 </div>
 
-<!-- Gráfica Top 10 clientes (por defecto) -->
 <div class="card mb-4" id="card-clientes-top10">
     <div class="card-header bg-white fw-semibold">
         📈 Top 10 clientes (líneas)
@@ -237,7 +324,6 @@
     </div>
 </div>
 
-<!-- Tabla Top 20 clientes -->
 <div class="card mb-4">
     <div class="card-header bg-white fw-semibold">
         📋 Tabla de clientes (Top 20 con promedio mensual)
@@ -358,7 +444,7 @@
     function render(data) {
         destruirCharts();
 
-        // KPIs anuales
+        // KPIs
         document.getElementById('kpi-total').textContent = fmt(data.kpis.total_anual);
         document.getElementById('kpi-total-facturas').textContent = data.kpis.total_facturas + ' facturas';
         document.getElementById('kpi-mejor-mes').textContent = data.kpis.mejor_mes.nombre;
@@ -382,16 +468,51 @@
                 responsive: true, maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: (c) => 'Ventas: ' + fmt(c.parsed.y),
-                            afterLabel: (c) => 'Facturas: ' + (data.meses.facturas[c.dataIndex] || 0)
-                        }
-                    }
+                    tooltip: { callbacks: {
+                        label: (c) => 'Ventas: ' + fmt(c.parsed.y),
+                        afterLabel: (c) => 'Facturas: ' + (data.meses.facturas[c.dataIndex] || 0)
+                    } }
                 },
                 scales: { y: { ticks: { callback: (v) => '$' + (v/1000).toFixed(0) + 'k' } } }
             }
         });
+
+        // ============ FASE 5: COMPARATIVAS ============
+        const comp = data.comparativas || {};
+
+        function pintarComparativa(c, pre) {
+            if (!c) return;
+            const act = c.periodo_actual || {};
+            const ant = c.periodo_anterior || {};
+            const varPct = c.variacion_pct || 0;
+
+            const elActLbl = document.getElementById('comp-' + pre + '-act-lbl');
+            const elAct = document.getElementById('comp-' + pre + '-act');
+            const elActInfo = document.getElementById('comp-' + pre + '-act-info');
+            const elAntLbl = document.getElementById('comp-' + pre + '-ant-lbl');
+            const elAnt = document.getElementById('comp-' + pre + '-ant');
+            const elAntInfo = document.getElementById('comp-' + pre + '-ant-info');
+            const elVar = document.getElementById('comp-' + pre + '-var');
+
+            if (elActLbl) elActLbl.textContent = act.etiqueta || 'Actual';
+            if (elAct) elAct.textContent = fmt(act.total);
+            if (elActInfo) elActInfo.textContent = (act.facturas || 0) + ' facturas · ticket ' + fmt(act.ticket);
+            if (elAntLbl) elAntLbl.textContent = ant.etiqueta || 'Anterior';
+            if (elAnt) elAnt.textContent = fmt(ant.total);
+            if (elAntInfo) elAntInfo.textContent = (ant.facturas || 0) + ' facturas · ticket ' + fmt(ant.ticket);
+
+            if (elVar) {
+                const signo = varPct >= 0 ? '↑' : '↓';
+                const color = varPct >= 0 ? 'text-success' : 'text-danger';
+                elVar.textContent = signo + ' ' + Math.abs(varPct).toFixed(1) + '%';
+                elVar.className = 'fw-bold ' + color;
+            }
+        }
+
+        pintarComparativa(comp.mes, 'mes');
+        pintarComparativa(comp.trimestre, 'trim');
+        pintarComparativa(comp.semestre, 'sem');
+        pintarComparativa(comp.yoy, 'yoy');
 
         // Título mes
         document.getElementById('titulo-mes').textContent = '📅 Detalle de ' + data.mes_actual.nombre + ' ' + data.anio;
@@ -463,10 +584,7 @@
             type: 'doughnut',
             data: {
                 labels: cat.map(c => c.nombre),
-                datasets: [{
-                    data: cat.map(c => c.total),
-                    backgroundColor: COLORES
-                }]
+                datasets: [{ data: cat.map(c => c.total), backgroundColor: COLORES }]
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
@@ -477,9 +595,8 @@
             }
         });
 
-        // ============ FASE 3: ROTACIÓN ============
+        // Rotación
         const rot = (data.rotacion && data.rotacion.top10) || [];
-
         charts.rotacion = new Chart(document.getElementById('chart-rotacion'), {
             type: 'line',
             data: {
@@ -489,9 +606,7 @@
                     data: p.meses,
                     borderColor: COLORES[i % COLORES.length],
                     backgroundColor: COLORES[i % COLORES.length] + '20',
-                    tension: 0.3,
-                    borderWidth: 2,
-                    pointRadius: 3,
+                    tension: 0.3, borderWidth: 2, pointRadius: 3,
                 }))
             },
             options: {
@@ -500,9 +615,7 @@
                     legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
                     tooltip: { callbacks: { label: (c) => c.dataset.label + ': ' + c.parsed.y + ' u.' } }
                 },
-                scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'Unidades vendidas' } }
-                }
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Unidades vendidas' } } }
             }
         });
 
@@ -518,14 +631,13 @@
             }).join('');
         }
 
-        // ============ FASE 4: CLIENTES MES A MES ============
+        // Clientes
         const cm = data.clientes_meses || {};
         const cliTop10 = cm.top10 || [];
         const cliTabla20 = cm.tabla20 || [];
         const cliLista = cm.lista || [];
         const cliSel = cm.seleccionado;
 
-        // Poblar dropdown de clientes
         const selCli = document.getElementById('selector-cliente');
         if (selCli) {
             selCli.innerHTML = '<option value="0">Top 10 clientes</option>';
@@ -538,7 +650,6 @@
             });
         }
 
-        // Gráfica Top 10 clientes (líneas)
         charts.clientesTop10 = new Chart(document.getElementById('chart-clientes-top10'), {
             type: 'line',
             data: {
@@ -548,9 +659,7 @@
                     data: c.meses,
                     borderColor: COLORES[i % COLORES.length],
                     backgroundColor: COLORES[i % COLORES.length] + '20',
-                    tension: 0.3,
-                    borderWidth: 2,
-                    pointRadius: 3,
+                    tension: 0.3, borderWidth: 2, pointRadius: 3,
                 }))
             },
             options: {
@@ -559,13 +668,10 @@
                     legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
                     tooltip: { callbacks: { label: (c) => c.dataset.label + ': ' + fmt(c.parsed.y) } }
                 },
-                scales: {
-                    y: { beginAtZero: true, ticks: { callback: (v) => '$' + (v/1000).toFixed(0) + 'k' } }
-                }
+                scales: { y: { beginAtZero: true, ticks: { callback: (v) => '$' + (v/1000).toFixed(0) + 'k' } } }
             }
         });
 
-        // Detalle del cliente seleccionado
         const cardDetalle = document.getElementById('card-cliente-detalle');
         const cardTop10 = document.getElementById('card-clientes-top10');
         if (cliSel) {
@@ -575,18 +681,13 @@
             document.getElementById('cli-total').textContent = fmt(cliSel.total_anual);
             document.getElementById('cli-promedio').textContent = fmt(cliSel.promedio_mensual);
             document.getElementById('cli-facturas').textContent = cliSel.facturas_anual;
-            const mesesActivos = cliSel.meses.filter(v => v > 0).length;
-            document.getElementById('cli-meses').textContent = mesesActivos;
+            document.getElementById('cli-meses').textContent = cliSel.meses.filter(v => v > 0).length;
 
             charts.clienteIndividual = new Chart(document.getElementById('chart-cliente-individual'), {
                 type: 'bar',
                 data: {
                     labels: data.meses.labels,
-                    datasets: [{
-                        label: 'Gastado ($)',
-                        data: cliSel.meses,
-                        backgroundColor: '#0d6efd',
-                    }]
+                    datasets: [{ label: 'Gastado ($)', data: cliSel.meses, backgroundColor: '#0d6efd' }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
@@ -602,7 +703,6 @@
             cardTop10.style.display = 'block';
         }
 
-        // Tabla Top 20 clientes
         const tbodyCli = document.getElementById('tabla-clientes-body');
         if (cliTabla20.length === 0) {
             tbodyCli.innerHTML = '<tr><td colspan="15" class="text-center text-muted">Sin datos</td></tr>';
@@ -618,7 +718,7 @@
             }).join('');
         }
 
-        // Estadísticas anuales
+        // Estadísticas
         const est = data.estadisticas;
         document.getElementById('est-media').textContent = fmt(est.media);
         document.getElementById('est-mediana').textContent = fmt(est.mediana);
@@ -642,7 +742,6 @@
     onCambio('selector-mes', 'mes');
     onCambio('selector-tienda', 'tienda');
 
-    // Selector de cliente (Fase 4)
     const selCli2 = document.getElementById('selector-cliente');
     if (selCli2) {
         selCli2.addEventListener('change', function() {
