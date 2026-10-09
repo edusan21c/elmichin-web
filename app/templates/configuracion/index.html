@@ -19,7 +19,8 @@
 
 {% if current_user.es_admin() %}
 
-<!-- ============ CARD REPARAR SYNC (v2.20-reparar-sync) ============ -->
+{% if config.MODO == 'tienda_local' %}
+<!-- ============ CARD REPARAR SYNC (v2.20, solo visible en tiendas) ============ -->
 <div class="card border-warning mb-3" id="card-reparar-sync">
     <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
         <span><i class="bi bi-tools"></i> Reparar Sincronización</span>
@@ -36,6 +37,7 @@
         <div id="estado-reparar-sync"></div>
     </div>
 </div>
+{% endif %}
 
 <!-- ============ CARD DE VERSION ============ -->
 <div class="card border-info mb-3" id="card-version">
