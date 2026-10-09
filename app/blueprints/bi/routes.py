@@ -58,6 +58,7 @@ def index():
     anios = anios_disponibles(tienda_id)
     anio = request.args.get('anio', type=int) or anios[0]
     mes = request.args.get('mes', type=int) or hora_local().month
+    cliente_id = request.args.get('cliente', type=int) or 0
 
     return render_template(
         'bi/index.html',
@@ -66,6 +67,7 @@ def index():
         anios=anios,
         anio=anio,
         mes=mes,
+        cliente_id=cliente_id,
         meses=MESES_ES,
     )
 
@@ -82,8 +84,8 @@ def api_datos():
     mes = request.args.get('mes', type=int) or hora_local().month
     if mes < 1 or mes > 12:
         mes = hora_local().month
+    cliente_id = request.args.get('cliente', type=int) or 0
 
-    # Rango del año seleccionado
     desde_utc = datetime(anio, 1, 1, 0, 0, 0) + timedelta(hours=5)
     hasta_utc = datetime(anio + 1, 1, 1, 0, 0, 0) + timedelta(hours=5)
 
@@ -96,7 +98,7 @@ def api_datos():
 
     facturas = q.all()
 
-    # ============ VENTAS POR MES (12 buckets) ============
+    # ============ VENTAS POR MES ============
     ventas_mes = [0.0] * 12
     facturas_mes = [0] * 12
     for f in facturas:
@@ -162,7 +164,6 @@ def api_datos():
         if fecha_local.month == mes:
             facturas_mes_sel.append(f)
 
-    # --- Top 5 productos del mes ---
     productos_mes = {}
     for f in facturas_mes_sel:
         for d in f.detalles:
@@ -178,7 +179,6 @@ def api_datos():
         reverse=True
     )[:20]
 
-    # --- Top 5 clientes del mes ---
     clientes_mes = {}
     for f in facturas_mes_sel:
         cid = f.cliente_id or 0
@@ -193,7 +193,6 @@ def api_datos():
         reverse=True
     )[:20]
 
-    # --- Ventas rápidas vs normales ---
     ventas_rapidas = {'total': 0.0, 'facturas': 0}
     ventas_normales = {'total': 0.0, 'facturas': 0}
     for f in facturas_mes_sel:
@@ -205,7 +204,6 @@ def api_datos():
             ventas_normales['total'] += float(f.total or 0)
             ventas_normales['facturas'] += 1
 
-    # --- Ventas por categoría del mes ---
     categorias_mes = {}
     for f in facturas_mes_sel:
         for d in f.detalles:
@@ -221,10 +219,135 @@ def api_datos():
         reverse=True
     )
 
-    # --- Total facturas del mes ---
     total_fact_mes = len(facturas_mes_sel)
     total_vendido_mes = sum(float(f.total or 0) for f in facturas_mes_sel)
     ticket_prom_mes = total_vendido_mes / total_fact_mes if total_fact_mes > 0 else 0
+
+    # ============ FASE 3: ROTACIÓN MES A MES ============
+    rotacion = {}
+    rotacion_ingresos = {}
+    for f in facturas:
+        fecha_local = f.fecha_hora - timedelta(hours=5)
+        m = fecha_local.month - 1
+        for d in f.detalles:
+            nombre = d.producto_nombre or '?'
+            if nombre not in rotacion:
+                rotacion[nombre] = [0] * 12
+                rotacion_ingresos[nombre] = [0.0] * 12
+            rotacion[nombre][m] += int(d.cantidad or 0)
+            rotacion_ingresos[nombre][m] += float(d.subtotal or 0)
+
+    totales_por_producto = {k: sum(v) for k, v in rotacion.items()}
+    top_10_rotacion = sorted(totales_por_producto.items(),
+                             key=lambda x: x[1], reverse=True)[:10]
+
+    rotacion_top10 = []
+    for nombre, total in top_10_rotacion:
+        rotacion_top10.append({
+            'nombre': nombre,
+            'total_anual': total,
+            'meses': rotacion[nombre],
+            'ingresos_meses': rotacion_ingresos[nombre],
+        })
+
+    top_20_rotacion = sorted(totales_por_producto.items(),
+                             key=lambda x: x[1], reverse=True)[:20]
+
+    rotacion_tabla20 = []
+    for nombre, total in top_20_rotacion:
+        rotacion_tabla20.append({
+            'nombre': nombre,
+            'total_anual': total,
+            'meses': rotacion[nombre],
+        })
+
+    # ============ FASE 4: PROMEDIO MENSUAL POR CLIENTE ============
+    # Matriz cliente → [12 meses] con el total gastado cada mes
+    clientes_matriz = {}
+    clientes_total = {}
+    clientes_facturas = {}
+
+    for f in facturas:
+        cid = f.cliente_id or 0
+        nombre = f.cliente.nombre if f.cliente else '?'
+        fecha_local = f.fecha_hora - timedelta(hours=5)
+        m = fecha_local.month - 1
+        total_f = float(f.total or 0)
+
+        if cid not in clientes_matriz:
+            clientes_matriz[cid] = {
+                'nombre': nombre,
+                'meses': [0.0] * 12,
+                'facturas_mes': [0] * 12,
+            }
+            clientes_total[cid] = 0.0
+            clientes_facturas[cid] = 0
+
+        clientes_matriz[cid]['meses'][m] += total_f
+        clientes_matriz[cid]['facturas_mes'][m] += 1
+        clientes_total[cid] += total_f
+        clientes_facturas[cid] += 1
+
+    # Top 10 clientes (para gráfica de líneas)
+    top_10_clientes = sorted(clientes_total.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    clientes_top10 = []
+    for cid, total in top_10_clientes:
+        if cid == 0:
+            continue
+        datos = clientes_matriz[cid]
+        meses_con_compras = [v for v in datos['meses'] if v > 0]
+        promedio = total / len(meses_con_compras) if meses_con_compras else 0
+        clientes_top10.append({
+            'id': cid,
+            'nombre': datos['nombre'],
+            'total_anual': total,
+            'promedio_mensual': promedio,
+            'meses': datos['meses'],
+        })
+
+    # Tabla top 20 clientes con meses
+    top_20_clientes = sorted(clientes_total.items(), key=lambda x: x[1], reverse=True)[:20]
+
+    clientes_tabla20 = []
+    for cid, total in top_20_clientes:
+        if cid == 0:
+            continue
+        datos = clientes_matriz[cid]
+        meses_con_compras = [v for v in datos['meses'] if v > 0]
+        promedio = total / len(meses_con_compras) if meses_con_compras else 0
+        clientes_tabla20.append({
+            'id': cid,
+            'nombre': datos['nombre'],
+            'total_anual': total,
+            'promedio_mensual': promedio,
+            'facturas_anual': clientes_facturas[cid],
+            'meses': datos['meses'],
+        })
+
+    # Cliente seleccionado (para detalle individual)
+    cliente_sel = None
+    if cliente_id and cliente_id in clientes_matriz:
+        datos = clientes_matriz[cliente_id]
+        meses_con_compras = [v for v in datos['meses'] if v > 0]
+        promedio = clientes_total[cliente_id] / len(meses_con_compras) if meses_con_compras else 0
+        cliente_sel = {
+            'id': cliente_id,
+            'nombre': datos['nombre'],
+            'total_anual': clientes_total[cliente_id],
+            'promedio_mensual': promedio,
+            'facturas_anual': clientes_facturas[cliente_id],
+            'meses': datos['meses'],
+            'facturas_mes': datos['facturas_mes'],
+        }
+
+    # Lista de clientes para el dropdown (todos los que tengan facturas)
+    clientes_lista = sorted(
+        [{'id': cid, 'nombre': datos['nombre'], 'total': clientes_total[cid]}
+         for cid, datos in clientes_matriz.items() if cid != 0],
+        key=lambda x: x['total'],
+        reverse=True
+    )
 
     anios = anios_disponibles(tienda_id)
 
@@ -232,6 +355,7 @@ def api_datos():
         'ok': True,
         'anio': anio,
         'mes': mes,
+        'cliente_id': cliente_id,
         'tienda_id': tienda_id,
         'anios_disponibles': anios,
         'kpis': {
@@ -255,7 +379,6 @@ def api_datos():
             'desviacion': desviacion,
             'dias_con_ventas': n,
         },
-        # Fase 2
         'mes_actual': {
             'numero': mes,
             'nombre': MESES_ES[mes - 1],
@@ -268,4 +391,14 @@ def api_datos():
         'ventas_rapidas': ventas_rapidas,
         'ventas_normales': ventas_normales,
         'categorias': categorias_ordenadas,
+        'rotacion': {
+            'top10': rotacion_top10,
+            'tabla20': rotacion_tabla20,
+        },
+        'clientes_meses': {
+            'top10': clientes_top10,
+            'tabla20': clientes_tabla20,
+            'lista': clientes_lista,
+            'seleccionado': cliente_sel,
+        },
     })
