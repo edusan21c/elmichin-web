@@ -1,16 +1,15 @@
 # app/blueprints/caja/routes.py
 """Modulo Caja — control de medios de pago.
-Totales por método (efectivo/nequi/daviplata/crédito) con filtros
-Día/Semana/Mes/Año. Lee de tabla pagos para desglosar mixtos.
-"""
+Ventas por método (contable, suma = total vendido) + categorías + clientes por método."""
 from datetime import datetime, timedelta
 from flask import render_template, request, jsonify
 from flask_login import login_required, current_user
 from . import bp
 from app.extensions import db
 from app.models.tienda import Tienda
-from app.models.factura import Factura
+from app.models.factura import Factura, DetalleFactura
 from app.models.pago import Pago
+from app.models.producto import Producto
 
 
 def hora_local():
@@ -28,7 +27,6 @@ def tienda_actual():
 
 
 def calcular_rango(periodo):
-    """Devuelve (desde_utc, hasta_utc, etiqueta)."""
     hoy = hora_local()
 
     if periodo == 'dia':
@@ -48,7 +46,6 @@ def calcular_rango(periodo):
         etiqueta = 'Hoy'
 
     fin_local = hoy.replace(hour=23, minute=59, second=59, microsecond=0)
-
     return inicio_local + timedelta(hours=5), fin_local + timedelta(hours=5), etiqueta
 
 
@@ -82,7 +79,6 @@ def api_datos():
     periodo = request.args.get('periodo', 'dia')
     desde_utc, hasta_utc, etiqueta = calcular_rango(periodo)
 
-    # Facturas del período
     q = Factura.query.filter(
         Factura.fecha_hora >= desde_utc,
         Factura.fecha_hora <= hasta_utc,
@@ -92,41 +88,126 @@ def api_datos():
     facturas = q.all()
     ids_facturas = [f.id for f in facturas]
 
-    # ============ COBROS POR MÉTODO (tabla pagos) ============
-    metodos = {'efectivo': 0.0, 'nequi': 0.0, 'daviplata': 0.0, 'otro': 0.0}
-    facturas_por_metodo = {'efectivo': 0, 'nequi': 0, 'daviplata': 0, 'credito': 0, 'otro': 0}
-
+    # ============ PAGOS (cobros reales) ============
     pagos = []
     if ids_facturas:
         pagos = Pago.query.filter(Pago.factura_id.in_(ids_facturas)).all()
-        for p in pagos:
-            m = (p.metodo_pago or 'otro').lower()
-            if m not in metodos:
-                m = 'otro'
-            metodos[m] += float(p.monto or 0)
 
-    # ============ CRÉDITO OTORGADO/COBRADO/PENDIENTE ============
+    pagos_por_factura = {}
+    for p in pagos:
+        pagos_por_factura.setdefault(p.factura_id, []).append(p)
+
+    # ============ VENTAS POR MÉTODO (contable, suma = total vendido) ============
+    # Cada factura cuenta UNA VEZ por su método de emisión.
+    # Crédito → crédito (todo el total). Mixto → desglose por pagos.
+    ventas_metodo = {'efectivo': 0.0, 'nequi': 0.0, 'daviplata': 0.0, 'credito': 0.0, 'otro': 0.0}
+    facturas_por_metodo = {'efectivo': 0, 'nequi': 0, 'daviplata': 0, 'credito': 0, 'otro': 0}
+
     credito_otorgado = 0.0
     credito_cobrado = 0.0
+
     for f in facturas:
-        if (f.tipo_pago or '').lower() == 'credito':
-            total_f = float(f.total or 0)
+        total_f = float(f.total or 0)
+        tipo = (f.tipo_pago or '').lower()
+        metodo_f = (f.metodo_pago or 'otro').lower()
+
+        if tipo == 'credito':
+            ventas_metodo['credito'] += total_f
+            facturas_por_metodo['credito'] += 1
             saldo_f = float(f.saldo_pendiente or 0)
             credito_otorgado += total_f
             credito_cobrado += (total_f - saldo_f)
+        elif metodo_f == 'mixto':
+            pagos_f = pagos_por_factura.get(f.id, [])
+            if pagos_f:
+                for p in pagos_f:
+                    pm = (p.metodo_pago or 'otro').lower()
+                    if pm not in ventas_metodo:
+                        pm = 'otro'
+                    ventas_metodo[pm] += float(p.monto or 0)
+                facturas_por_metodo['otro'] += 1
+            else:
+                ventas_metodo['otro'] += total_f
+                facturas_por_metodo['otro'] += 1
+        elif metodo_f in ('efectivo', 'nequi', 'daviplata'):
+            ventas_metodo[metodo_f] += total_f
+            facturas_por_metodo[metodo_f] += 1
+        else:
+            ventas_metodo['otro'] += total_f
+            facturas_por_metodo['otro'] += 1
 
-    # ============ CANTIDAD DE FACTURAS POR MÉTODO ============
-    for f in facturas:
-        m = (f.metodo_pago or 'otro').lower()
-        if m == 'mixto':
-            pagos_f = [p for p in pagos if p.factura_id == f.id]
-            m = (pagos_f[0].metodo_pago or 'otro').lower() if pagos_f else 'otro'
-        if m not in facturas_por_metodo:
-            m = 'otro'
-        facturas_por_metodo[m] += 1
+    # ============ COBROS REALES (para "Total cobrado") ============
+    cobros_metodo = {'efectivo': 0.0, 'nequi': 0.0, 'daviplata': 0.0, 'otro': 0.0}
+    for p in pagos:
+        pm = (p.metodo_pago or 'otro').lower()
+        if pm not in cobros_metodo:
+            pm = 'otro'
+        cobros_metodo[pm] += float(p.monto or 0)
 
     total_vendido = sum(float(f.total or 0) for f in facturas)
-    total_cobrado = metodos['efectivo'] + metodos['nequi'] + metodos['daviplata'] + metodos['otro']
+    total_cobrado = sum(cobros_metodo.values())
+
+    # ============ FASE B: CATEGORÍAS ============
+    categorias = {}
+
+    for f in facturas:
+        for d in f.detalles:
+            prod = db.session.get(Producto, d.producto_id) if d.producto_id else None
+            cat = (prod.categoria if prod and prod.categoria else 'Sin categoría').strip()
+            if cat not in categorias:
+                categorias[cat] = {'ingresos': 0.0, 'unidades': 0, 'productos_distintos': set()}
+            categorias[cat]['ingresos'] += float(d.subtotal or 0)
+            categorias[cat]['unidades'] += int(d.cantidad or 0)
+            categorias[cat]['productos_distintos'].add(d.producto_nombre or '?')
+
+    categorias_lista = sorted(
+        [{'nombre': k, 'ingresos': v['ingresos'], 'unidades': v['unidades'],
+          'productos_distintos': len(v['productos_distintos'])}
+         for k, v in categorias.items()],
+        key=lambda x: x['ingresos'],
+        reverse=True
+    )
+
+    # ============ FASE B: CLIENTES POR MÉTODO ============
+    clientes_por_metodo = {
+        'efectivo': {}, 'nequi': {}, 'daviplata': {}, 'credito': {},
+    }
+
+    for f in facturas:
+        cid = f.cliente_id or 0
+        if cid == 0:
+            continue
+        nombre = f.cliente.nombre if f.cliente else '?'
+        total_f = float(f.total or 0)
+
+        # Método principal de la factura
+        if (f.tipo_pago or '').lower() == 'credito':
+            m = 'credito'
+        else:
+            m = (f.metodo_pago or 'otro').lower()
+            if m == 'mixto':
+                pagos_f = pagos_por_factura.get(f.id, [])
+                if pagos_f:
+                    por_m = {}
+                    for p in pagos_f:
+                        pm = (p.metodo_pago or 'otro').lower()
+                        por_m[pm] = por_m.get(pm, 0) + float(p.monto or 0)
+                    m = max(por_m.items(), key=lambda x: x[1])[0] if por_m else 'otro'
+
+        if m not in clientes_por_metodo:
+            m = 'efectivo'
+
+        if cid not in clientes_por_metodo[m]:
+            clientes_por_metodo[m][cid] = {'nombre': nombre, 'total': 0.0, 'facturas': 0}
+        clientes_por_metodo[m][cid]['total'] += total_f
+        clientes_por_metodo[m][cid]['facturas'] += 1
+
+    def top_clientes_metodo(dic, limite=10):
+        return sorted(
+            [{'id': k, **v} for k, v in dic.items()],
+            key=lambda x: x['total'],
+            reverse=True
+        )[:limite]
 
     return jsonify({
         'ok': True,
@@ -134,11 +215,11 @@ def api_datos():
         'etiqueta': etiqueta,
         'tienda_id': tienda_id,
         'totales': {
-            'efectivo': metodos['efectivo'],
-            'nequi': metodos['nequi'],
-            'daviplata': metodos['daviplata'],
-            'credito': credito_otorgado,
-            'otro': metodos['otro'],
+            'efectivo': ventas_metodo['efectivo'],
+            'nequi': ventas_metodo['nequi'],
+            'daviplata': ventas_metodo['daviplata'],
+            'credito': ventas_metodo['credito'],
+            'otro': ventas_metodo['otro'],
             'total_cobrado': total_cobrado,
             'total_vendido': total_vendido,
         },
@@ -154,5 +235,12 @@ def api_datos():
             'otorgado': credito_otorgado,
             'cobrado': credito_cobrado,
             'pendiente': credito_otorgado - credito_cobrado,
+        },
+        'categorias': categorias_lista,
+        'clientes_por_metodo': {
+            'efectivo': top_clientes_metodo(clientes_por_metodo['efectivo']),
+            'nequi': top_clientes_metodo(clientes_por_metodo['nequi']),
+            'daviplata': top_clientes_metodo(clientes_por_metodo['daviplata']),
+            'credito': top_clientes_metodo(clientes_por_metodo['credito']),
         },
     })
