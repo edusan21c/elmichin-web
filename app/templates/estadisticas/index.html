@@ -30,7 +30,7 @@
 <!-- KPIs -->
 <div class="row g-3 mb-4" id="kpis-container">
     <div class="col-md-3">
-        <div class="card border-primary">
+        <div class="card border-primary h-100">
             <div class="card-body">
                 <div class="text-muted small">💰 Total vendido</div>
                 <div class="fs-3 fw-bold text-primary" id="kpi-total">$0</div>
@@ -38,7 +38,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card border-info">
+        <div class="card border-info h-100">
             <div class="card-body">
                 <div class="text-muted small">🧾 Facturas</div>
                 <div class="fs-3 fw-bold text-info" id="kpi-facturas">0</div>
@@ -46,7 +46,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card border-success">
+        <div class="card border-success h-100">
             <div class="card-body">
                 <div class="text-muted small">🎫 Ticket promedio</div>
                 <div class="fs-3 fw-bold text-success" id="kpi-ticket">$0</div>
@@ -54,7 +54,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card border-warning">
+        <div class="card border-warning h-100">
             <div class="card-body">
                 <div class="text-muted small">📦 Productos vendidos</div>
                 <div class="fs-3 fw-bold text-warning" id="kpi-productos">0</div>
@@ -65,28 +65,38 @@
 
 <!-- Gráficos -->
 <div class="row g-3">
-    <div class="col-lg-8">
-        <div class="card">
+    <div class="col-lg-6">
+        <div class="card h-100">
             <div class="card-header bg-white fw-semibold">
                 📈 Ventas por día
             </div>
-            <div class="card-body">
-                <canvas id="chart-ventas-dia" height="100"></canvas>
+            <div class="card-body d-flex align-items-center">
+                <canvas id="chart-ventas-dia" style="width:100%; height:260px;"></canvas>
             </div>
         </div>
     </div>
-    <div class="col-lg-4">
-        <div class="card">
+    <div class="col-lg-3">
+        <div class="card h-100">
             <div class="card-header bg-white fw-semibold">
                 💳 Métodos de pago
             </div>
-            <div class="card-body">
-                <canvas id="chart-metodos"></canvas>
+            <div class="card-body d-flex align-items-center">
+                <canvas id="chart-metodos" style="width:100%; height:260px;"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold">
+                📝 Estado del crédito
+            </div>
+            <div class="card-body d-flex align-items-center">
+                <canvas id="chart-credito" style="width:100%; height:260px;"></canvas>
             </div>
         </div>
     </div>
     <div class="col-lg-6">
-        <div class="card">
+        <div class="card h-100">
             <div class="card-header bg-white fw-semibold">
                 🏆 Top 10 productos más vendidos
             </div>
@@ -96,7 +106,7 @@
         </div>
     </div>
     <div class="col-lg-6">
-        <div class="card">
+        <div class="card h-100">
             <div class="card-header bg-white fw-semibold">
                 ⏰ Ventas por hora del día
             </div>

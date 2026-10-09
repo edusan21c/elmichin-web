@@ -52,24 +52,67 @@
             }
         });
 
-        // Chart: Métodos de pago (doughnut)
+        // Chart 1: Métodos de pago (doughnut) — v2.38 con colores por método
+        const METODO_COLORES = {
+            'efectivo':  '#198754',
+            'nequi':     '#7B2FBE',
+            'daviplata': '#dc3545',
+            'credito':   '#ffc107',
+            'otro':      '#6c757d',
+            'mixto':     '#0d6efd',
+        };
+        const labelsMet = data.metodos.labels.map(l => l.charAt(0).toUpperCase() + l.slice(1));
+        const coloresMet = data.metodos.labels.map(l => METODO_COLORES[(l || '').toLowerCase()] || '#6c757d');
+
         new Chart(document.getElementById('chart-metodos'), {
             type: 'doughnut',
             data: {
-                labels: data.metodos.labels,
+                labels: labelsMet,
                 datasets: [{
                     data: data.metodos.datos,
-                    backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6c757d']
+                    backgroundColor: coloresMet
                 }]
             },
             options: {
                 responsive: true,
                 plugins: {
-                    legend: { position: 'bottom' },
+                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
                     tooltip: { callbacks: { label: (c) => c.label + ': ' + fmt(c.parsed) } }
                 }
             }
         });
+
+        // Chart 2: Estado del crédito (doughnut) — v2.38
+        const credCanvas = document.getElementById('chart-credito');
+        if (credCanvas && data.credito) {
+            const otorgado = data.credito.otorgado || 0;
+            const cobrado = data.credito.cobrado || 0;
+            const pendiente = data.credito.pendiente || 0;
+
+            if (otorgado === 0 && cobrado === 0 && pendiente === 0) {
+                // Sin créditos en el período
+                credCanvas.parentElement.innerHTML =
+                    '<p class="text-muted text-center my-5">Sin créditos en este período</p>';
+            } else {
+                new Chart(credCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Otorgado', 'Cobrado', 'Pendiente'],
+                        datasets: [{
+                            data: [otorgado, cobrado, pendiente],
+                            backgroundColor: ['#ffc107', '#198754', '#dc3545']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+                            tooltip: { callbacks: { label: (c) => c.label + ': ' + fmt(c.parsed) } }
+                        }
+                    }
+                });
+            }
+        }
 
         // Chart: Top productos (horizontal bar)
         new Chart(document.getElementById('chart-top'), {

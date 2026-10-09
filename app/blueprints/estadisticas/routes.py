@@ -7,7 +7,6 @@ from . import bp
 from app.extensions import db
 from app.models.tienda import Tienda
 from app.models.factura import Factura, DetalleFactura
-from app.models.tienda import Tienda
 from app.models.producto import Producto, ProductoTienda
 
 
@@ -110,25 +109,46 @@ def api_datos():
         .all()
     )
 
-    # Métodos de pago
+    # v2.38-fix-metodos: ventas por método de pago (desglosa mixtos)
+    # Cada factura cuenta su propio método. Si es mixta, se desglosa
+    # por los pagos individuales (efectivo/nequi/daviplata).
+    # Suma de métodos = Total vendido (cuadra con KPI)
     metodos = {}
     for f in facturas:
-        m = f.metodo_pago or 'otro'
-        metodos[m] = metodos.get(m, 0) + float(f.total or 0)
+        m = (f.metodo_pago or 'otro').lower()
+        if m == 'mixto':
+            # Desglosar por pagos individuales
+            for p in f.pagos.all():
+                mp = (p.metodo_pago or 'otro').lower()
+                metodos[mp] = metodos.get(mp, 0) + float(p.monto or 0)
+        else:
+            metodos[m] = metodos.get(m, 0) + float(f.total or 0)
+
+    # v2.38: estado del crédito en el período
+    # Otorgado: suma de facturas con tipo_pago='credito'
+    # Cobrado:  lo que ya se pagó de esas facturas (total - saldo_pendiente)
+    # Pendiente: suma de saldo_pendiente actual de esas facturas
+    credito_otorgado = 0.0
+    credito_cobrado = 0.0
+    credito_pendiente = 0.0
+    for f in facturas:
+        if (f.tipo_pago or '').lower() == 'credito':
+            total_f = float(f.total or 0)
+            saldo_f = float(f.saldo_pendiente or 0)
+            credito_otorgado += total_f
+            credito_pendiente += saldo_f
+            credito_cobrado += (total_f - saldo_f)
 
     # Ventas por hora
     por_hora = {str(h): 0 for h in range(24)}
     for f in facturas:
-        hora_local = (f.fecha_hora - timedelta(hours=5)).hour
-        por_hora[str(hora_local)] = por_hora.get(str(hora_local), 0) + float(f.total or 0)
+        hora_local_f = (f.fecha_hora - timedelta(hours=5)).hour
+        por_hora[str(hora_local_f)] = por_hora.get(str(hora_local_f), 0) + float(f.total or 0)
 
     # Comparativa entre tiendas (solo programador)
     comparativa = {}
     if current_user.es_programador():
         for t in Tienda.query.filter_by(activa=True).all():
-            q_t = Factura.query.filter(Factura.tienda_id == t.id)
-            if desde and hasta:
-                q_t = q_t.filter(Factura.fecha_hora >= desde, Factura.fecha_hora < hasta)
             total_t = float(db.session.query(func.coalesce(func.sum(Factura.total), 0)).filter(
                 Factura.tienda_id == t.id,
                 Factura.fecha_hora >= desde if desde else True,
@@ -156,12 +176,19 @@ def api_datos():
             'labels': list(metodos.keys()),
             'datos': list(metodos.values()),
         },
+        'credito': {
+            'otorgado': credito_otorgado,
+            'cobrado': credito_cobrado,
+            'pendiente': credito_pendiente,
+        },
         'por_hora': {
             'labels': [f'{h}h' for h in range(24)],
             'datos': [por_hora[str(h)] for h in range(24)],
         },
         'comparativa': comparativa,
     })
+
+
 # ==================== ANÁLISIS AVANZADO ====================
 @bp.route('/analisis')
 @login_required
@@ -221,16 +248,13 @@ def api_analisis():
         .count())
 
     # ============ 2. COMPARATIVA MES ACTUAL VS ANTERIOR ============
-    # Mes actual: desde el día 1 hasta hoy (local)
     inicio_mes_actual_local = hoy_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    # Mes anterior: desde el día 1 del mes pasado hasta el último día del mes pasado
     if inicio_mes_actual_local.month == 1:
         inicio_mes_ant_local = inicio_mes_actual_local.replace(year=inicio_mes_actual_local.year - 1, month=12)
     else:
         inicio_mes_ant_local = inicio_mes_actual_local.replace(month=inicio_mes_actual_local.month - 1)
-    fin_mes_ant_local = inicio_mes_actual_local  # El fin del mes anterior es el inicio del actual
+    fin_mes_ant_local = inicio_mes_actual_local
 
-    # Convertir a UTC (+5h)
     desde_actual_utc = inicio_mes_actual_local + timedelta(hours=5)
     hasta_actual_utc = hoy_local + timedelta(hours=5)
 
@@ -271,7 +295,6 @@ def api_analisis():
         variacion_pct = 0
 
     # ============ 3. VENTAS POR DÍA DE LA SEMANA ============
-    # Últimos 90 días
     desde_90d_local = hoy_local - timedelta(days=90)
     desde_90d_utc = desde_90d_local + timedelta(hours=5)
 
@@ -284,12 +307,10 @@ def api_analisis():
     ventas_por_dia = {d: 0 for d in dias_semana}
     for f in facturas_90d:
         fecha_local = f.fecha_hora - timedelta(hours=5)
-        # weekday(): 0=lunes, 6=domingo
         dia = dias_semana[fecha_local.weekday()]
         ventas_por_dia[dia] += float(f.total or 0)
 
     # ============ 4. TOP 10 PRODUCTOS POR GANANCIA ============
-    # Ganancia = (precio_venta - precio_proveedor) * cantidad vendida
     desde_90d_query = db.session.query(
             DetalleFactura.producto_id,
             DetalleFactura.producto_nombre,
@@ -317,7 +338,6 @@ def api_analisis():
         precio_prov = float(pres.precio_proveedor or 0)
         cant = int(r.cantidad_vendida)
         total_vend = float(r.total_vendido)
-        # Ganancia estimada = total_vendido - (precio_prov * cant)
         ganancia = total_vend - (precio_prov * cant)
         top_ganancia.append({
             'nombre': r.producto_nombre,
@@ -326,7 +346,6 @@ def api_analisis():
             'ganancia': ganancia,
         })
 
-    # Ordenar por ganancia y quedarnos con 10
     top_ganancia.sort(key=lambda x: x['ganancia'], reverse=True)
     top_ganancia = top_ganancia[:10]
 
