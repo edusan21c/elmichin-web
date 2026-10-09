@@ -66,6 +66,12 @@
                     <i class="bi bi-graph-up-arrow"></i> Análisis
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.blueprint == 'bi' %}active{% endif %}"
+                   href="{{ url_for('bi.index') }}">
+                    <i class="bi bi-graph-up"></i> BI
+                </a>
+            </li>
             {% endif %}
 
             {# ============ ADMINISTRACIÓN ============ #}

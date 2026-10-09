@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% block titulo %}BI — Business Intelligence{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-graph-up-arrow"></i> BI — Business Intelligence
+        {% if current_user.es_programador() and tiendas|length > 1 %}
+            <small class="text-muted">- Tienda:
+                <select id="selector-tienda" class="form-select form-select-sm d-inline-block" style="width:auto;">
+                    {% for t in tiendas %}
+                        <option value="{{ t.id }}" {% if t.id == tienda_id %}selected{% endif %}>{{ t.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </small>
+        {% endif %}
+    </h1>
+    <div class="btn-group">
+        <label class="me-2 align-self-center text-muted small">Año:</label>
+        <select id="selector-anio" class="form-select form-select-sm" style="width:auto;">
+            {% for a in anios %}
+                <option value="{{ a }}" {% if a == anio %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-primary h-100">
+            <div class="card-body">
+                <div class="text-muted small">💰 Total del año</div>
+                <div class="fs-3 fw-bold text-primary" id="kpi-total">$0</div>
+                <div class="small text-muted" id="kpi-total-facturas">0 facturas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-success h-100">
+            <div class="card-body">
+                <div class="text-muted small">📈 Mejor mes</div>
+                <div class="fs-4 fw-bold text-success" id="kpi-mejor-mes">-</div>
+                <div class="small text-muted" id="kpi-mejor-val">$0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-danger h-100">
+            <div class="card-body">
+                <div class="text-muted small">📉 Peor mes</div>
+                <div class="fs-4 fw-bold text-danger" id="kpi-peor-mes">-</div>
+                <div class="small text-muted" id="kpi-peor-val">$0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-info h-100">
+            <div class="card-body">
+                <div class="text-muted small">📊 Promedio mensual</div>
+                <div class="fs-3 fw-bold text-info" id="kpi-promedio">$0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráfica grande mes a mes -->
+<div class="card mb-4">
+    <div class="card-header bg-white fw-semibold">
+        📊 Ventas mes a mes
+    </div>
+    <div class="card-body">
+        <canvas id="chart-meses" style="width:100%; height:340px;"></canvas>
+    </div>
+</div>
+
+<!-- Estadísticas del año -->
+<div class="card">
+    <div class="card-header bg-white fw-semibold">
+        📐 Estadísticas del año (sobre ventas diarias)
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3 col-6">
+                <div class="text-muted small">Media</div>
+                <div class="fs-5 fw-bold" id="est-media">$0</div>
+                <small class="text-muted">Promedio diario</small>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="text-muted small">Mediana</div>
+                <div class="fs-5 fw-bold" id="est-mediana">$0</div>
+                <small class="text-muted">Valor del medio</small>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="text-muted small">Moda</div>
+                <div class="fs-5 fw-bold" id="est-moda">0</div>
+                <small class="text-muted" id="est-moda-info">Facturas por día</small>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="text-muted small">Desviación estándar</div>
+                <div class="fs-5 fw-bold" id="est-desv">$0</div>
+                <small class="text-muted">Qué tan dispersas</small>
+            </div>
+        </div>
+        <div class="row g-3 mt-2">
+            <div class="col-md-3 col-6">
+                <div class="text-muted small">Varianza</div>
+                <div class="fw-bold" id="est-var">0</div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="text-muted small">Días con ventas</div>
+                <div class="fw-bold" id="est-dias">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    window.BI_CONFIG = {
+        tiendaId: {{ tienda_id or 0 }},
+        anio: {{ anio }},
+        urlDatos: "{{ url_for('bi.api_datos') }}",
+    };
+</script>
+<script>
+(function() {
+    'use strict';
+
+    const CFG = window.BI_CONFIG || {};
+
+    function fmt(n) {
+        return '$' + Math.round(n || 0).toLocaleString('es-CO');
+    }
+
+    async function cargarDatos() {
+        try {
+            const url = CFG.urlDatos + '?anio=' + CFG.anio + '&tienda=' + CFG.tiendaId;
+            const r = await fetch(url);
+            const data = await r.json();
+            if (!data.ok) {
+                console.error('Error:', data.error);
+                return;
+            }
+            render(data);
+        } catch (e) {
+            console.error('Error cargando datos:', e);
+        }
+    }
+
+    function render(data) {
+        // KPIs
+        document.getElementById('kpi-total').textContent = fmt(data.kpis.total_anual);
+        document.getElementById('kpi-total-facturas').textContent =
+            data.kpis.total_facturas + ' facturas';
+        document.getElementById('kpi-mejor-mes').textContent = data.kpis.mejor_mes.nombre;
+        document.getElementById('kpi-mejor-val').textContent = fmt(data.kpis.mejor_mes.valor);
+        document.getElementById('kpi-peor-mes').textContent = data.kpis.peor_mes.nombre;
+        document.getElementById('kpi-peor-val').textContent = fmt(data.kpis.peor_mes.valor);
+        document.getElementById('kpi-promedio').textContent = fmt(data.kpis.promedio_mensual);
+
+        // Gráfica de meses
+        new Chart(document.getElementById('chart-meses'), {
+            type: 'bar',
+            data: {
+                labels: data.meses.labels,
+                datasets: [{
+                    label: 'Ventas ($)',
+                    data: data.meses.datos,
+                    backgroundColor: 'rgb(13, 110, 253)',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (c) => 'Ventas: ' + fmt(c.parsed.y),
+                            afterLabel: (c) => {
+                                const f = data.meses.facturas[c.dataIndex] || 0;
+                                return 'Facturas: ' + f;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { ticks: { callback: (v) => '$' + (v/1000).toFixed(0) + 'k' } }
+                }
+            }
+        });
+
+        // Estadísticas
+        const est = data.estadisticas;
+        document.getElementById('est-media').textContent = fmt(est.media);
+        document.getElementById('est-mediana').textContent = fmt(est.mediana);
+        document.getElementById('est-moda').textContent = est.moda;
+        document.getElementById('est-moda-info').textContent =
+            'Facturas/día (' + est.moda_repeticiones + ' veces)';
+        document.getElementById('est-desv').textContent = fmt(est.desviacion);
+        document.getElementById('est-var').textContent = Number(est.varianza).toLocaleString('es-CO', {maximumFractionDigits: 0});
+        document.getElementById('est-dias').textContent = est.dias_con_vendas !== undefined
+            ? est.dias_con_vendas
+            : est.dias_con_ventas;
+    }
+
+    // Selector de año
+    const selAnio = document.getElementById('selector-anio');
+    if (selAnio) {
+        selAnio.addEventListener('change', function() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('anio', this.value);
+            window.location.href = url.toString();
+        });
+    }
+
+    // Selector de tienda
+    const st = document.getElementById('selector-tienda');
+    if (st) {
+        st.addEventListener('change', function() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tienda', this.value);
+            window.location.href = url.toString();
+        });
+    }
+
+    cargarDatos();
+})();
+</script>
+{% endblock %}

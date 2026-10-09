@@ -57,7 +57,8 @@ def create_app(config_class=None):
     from .blueprints.venta_rapida import bp as venta_rapida_bp
     from .blueprints.api import bp as api_bp
     from .blueprints.configuracion import bp as configuracion_bp
-    from .blueprints.estadisticas import bp as estadisticas_bp  
+    from .blueprints.estadisticas import bp as estadisticas_bp
+    from .blueprints.bi import bp as bi_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp)
@@ -67,6 +68,7 @@ def create_app(config_class=None):
     app.register_blueprint(venta_rapida_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(estadisticas_bp)
+    app.register_blueprint(bi_bp)
 
     # Excluir la API del CSRF (usa autenticación por SYNC_KEY, no por sesión)
     csrf.exempt(api_bp)
