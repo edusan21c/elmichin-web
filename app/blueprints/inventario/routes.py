@@ -143,6 +143,8 @@ def nuevo():
             codigo_barras=form.codigo_barras.data.strip() if form.codigo_barras.data else None,
             categoria=form.categoria.data or None,
             codigo_global=str(uuid.uuid4()),
+            modificado_por_nombre=current_user.nombre,
+            modificado_en=datetime.utcnow(),
         )
         db.session.add(producto)
         db.session.flush()
@@ -224,6 +226,8 @@ def editar(producto_id):
         producto.nombre = form.nombre.data.strip()
         producto.codigo_barras = form.codigo_barras.data.strip() if form.codigo_barras.data else None
         producto.categoria = form.categoria.data or None
+        producto.modificado_por_nombre = current_user.nombre
+        producto.modificado_en = datetime.utcnow()
 
         pres.precio_proveedor = form.precio_proveedor.data or 0
         pres.precio_proveedor2 = form.precio_proveedor2.data or 0

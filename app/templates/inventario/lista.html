@@ -34,10 +34,16 @@
             <div class="col-md-6">
                 <form method="GET" class="input-group">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" name="q" class="form-control"
+                    <input type="text" name="q" id="input-busqueda" class="form-control"
                            placeholder="Buscar por nombre o código..." value="{{ busqueda }}">
                     {% if filtro_stock %}<input type="hidden" name="filtro" value="{{ filtro_stock }}">{% endif %}
                     <button type="submit" class="btn btn-primary">Buscar</button>
+                    {% if busqueda %}
+                    <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-busqueda"
+                            title="Limpiar búsqueda">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                    {% endif %}
                 </form>
             </div>
             <div class="col-md-6 text-end">
@@ -82,7 +88,16 @@
                     <tr>
                         <td class="text-muted small">{{ p.id }}</td>
                         <td>
-                            <div class="fw-semibold">{{ p.nombre }}</div>
+                            <div class="fw-semibold">
+                                {{ p.nombre }}
+                                {% if p.modificado_por_nombre and p.modificado_en %}
+                                    {% set inicial = p.modificado_por_nombre[0].upper() %}
+                                    {% set fecha_txt = p.modificado_en.strftime('%d/%m/%Y %H:%M') %}
+                                    <i class="bi bi-pencil-fill text-muted small ms-1"
+                                       title="Modificado por {{ p.modificado_por_nombre }} ({{ inicial }}) el {{ fecha_txt }}"
+                                       style="cursor: help;"></i>
+                                {% endif %}
+                            </div>
                             {% if p.categoria %}
                                 <span class="badge bg-secondary-subtle text-secondary">{{ p.categoria }}</span>
                             {% endif %}
@@ -212,5 +227,59 @@ document.querySelectorAll('.btn-stock').forEach(function(btn) {
         new bootstrap.Modal(document.getElementById('modalStock')).show();
     });
 });
+
+// ============================================================
+// v2.56-persistencia-busqueda: guarda la última búsqueda
+// en localStorage. Al volver a Inventario, si no hay "q" en la URL,
+// redirige automáticamente con la última búsqueda guardada.
+// ============================================================
+(function() {
+    const KEY = 'inventario_q';
+    const inputQ = document.getElementById('input-busqueda');
+    const urlParams = new URLSearchParams(window.location.search);
+
+    // 1. Guardar búsqueda al enviar el form
+    if (inputQ) {
+        const form = inputQ.closest('form');
+        if (form) {
+            form.addEventListener('submit', function() {
+                const v = inputQ.value.trim();
+                if (v) {
+                    localStorage.setItem(KEY, v);
+                } else {
+                    localStorage.removeItem(KEY);
+                }
+            });
+        }
+    }
+
+    // 2. Guardar búsqueda al paginar (mantiene el valor)
+    document.querySelectorAll('.pagination a').forEach(function(a) {
+        a.addEventListener('click', function() {
+            if (inputQ && inputQ.value.trim()) {
+                localStorage.setItem(KEY, inputQ.value.trim());
+            }
+        });
+    });
+
+    // 3. Auto-redirigir con búsqueda guardada al entrar sin filtros
+    if (inputQ && !urlParams.has('q') && !urlParams.has('filtro') && !urlParams.has('page')) {
+        const guardado = localStorage.getItem(KEY);
+        if (guardado) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('q', guardado);
+            window.location.replace(url.toString());
+        }
+    }
+
+    // 4. Botón "Limpiar búsqueda"
+    const btnLimpiar = document.getElementById('btn-limpiar-busqueda');
+    if (btnLimpiar) {
+        btnLimpiar.addEventListener('click', function() {
+            localStorage.removeItem(KEY);
+            window.location.href = window.location.pathname;
+        });
+    }
+})();
 </script>
 {% endblock %}

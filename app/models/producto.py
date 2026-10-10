@@ -14,6 +14,8 @@ class Producto(db.Model):
     categoria = db.Column(db.String(50))
     creado_en = db.Column(db.DateTime, default=datetime.utcnow)
     actualizado_en = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    modificado_por_nombre = db.Column(db.String(100), nullable=True)
+    modificado_en = db.Column(db.DateTime, nullable=True)
 
     # Relaciones
     presentaciones = db.relationship(
