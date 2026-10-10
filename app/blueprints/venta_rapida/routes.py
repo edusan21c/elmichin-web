@@ -35,7 +35,7 @@ def nueva():
 @bp.route('/api/productos')
 @login_required
 def api_productos():
-    """Busqueda rapida de productos (por nombre o codigo)."""
+    """v2.60: numero → barcode primero. Letra → nombre primero."""
     q = request.args.get('q', '', type=str).strip()
     if not q:
         return jsonify([])
@@ -44,15 +44,46 @@ def api_productos():
     if not tienda_id:
         return jsonify([])
 
-    patron = func.unaccent(f'%{q}%')
-    productos = (Producto.query
-                 .filter(or_(
-                     func.unaccent(Producto.nombre).ilike(patron),
-                     Producto.codigo_barras.ilike(f'%{q}%')
-                 ))
-                 .order_by(Producto.nombre)
-                 .limit(20)
-                 .all())
+    patron_unaccent = func.unaccent(f'%{q}%')
+    q_lower = q.lower()
+    empieza_con_numero = q[0].isdigit() if q else False
+
+    if empieza_con_numero:
+        # Buscar por barcode primero
+        productos = (Producto.query
+                     .filter(Producto.codigo_barras.ilike(f'%{q}%'))
+                     .order_by(Producto.nombre)
+                     .limit(20)
+                     .all())
+        if not productos:
+            productos = (Producto.query
+                         .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
+                         .order_by(Producto.nombre)
+                         .limit(20)
+                         .all())
+    else:
+        # Buscar por nombre primero (con unaccent)
+        productos = (Producto.query
+                     .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
+                     .limit(50)
+                     .all())
+
+        if productos:
+            def prioridad(prod):
+                nombre_lower = (prod.nombre or '').lower()
+                if nombre_lower.startswith(q_lower):
+                    return (1, nombre_lower)
+                for palabra in nombre_lower.split():
+                    if palabra.startswith(q_lower):
+                        return (2, nombre_lower)
+                return (3, nombre_lower)
+            productos = sorted(productos, key=prioridad)[:20]
+        else:
+            productos = (Producto.query
+                         .filter(Producto.codigo_barras.ilike(f'%{q}%'))
+                         .order_by(Producto.nombre)
+                         .limit(20)
+                         .all())
 
     resultados = []
     for p in productos:
@@ -93,7 +124,6 @@ def crear():
     if not carrito:
         return jsonify({'ok': False, 'error': 'El carrito esta vacio'}), 400
 
-    # Calcular total exacto
     try:
         total = sum(
             Decimal(str(it['precio_unitario'])) * int(it['cantidad'])
