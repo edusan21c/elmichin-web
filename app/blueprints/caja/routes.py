@@ -10,6 +10,7 @@ from app.models.tienda import Tienda
 from app.models.factura import Factura, DetalleFactura
 from app.models.pago import Pago
 from app.models.producto import Producto
+from sqlalchemy import or_
 
 
 def hora_local():
@@ -88,7 +89,6 @@ def api_datos():
     facturas = q.all()
     ids_facturas = [f.id for f in facturas]
 
-    # ============ PAGOS (cobros reales) ============
     pagos = []
     if ids_facturas:
         pagos = Pago.query.filter(Pago.factura_id.in_(ids_facturas)).all()
@@ -97,9 +97,6 @@ def api_datos():
     for p in pagos:
         pagos_por_factura.setdefault(p.factura_id, []).append(p)
 
-    # ============ VENTAS POR MÉTODO (contable, suma = total vendido) ============
-    # Cada factura cuenta UNA VEZ por su método de emisión.
-    # Crédito → crédito (todo el total). Mixto → desglose por pagos.
     ventas_metodo = {'efectivo': 0.0, 'nequi': 0.0, 'daviplata': 0.0, 'credito': 0.0, 'otro': 0.0}
     facturas_por_metodo = {'efectivo': 0, 'nequi': 0, 'daviplata': 0, 'credito': 0, 'otro': 0}
 
@@ -136,7 +133,6 @@ def api_datos():
             ventas_metodo['otro'] += total_f
             facturas_por_metodo['otro'] += 1
 
-    # ============ COBROS REALES (para "Total cobrado") ============
     cobros_metodo = {'efectivo': 0.0, 'nequi': 0.0, 'daviplata': 0.0, 'otro': 0.0}
     for p in pagos:
         pm = (p.metodo_pago or 'otro').lower()
@@ -147,9 +143,7 @@ def api_datos():
     total_vendido = sum(float(f.total or 0) for f in facturas)
     total_cobrado = sum(cobros_metodo.values())
 
-    # ============ FASE B: CATEGORÍAS ============
     categorias = {}
-
     for f in facturas:
         for d in f.detalles:
             prod = db.session.get(Producto, d.producto_id) if d.producto_id else None
@@ -168,7 +162,6 @@ def api_datos():
         reverse=True
     )
 
-    # ============ FASE B: CLIENTES POR MÉTODO ============
     clientes_por_metodo = {
         'efectivo': {}, 'nequi': {}, 'daviplata': {}, 'credito': {},
     }
@@ -180,7 +173,6 @@ def api_datos():
         nombre = f.cliente.nombre if f.cliente else '?'
         total_f = float(f.total or 0)
 
-        # Método principal de la factura
         if (f.tipo_pago or '').lower() == 'credito':
             m = 'credito'
         else:
@@ -246,7 +238,6 @@ def api_datos():
     })
 
 
-
 # ==================== API: PRODUCTOS DE UNA CATEGORÍA (drill-down) ====================
 @bp.route('/api/categoria-productos')
 @login_required
@@ -299,4 +290,98 @@ def api_categoria_productos():
         'productos': lista,
         'total_unidades': total_unidades,
         'total_ingresos': total_ingresos,
+    })
+
+
+# ==================== API: BUSCAR PRODUCTOS (buscador en vivo, v2.59/v2.60) ====================
+@bp.route('/api/buscar-productos')
+@login_required
+def api_buscar_productos():
+    if not current_user.es_admin() and not current_user.es_programador():
+        return jsonify({'ok': False, 'error': 'No autorizado'}), 403
+
+    q = request.args.get('q', '', type=str).strip()
+    if len(q) < 2:
+        return jsonify({'ok': True, 'productos': [], 'etiqueta': ''})
+
+    tienda_id = tienda_actual()
+    periodo = request.args.get('periodo', 'dia')
+    desde_utc, hasta_utc, etiqueta = calcular_rango(periodo)
+
+    patron = f'%{q}%'
+    q_lower = q.lower()
+
+    # v2.60: número → barcode primero. Letra → nombre primero.
+    empieza_con_numero = q[0].isdigit() if q else False
+
+    if empieza_con_numero:
+        productos = (Producto.query
+                     .filter(Producto.codigo_barras.ilike(patron))
+                     .order_by(Producto.nombre)
+                     .limit(20)
+                     .all())
+        if not productos:
+            productos = (Producto.query
+                         .filter(Producto.nombre.ilike(patron))
+                         .order_by(Producto.nombre)
+                         .limit(20)
+                         .all())
+    else:
+        productos_por_nombre = (Producto.query
+                                .filter(Producto.nombre.ilike(patron))
+                                .limit(50)
+                                .all())
+        if productos_por_nombre:
+            def prioridad(prod):
+                nombre_lower = (prod.nombre or '').lower()
+                if nombre_lower.startswith(q_lower):
+                    return (1, nombre_lower)
+                for palabra in nombre_lower.split():
+                    if palabra.startswith(q_lower):
+                        return (2, nombre_lower)
+                return (3, nombre_lower)
+            productos = sorted(productos_por_nombre, key=prioridad)[:20]
+        else:
+            productos = (Producto.query
+                         .filter(Producto.codigo_barras.ilike(patron))
+                         .order_by(Producto.nombre)
+                         .limit(20)
+                         .all())
+
+    if not productos:
+        return jsonify({'ok': True, 'productos': [], 'etiqueta': etiqueta})
+
+    qf = Factura.query.filter(
+        Factura.fecha_hora >= desde_utc,
+        Factura.fecha_hora <= hasta_utc,
+    )
+    if tienda_id:
+        qf = qf.filter(Factura.tienda_id == tienda_id)
+    facturas = qf.all()
+
+    ventas_por_nombre = {}
+    for f in facturas:
+        for d in f.detalles:
+            nombre = d.producto_nombre or '?'
+            if nombre not in ventas_por_nombre:
+                ventas_por_nombre[nombre] = {'unidades': 0, 'ingresos': 0.0}
+            ventas_por_nombre[nombre]['unidades'] += int(d.cantidad or 0)
+            ventas_por_nombre[nombre]['ingresos'] += float(d.subtotal or 0)
+
+    resultado = []
+    for p in productos:
+        v = ventas_por_nombre.get(p.nombre, {'unidades': 0, 'ingresos': 0.0})
+        resultado.append({
+            'id': p.id,
+            'nombre': p.nombre,
+            'codigo_barras': p.codigo_barras or '',
+            'categoria': p.categoria or '',
+            'unidades': v['unidades'],
+            'ingresos': v['ingresos'],
+        })
+
+    return jsonify({
+        'ok': True,
+        'etiqueta': etiqueta,
+        'productos': resultado,
     })

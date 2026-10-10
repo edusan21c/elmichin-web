@@ -35,7 +35,6 @@ def nueva():
     tienda_id = tienda_actual()
     tiendas = Tienda.query.filter_by(activa=True).all()
 
-    # v2.29: import local para evitar ciclo, arriba del primer uso
     from app.blueprints.configuracion.routes import get_valor
 
     try:
@@ -69,15 +68,50 @@ def api_productos():
     if not tienda_id:
         return jsonify([])
 
-    patron = func.unaccent(f'%{q}%')
-    productos = (Producto.query
-                 .filter(or_(
-                     func.unaccent(Producto.nombre).ilike(patron),
-                     Producto.codigo_barras.ilike(f'%{q}%')
-                 ))
-                 .order_by(Producto.nombre)
-                 .limit(20)
-                 .all())
+    patron_unaccent = func.unaccent(f'%{q}%')
+    q_lower = q.lower()
+
+    # v2.60: si empieza con número → priorizar barcode. Si empieza con letra → nombre.
+    empieza_con_numero = q[0].isdigit() if q else False
+
+    if empieza_con_numero:
+        # Buscar por barcode primero (escaneo con pistola o tipeo de código)
+        productos = (Producto.query
+                     .filter(Producto.codigo_barras.ilike(f'%{q}%'))
+                     .order_by(Producto.nombre)
+                     .limit(20)
+                     .all())
+        # Si no encuentra por barcode, intentar por nombre (por si el nombre empieza con número)
+        if not productos:
+            productos = (Producto.query
+                         .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
+                         .order_by(Producto.nombre)
+                         .limit(20)
+                         .all())
+    else:
+        # Buscar por nombre primero (con unaccent)
+        productos = (Producto.query
+                     .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
+                     .limit(50)
+                     .all())
+
+        if productos:
+            def prioridad(prod):
+                nombre_lower = (prod.nombre or '').lower()
+                if nombre_lower.startswith(q_lower):
+                    return (1, nombre_lower)
+                for palabra in nombre_lower.split():
+                    if palabra.startswith(q_lower):
+                        return (2, nombre_lower)
+                return (3, nombre_lower)
+            productos = sorted(productos, key=prioridad)[:20]
+        else:
+            # Fallback por barcode
+            productos = (Producto.query
+                         .filter(Producto.codigo_barras.ilike(f'%{q}%'))
+                         .order_by(Producto.nombre)
+                         .limit(20)
+                         .all())
 
     resultados = []
     for p in productos:
@@ -146,7 +180,7 @@ def crear():
         return jsonify({'ok': False, 'error': 'No hay tienda activa'}), 400
 
     try:
-                factura_id, error = crear_factura_completa(
+        factura_id, error = crear_factura_completa(
             tienda_id=tienda_id,
             usuario_id=current_user.id,
             cliente_data=data.get('cliente', {}),
@@ -156,7 +190,7 @@ def crear():
             bolsas_cantidad=int(data.get('bolsas', 0)),
             valor_bolsa=Decimal(str(int(get_valor('valor_bolsa', None) or 100))),
             valor_pagado=Decimal(str(data.get('valor_pagado', 0))),
-            pagos=data.get('pagos'),   # v2.34-pagos-mixtos
+            pagos=data.get('pagos'),
             precio_manual=bool(data.get('precio_manual', False)),
         )
     except Exception as e:

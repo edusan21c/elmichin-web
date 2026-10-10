@@ -31,6 +31,22 @@
     <span class="badge bg-secondary" id="periodo-etiqueta">Cargando...</span>
 </div>
 
+<!-- v2.59-buscador: barra de búsqueda de productos -->
+<div class="card mb-4 border-primary">
+    <div class="card-body py-2">
+        <label class="form-label fw-semibold small text-muted mb-1">
+            <i class="bi bi-search"></i> Buscar producto (ventas del período)
+        </label>
+        <div class="position-relative">
+            <input type="text" id="buscador-producto" class="form-control form-control-lg"
+                   placeholder="Escribí nombre o código de barras..." autocomplete="off">
+            <div id="buscador-resultados" class="list-group position-absolute w-100 shadow"
+                 style="z-index:1000; max-height:400px; overflow-y:auto; display:none;"></div>
+        </div>
+        <small class="text-muted">Tip: ↑↓ para navegar, Enter para ver el detalle, Esc para cerrar</small>
+    </div>
+</div>
+
 <div class="row g-3 mb-4">
     <div class="col-md-3 col-6">
         <div class="card border-success h-100">
@@ -312,6 +328,42 @@
     </div>
 </div>
 
+<!-- ============ MODAL PRODUCTO (v2.59) ============ -->
+<div id="modal-producto" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; overflow-y:auto;">
+    <div style="background:white; max-width:600px; margin:60px auto; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+        <div style="padding:15px 20px; border-bottom:1px solid #dee2e6; display:flex; justify-content:space-between; align-items:center; background:#f8f9fa; border-radius:8px 8px 0 0;">
+            <h5 style="margin:0; font-weight:600;">
+                🔍 <span id="modal-prod-nombre">Producto</span>
+            </h5>
+            <button type="button" id="modal-prod-cerrar" style="border:none; background:none; font-size:28px; cursor:pointer; line-height:1; color:#6c757d;">&times;</button>
+        </div>
+        <div style="padding:20px;">
+            <div class="mb-3">
+                <small class="text-muted">Código:</small>
+                <span id="modal-prod-codigo" class="fw-semibold"></span>
+                <span class="text-muted mx-2">·</span>
+                <small class="text-muted">Categoría:</small>
+                <span id="modal-prod-categoria" class="badge bg-secondary"></span>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="border rounded p-3 bg-light">
+                        <div class="text-muted small">Unidades vendidas</div>
+                        <div class="fs-3 fw-bold text-success" id="modal-prod-unidades">0</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="border rounded p-3 bg-light">
+                        <div class="text-muted small">Ingresos</div>
+                        <div class="fs-3 fw-bold text-primary" id="modal-prod-ingresos">$0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3 text-muted small" id="modal-prod-periodo"></div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
     window.CAJA_CONFIG = {
@@ -319,6 +371,7 @@
         periodo: "{{ periodo }}",
         urlDatos: "{{ url_for('caja.api_datos') }}",
         urlCategoriaProductos: "{{ url_for('caja.api_categoria_productos') }}",
+        urlBuscarProductos: "{{ url_for('caja.api_buscar_productos') }}",
     };
 </script>
 <script>
@@ -542,6 +595,121 @@
             window.location.href = url.toString();
         });
     }
+
+    // ============================================================
+    // v2.59-buscador: buscador en vivo de productos
+    // ============================================================
+    (function() {
+        const input = document.getElementById('buscador-producto');
+        const box = document.getElementById('buscador-resultados');
+        if (!input || !box) return;
+
+        let productos = [];
+        let seleccionado = -1;
+        let timeout = null;
+
+        async function buscar(q) {
+            if (q.length < 2) { box.style.display = 'none'; return; }
+            try {
+                const url = CFG.urlBuscarProductos + '?q=' + encodeURIComponent(q)
+                          + '&periodo=' + CFG.periodo + '&tienda=' + CFG.tiendaId;
+                const r = await fetch(url);
+                const data = await r.json();
+                if (!data.ok) return;
+                productos = data.productos || [];
+                seleccionado = -1;
+                renderResultados();
+            } catch (e) { console.error(e); }
+        }
+
+        function renderResultados() {
+            if (productos.length === 0) {
+                box.innerHTML = '<div class="list-group-item text-muted text-center">Sin resultados</div>';
+                box.style.display = 'block';
+                return;
+            }
+            box.innerHTML = productos.map((p, i) => `
+                <button type="button" class="list-group-item list-group-item-action ${i === seleccionado ? 'active' : ''}"
+                        data-idx="${i}">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div class="text-start flex-grow-1">
+                            <div class="fw-semibold">${p.nombre}</div>
+                            <small class="opacity-75">${p.codigo_barras || '-'} · ${p.categoria || 'sin categoría'}</small>
+                        </div>
+                        <div class="text-end flex-shrink-0">
+                            <div class="fw-bold">${fmt(p.ingresos)}</div>
+                            <small class="opacity-75">${p.unidades} u.</small>
+                        </div>
+                    </div>
+                </button>
+            `).join('');
+            box.style.display = 'block';
+            box.querySelectorAll('button[data-idx]').forEach(b => {
+                b.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    seleccionarProducto(parseInt(b.dataset.idx));
+                });
+            });
+        }
+
+        function seleccionarProducto(idx) {
+            const p = productos[idx];
+            if (!p) return;
+            box.style.display = 'none';
+            input.value = '';
+            // llenar y mostrar modal
+            document.getElementById('modal-prod-nombre').textContent = p.nombre;
+            document.getElementById('modal-prod-codigo').textContent = p.codigo_barras || '-';
+            document.getElementById('modal-prod-categoria').textContent = p.categoria || 'sin categoría';
+            document.getElementById('modal-prod-unidades').textContent = p.unidades.toLocaleString('es-CO');
+            document.getElementById('modal-prod-ingresos').textContent = fmt(p.ingresos);
+            const etiq = document.getElementById('periodo-etiqueta').textContent;
+            document.getElementById('modal-prod-periodo').textContent = 'Período: ' + etiq;
+            document.getElementById('modal-producto').style.display = 'block';
+        }
+
+        input.addEventListener('input', function() {
+            clearTimeout(timeout);
+            const q = this.value.trim();
+            timeout = setTimeout(() => buscar(q), 180);
+        });
+
+        input.addEventListener('keydown', function(e) {
+            if (box.style.display === 'none') return;
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                seleccionado = Math.min(seleccionado + 1, productos.length - 1);
+                renderResultados();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                seleccionado = Math.max(seleccionado - 1, 0);
+                renderResultados();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (seleccionado >= 0) seleccionarProducto(seleccionado);
+                else if (productos.length > 0) seleccionarProducto(0);
+            } else if (e.key === 'Escape') {
+                box.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!input.contains(e.target) && !box.contains(e.target)) {
+                box.style.display = 'none';
+            }
+        });
+
+        // Cerrar modal producto
+        document.getElementById('modal-prod-cerrar').addEventListener('click', function() {
+            document.getElementById('modal-producto').style.display = 'none';
+        });
+        document.getElementById('modal-producto').addEventListener('click', function(e) {
+            if (e.target === this) this.style.display = 'none';
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') document.getElementById('modal-producto').style.display = 'none';
+        });
+    })();
 
     cargarDatos();
 })();
