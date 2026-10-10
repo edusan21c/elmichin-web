@@ -696,10 +696,9 @@ def procesar_push(tienda_id, datos):
                 if cat_nueva and producto.categoria != cat_nueva:
                     producto.categoria = cat_nueva
 
-            # Nombre (solo si matcheo por barcode, para no romper match por nombre)
+            # Nombre (con codigo_global ya no hace falta la guarda vieja)
             if producto and nombre and producto.nombre != nombre:
-                if codigo and producto.codigo_barras == codigo:
-                    producto.nombre = nombre
+                producto.nombre = nombre
 
             # Barcode
             if producto and codigo and producto.codigo_barras != codigo:
