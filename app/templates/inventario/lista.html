@@ -2,6 +2,121 @@
 {% block titulo %}Inventario{% endblock %}
 
 {% block contenido %}
+
+
+<style>
+/* v2.56-diseño: chips de producto */
+.producto-nombre {
+    font-weight: 600;
+    color: #212529;
+    line-height: 1.2;
+}
+.producto-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 5px;
+}
+/* Badge base */
+.badge-categoria {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+    text-transform: lowercase;
+    letter-spacing: 0.3px;
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+/* cigarro → marrón tabaco oscuro */
+.badge-categoria.cat-cigarro,
+.badge-categoria.cat-cigarrillo {
+    background: linear-gradient(135deg, #8d6e63, #5d4037);
+}
+
+/* dulce → rosa fuerte */
+.badge-categoria.cat-dulce {
+    background: linear-gradient(135deg, #ec407a, #c2185b);
+}
+
+/* snack → naranja intenso */
+.badge-categoria.cat-snack,
+.badge-categoria.cat-snack-/-mecato,
+.badge-categoria.cat-mecato {
+    background: linear-gradient(135deg, #ff9800, #e65100);
+}
+
+/* bebida → azul vivo */
+.badge-categoria.cat-bebida {
+    background: linear-gradient(135deg, #2196f3, #0d47a1);
+}
+
+/* licor → morado premium */
+.badge-categoria.cat-licor {
+    background: linear-gradient(135deg, #9c27b0, #4a148c);
+}
+
+/* aseo → verde fuerte */
+.badge-categoria.cat-aseo {
+    background: linear-gradient(135deg, #4caf50, #1b5e20);
+}
+
+/* Otro / Sin categoría → gris oscuro */
+.badge-categoria.cat-otro,
+.badge-categoria.cat-sin-categoria {
+    background: linear-gradient(135deg, #78909c, #455a64);
+}
+.chip-modificado {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px 2px 3px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    color: #6c757d;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    transition: all 0.15s ease;
+}
+.chip-modificado:hover {
+    background: #eef1f5;
+    border-color: #dee2e6;
+    transform: translateY(-1px);
+}
+.chip-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+.chip-icono {
+    font-size: 0.62rem;
+    opacity: 0.6;
+}
+.chip-fecha {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #6c757d;
+}
+/* Colores según rol */
+.chip-modificado.badge-p .chip-avatar { background: linear-gradient(135deg, #0d6efd, #0a58ca); }
+.chip-modificado.badge-a .chip-avatar { background: linear-gradient(135deg, #198754, #146c43); }
+.chip-modificado.badge-o .chip-avatar { background: linear-gradient(135deg, #fd7e14, #e8590c); }
+.chip-modificado.badge-x .chip-avatar { background: linear-gradient(135deg, #6c757d, #495057); }
+.chip-modificado.badge-p { background: #e7f1ff; border-color: #b6d4fe; }
+.chip-modificado.badge-a { background: #e8f5e9; border-color: #a3cfbb; }
+.chip-modificado.badge-o { background: #fff3e0; border-color: #ffd8a8; }
+.chip-modificado.badge-x { background: #f1f3f5; border-color: #dee2e6; }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">
         <i class="bi bi-box-seam"></i> Inventario
@@ -88,19 +203,47 @@
                     <tr>
                         <td class="text-muted small">{{ p.id }}</td>
                         <td>
-                            <div class="fw-semibold">
-                                {{ p.nombre }}
+                            <div class="producto-nombre">{{ p.nombre }}</div>
+                            <div class="producto-meta">
+                                {% if p.categoria %}
+                                    {% set cat_lower = p.categoria|lower %}
+                                    {% if 'cigarro' in cat_lower or 'cigarrillo' in cat_lower %}
+                                        {% set cat_bg = 'linear-gradient(135deg, #8d6e63, #5d4037)' %}
+                                    {% elif 'dulce' in cat_lower %}
+                                        {% set cat_bg = 'linear-gradient(135deg, #ec407a, #c2185b)' %}
+                                    {% elif 'snack' in cat_lower or 'mecato' in cat_lower %}
+                                        {% set cat_bg = 'linear-gradient(135deg, #ff9800, #e65100)' %}
+                                    {% elif 'bebida' in cat_lower %}
+                                        {% set cat_bg = 'linear-gradient(135deg, #2196f3, #0d47a1)' %}
+                                    {% elif 'licor' in cat_lower %}
+                                        {% set cat_bg = 'linear-gradient(135deg, #9c27b0, #4a148c)' %}
+                                    {% elif 'aseo' in cat_lower %}
+                                        {% set cat_bg = 'linear-gradient(135deg, #4caf50, #1b5e20)' %}
+                                    {% else %}
+                                        {% set cat_bg = 'linear-gradient(135deg, #78909c, #455a64)' %}
+                                    {% endif %}
+                                    <span class="badge-categoria"
+                                          style="background: {{ cat_bg }}; color: #fff;">{{ p.categoria }}</span>
+                                {% endif %}
                                 {% if p.modificado_por_nombre and p.modificado_en %}
                                     {% set inicial = p.modificado_por_nombre[0].upper() %}
-                                    {% set fecha_txt = p.modificado_en.strftime('%d/%m/%Y %H:%M') %}
-                                    <i class="bi bi-pencil-fill text-muted small ms-1"
-                                       title="Modificado por {{ p.modificado_por_nombre }} ({{ inicial }}) el {{ fecha_txt }}"
-                                       style="cursor: help;"></i>
+                                    {% if 'rograma' in p.modificado_por_nombre %}
+                                        {% set clase_rol = 'badge-p' %}
+                                    {% elif 'dmin' in p.modificado_por_nombre %}
+                                        {% set clase_rol = 'badge-a' %}
+                                    {% elif 'ajero' in p.modificado_por_nombre or 'perario' in p.modificado_por_nombre %}
+                                        {% set clase_rol = 'badge-o' %}
+                                    {% else %}
+                                        {% set clase_rol = 'badge-x' %}
+                                    {% endif %}
+                                    <span class="chip-modificado {{ clase_rol }}"
+                                          title="Modificado por {{ p.modificado_por_nombre }} el {{ p.modificado_en|fecha_local }}">
+                                        <span class="chip-avatar">{{ inicial }}</span>
+                                        <i class="bi bi-pencil-fill chip-icono"></i>
+                                        <span class="chip-fecha">{{ p.modificado_en|fecha_local }}</span>
+                                    </span>
                                 {% endif %}
                             </div>
-                            {% if p.categoria %}
-                                <span class="badge bg-secondary-subtle text-secondary">{{ p.categoria }}</span>
-                            {% endif %}
                         </td>
                         <td class="text-muted small">{{ p.codigo_barras or '-' }}</td>
                         <td class="text-end fw-semibold">
