@@ -194,6 +194,8 @@ def obtener_cambios_pull(tienda_id, desde=None, limite=200):
             'codigo_barras': p.codigo_barras,
             'codigo_global': p.codigo_global,
             'categoria': p.categoria,
+            'modificado_por_nombre': p.modificado_por_nombre,
+            'modificado_en': p.modificado_en.isoformat() if p.modificado_en else None,
             'tienda_id': pres.tienda_id,
             'cantidad': int(pres.cantidad or 0),
             'precio_proveedor': float(pres.precio_proveedor or 0),
@@ -273,8 +275,7 @@ def aplicar_cambios_pull(datos):
                 print(f'  [pull] No se pudo crear producto {producto_id}: {e}')
                 continue
         elif codigo_global and producto.codigo_global != codigo_global:
-            # v2.54-fix-alinear-uuid: Central es la fuente de verdad para UUIDs.
-            # Si T1 tenía un UUID distinto para el mismo producto, adoptar el de Central.
+            # v2.54-fix-alinear-uuid: adoptar UUID de Central
             uuid_viejo = producto.codigo_global[:8] if producto.codigo_global else "None"
             print(f'  [pull] UUID alineado: "{producto.nombre}" '
                   f'({uuid_viejo}... -> {codigo_global[:8]}...)')
@@ -307,6 +308,16 @@ def aplicar_cambios_pull(datos):
             nombre_anterior = producto.nombre
             print(f'  [pull] Nombre actualizado: "{nombre_anterior}" -> "{nombre}"')
             producto.nombre = nombre
+
+        # v2.57-sync-modificado: sincronizar marca de modificacion
+        if producto and p_data.get('modificado_por_nombre'):
+            producto.modificado_por_nombre = p_data.get('modificado_por_nombre')
+            mod_en = p_data.get('modificado_en')
+            if mod_en:
+                try:
+                    producto.modificado_en = datetime.fromisoformat(mod_en)
+                except (ValueError, TypeError):
+                    producto.modificado_en = datetime.utcnow()
 
         id_real = producto.id
 
@@ -687,7 +698,6 @@ def procesar_push(tienda_id, datos):
                     errores.append(f'Producto {producto_id}: no se pudo crear ({e})')
                     continue
             elif codigo_global and not producto.codigo_global:
-                # Producto existente sin codigo_global → asignarlo
                 producto.codigo_global = codigo_global
 
             # Categoria
@@ -696,9 +706,19 @@ def procesar_push(tienda_id, datos):
                 if cat_nueva and producto.categoria != cat_nueva:
                     producto.categoria = cat_nueva
 
-            # Nombre (con codigo_global ya no hace falta la guarda vieja)
+            # Nombre
             if producto and nombre and producto.nombre != nombre:
                 producto.nombre = nombre
+
+            # v2.57-sync-modificado: sincronizar marca de modificacion
+            if producto and p_data.get('modificado_por_nombre'):
+                producto.modificado_por_nombre = p_data.get('modificado_por_nombre')
+                mod_en = p_data.get('modificado_en')
+                if mod_en:
+                    try:
+                        producto.modificado_en = datetime.fromisoformat(mod_en)
+                    except (ValueError, TypeError):
+                        producto.modificado_en = datetime.utcnow()
 
             # Barcode
             if producto and codigo and producto.codigo_barras != codigo:
@@ -1027,6 +1047,8 @@ def obtener_productos_pendientes_push(tienda_id):
             'codigo_barras': prod.codigo_barras if prod else None,
             'codigo_global': prod.codigo_global if prod else None,
             'categoria': prod.categoria if prod else None,
+            'modificado_por_nombre': prod.modificado_por_nombre if prod else None,
+            'modificado_en': prod.modificado_en.isoformat() if prod and prod.modificado_en else None,
             'cantidad': int(pres.cantidad or 0),
             'precio_proveedor': float(pres.precio_proveedor or 0),
             'precio_proveedor2': float(pres.precio_proveedor2 or 0),
