@@ -18,7 +18,6 @@ def hora_local():
 
 # ==================== PUSH (TIENDA -> CENTRAL) ====================
 def obtener_pendientes_push(tienda_id):
-    """Devuelve todos los registros pendientes de subir al central."""
     facturas_pend = (Factura.query
                      .filter_by(tienda_id=tienda_id, sync_estado='pendiente')
                      .order_by(Factura.id)
@@ -116,7 +115,6 @@ def _cliente_to_dict(c):
 
 
 def marcar_sincronizados(tienda_id, resultado):
-    """Marca los registros que el central confirmo como sincronizados."""
     ids_facturas = resultado.get('facturas_ok', [])
     ids_pagos = resultado.get('pagos_ok', [])
     ids_clientes = resultado.get('clientes_ok', [])
@@ -165,8 +163,6 @@ def marcar_sincronizados(tienda_id, resultado):
 
 # ==================== PULL (CENTRAL -> TIENDA) ====================
 def obtener_cambios_pull(tienda_id, desde=None, limite=200):
-    """v2.14-pull-lotes: limita a 200 por request para evitar timeouts.
-    El worker de la tienda itera hasta recibir 0."""
     if not tienda_id:
         return {'productos': [], 'timestamp': datetime.utcnow().isoformat(),
                 'hay_mas': False}
@@ -198,6 +194,10 @@ def obtener_cambios_pull(tienda_id, desde=None, limite=200):
             'categoria': p.categoria,
             'tienda_id': pres.tienda_id,
             'cantidad': int(pres.cantidad or 0),
+            'precio_proveedor': float(pres.precio_proveedor or 0),
+            'precio_proveedor2': float(pres.precio_proveedor2 or 0),
+            'precio_proveedor3': float(pres.precio_proveedor3 or 0),
+            'porcentaje': float(pres.porcentaje or 0),
             'precio_venta': float(pres.precio_venta or 0),
             'precio_venta1': float(pres.precio_venta1 or 0),
             'precio_venta2': float(pres.precio_venta2 or 0),
@@ -211,9 +211,6 @@ def obtener_cambios_pull(tienda_id, desde=None, limite=200):
 
 
 def marcar_productos_ack(tienda_id, ids_productos):
-    """v2.14-fix-ack: Marca productos como 'sincronizado' SOLO cuando T1
-    confirma que los aplico (via /api/sync/ack). NO se llama desde /sync/pull
-    cuando el cliente envia header X-Sync-Ack: true."""
     if not ids_productos or not tienda_id:
         return 0
 
@@ -234,11 +231,7 @@ def marcar_productos_enviados(tienda_id, ids_productos):
 
 
 def aplicar_cambios_pull(datos):
-    """Aplica los cambios recibidos del central.
-    v2.12-fix-C: sin fallback por ID.
-    v2.14-fix-ack: devuelve dict con actualizados, creados, ids_aplicados.
-    v2.50-fix-categoria-pull: actualiza categoria del producto.
-    """
+    """Aplica cambios recibidos del central. TODOS los campos bidireccionales."""
     actualizados = 0
     creados = 0
     ids_aplicados = []
@@ -272,7 +265,7 @@ def aplicar_cambios_pull(datos):
                 print(f'  [pull] No se pudo crear producto {producto_id}: {e}')
                 continue
 
-        # v2.21-fix-barcode-pull: si el barcode cambio en Central, actualizarlo local
+        # Barcode
         if producto and codigo and producto.codigo_barras != codigo:
             codigo_anterior = producto.codigo_barras
             otro = Producto.query.filter(
@@ -280,20 +273,25 @@ def aplicar_cambios_pull(datos):
                 Producto.id != producto.id,
             ).first()
             if otro:
-                print(f'  [pull] Barcode {codigo} ya existe en "{otro.nombre}" '
-                      f'(id={otro.id}), no se actualiza "{producto.nombre}"')
+                print(f'  [pull] Barcode {codigo} ya existe en "{otro.nombre}"')
             else:
                 producto.codigo_barras = codigo
-                print(f'  [pull] Barcode actualizado desde Central: '
-                      f'"{producto.nombre}" {codigo_anterior} -> {codigo}')
+                print(f'  [pull] Barcode actualizado: "{producto.nombre}" '
+                      f'{codigo_anterior} -> {codigo}')
 
-        # v2.50-fix-categoria-pull: actualizar categoria si viene en el pull
+        # Categoria
         if producto and p_data.get('categoria') is not None:
             cat_nueva = (p_data.get('categoria') or '').strip()
             if cat_nueva and producto.categoria != cat_nueva:
                 print(f'  [pull] Categoria actualizada: "{producto.nombre}" '
                       f'-> {cat_nueva}')
                 producto.categoria = cat_nueva
+
+        # Nombre
+        if producto and nombre and producto.nombre != nombre:
+            nombre_anterior = producto.nombre
+            print(f'  [pull] Nombre actualizado: "{nombre_anterior}" -> "{nombre}"')
+            producto.nombre = nombre
 
         id_real = producto.id
 
@@ -311,7 +309,12 @@ def aplicar_cambios_pull(datos):
             db.session.flush()
             creados += 1
 
+        # Todos los campos de ProductoTienda
         pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
+        pres.precio_proveedor = Decimal(str(p_data.get('precio_proveedor', pres.precio_proveedor or 0)))
+        pres.precio_proveedor2 = Decimal(str(p_data.get('precio_proveedor2', pres.precio_proveedor2 or 0)))
+        pres.precio_proveedor3 = Decimal(str(p_data.get('precio_proveedor3', pres.precio_proveedor3 or 0)))
+        pres.porcentaje = Decimal(str(p_data.get('porcentaje', pres.porcentaje or 0)))
         pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
         pres.precio_venta1 = Decimal(str(p_data.get('precio_venta1', 0)))
         pres.precio_venta2 = Decimal(str(p_data.get('precio_venta2', 0)))
@@ -340,7 +343,6 @@ def aplicar_cambios_pull(datos):
 
 # ==================== LOG ====================
 def registrar_log(tienda_id, tipo, tabla, registros, exitoso, mensaje=''):
-    """Registra un log de sync."""
     try:
         if not tienda_id or tienda_id <= 0:
             return None
@@ -368,7 +370,7 @@ def registrar_log(tienda_id, tipo, tabla, registros, exitoso, mensaje=''):
 
 # ==================== PUSH: GUARDAR EN CENTRAL ====================
 def procesar_push(tienda_id, datos):
-    """Procesa los datos recibidos de una tienda y los guarda en el central."""
+    """Procesa datos del push. TODOS los campos son bidireccionales."""
     from app.models.usuario import Usuario
 
     facturas_ok = []
@@ -463,33 +465,23 @@ def procesar_push(tienda_id, datos):
             if cliente_id_central and not Cliente.query.get(cliente_id_central):
                 nombre_cli = (f_data.get('cliente_nombre') or '').strip()
                 doc_cli = (f_data.get('cliente_documento') or '').strip()
-
                 cliente_encontrado = None
-
                 if nombre_cli:
                     q = Cliente.query.filter_by(tienda_id=tienda_id, nombre=nombre_cli)
                     if doc_cli:
                         q = q.filter_by(documento=doc_cli)
                     cliente_encontrado = q.first()
-
                 if cliente_encontrado:
                     cliente_id_central = cliente_encontrado.id
-                    print(f'  [push] Factura {numero}: cliente "{nombre_cli}" '
-                          f'encontrado por nombre (id={cliente_encontrado.id})')
                 elif nombre_cli:
                     nuevo_cli = Cliente(
-                        tienda_id=tienda_id,
-                        nombre=nombre_cli,
-                        documento=doc_cli or None,
-                        saldo_actual=Decimal('0'),
-                        sync_estado='sincronizado',
+                        tienda_id=tienda_id, nombre=nombre_cli, documento=doc_cli or None,
+                        saldo_actual=Decimal('0'), sync_estado='sincronizado',
                         sync_fecha=datetime.utcnow(),
                     )
                     db.session.add(nuevo_cli)
                     db.session.flush()
                     cliente_id_central = nuevo_cli.id
-                    print(f'  [push] Factura {numero}: cliente "{nombre_cli}" '
-                          f'creado en Central (id={nuevo_cli.id})')
 
             if not cliente_id_central or not Cliente.query.get(cliente_id_central):
                 cliente_gen = Cliente.query.filter_by(
@@ -497,8 +489,7 @@ def procesar_push(tienda_id, datos):
                 ).first()
                 if not cliente_gen:
                     cliente_gen = Cliente(
-                        tienda_id=tienda_id,
-                        nombre='Cliente sincronizado',
+                        tienda_id=tienda_id, nombre='Cliente sincronizado',
                         saldo_actual=Decimal('0'),
                     )
                     db.session.add(cliente_gen)
@@ -512,11 +503,8 @@ def procesar_push(tienda_id, datos):
                     usuario_id = None
 
             factura = Factura(
-                numero_factura=numero,
-                tienda_id=tienda_id,
-                fecha_hora=fecha_hora,
-                cliente_id=cliente_id_central,
-                usuario_id=usuario_id,
+                numero_factura=numero, tienda_id=tienda_id, fecha_hora=fecha_hora,
+                cliente_id=cliente_id_central, usuario_id=usuario_id,
                 subtotal=Decimal(str(f_data.get('subtotal', 0))),
                 total=Decimal(str(f_data.get('total', 0))),
                 metodo_pago=f_data.get('metodo_pago', ''),
@@ -529,8 +517,7 @@ def procesar_push(tienda_id, datos):
                 saldo_pendiente=Decimal(str(f_data.get('saldo_pendiente', 0))),
                 origen='local',
                 precio_manual=bool(f_data.get('precio_manual', False)),
-                sync_estado='sincronizado',
-                sync_fecha=datetime.utcnow(),
+                sync_estado='sincronizado', sync_fecha=datetime.utcnow(),
             )
             db.session.add(factura)
             db.session.flush()
@@ -538,11 +525,9 @@ def procesar_push(tienda_id, datos):
             for d in f_data.get('detalles', []):
                 prod_local_id = d.get('producto_id')
                 prod_nombre = (d.get('producto_nombre') or '').strip()
-
                 prod_real = None
                 if prod_nombre:
                     prod_real = Producto.query.filter_by(nombre=prod_nombre).first()
-
                 if not prod_real:
                     codigo_tmp = f'AUTO-{prod_local_id}' if prod_local_id else None
                     if codigo_tmp:
@@ -551,21 +536,17 @@ def procesar_push(tienda_id, datos):
                         try:
                             prod_real = Producto(
                                 nombre=prod_nombre or f'Producto {prod_local_id}',
-                                codigo_barras=codigo_tmp,
-                                categoria=None,
+                                codigo_barras=codigo_tmp, categoria=None,
                             )
                             db.session.add(prod_real)
                             db.session.flush()
-                            print(f'  [push] Producto auto-creado desde detalle: '
-                                  f'{prod_real.nombre} (id_central={prod_real.id})')
                         except Exception as e:
                             db.session.rollback()
                             errores.append(f'Detalle: no se pudo crear producto ({e})')
                             continue
 
                 detalle = DetalleFactura(
-                    factura_id=factura.id,
-                    producto_id=prod_real.id,
+                    factura_id=factura.id, producto_id=prod_real.id,
                     producto_nombre=prod_nombre or (prod_real.nombre if prod_real else ''),
                     cantidad=int(d.get('cantidad', 0)),
                     precio_unitario=Decimal(str(d.get('precio_unitario', 0))),
@@ -593,15 +574,12 @@ def procesar_push(tienda_id, datos):
                     ).first()
                     if fact_encontrada:
                         factura_central_id = fact_encontrada.id
-                        print(f'  [push] Pago {id_local}: factura {numero_factura} '
-                              f'encontrada por numero (id={factura_central_id})')
 
             if not factura_central_id:
                 errores.append(f'Pago {id_local}: factura {factura_local_id} no mapeada')
                 continue
 
             monto = Decimal(str(p_data.get('monto', 0)))
-
             existente = Pago.query.filter_by(
                 factura_id=factura_central_id, monto=monto
             ).first()
@@ -616,13 +594,10 @@ def procesar_push(tienda_id, datos):
                 fecha_pago = datetime.utcnow()
 
             pago = Pago(
-                factura_id=factura_central_id,
-                tienda_id=tienda_id,
-                fecha=fecha_pago,
-                monto=monto,
+                factura_id=factura_central_id, tienda_id=tienda_id,
+                fecha=fecha_pago, monto=monto,
                 metodo_pago=p_data.get('metodo_pago', 'efectivo'),
-                sync_estado='sincronizado',
-                sync_fecha=datetime.utcnow(),
+                sync_estado='sincronizado', sync_fecha=datetime.utcnow(),
             )
             db.session.add(pago)
             db.session.flush()
@@ -631,12 +606,10 @@ def procesar_push(tienda_id, datos):
             factura_afectada = Factura.query.get(factura_central_id)
             if factura_afectada:
                 factura_en_mismo_push = (factura_local_id in mapa_facturas)
-
                 if not factura_en_mismo_push:
                     factura_afectada.valor_pagado = (
                         (factura_afectada.valor_pagado or Decimal('0')) + monto
                     )
-
                 nuevo_saldo_factura = (factura_afectada.saldo_pendiente or Decimal('0')) - monto
                 if nuevo_saldo_factura <= 0:
                     nuevo_saldo_factura = Decimal('0')
@@ -678,7 +651,7 @@ def procesar_push(tienda_id, datos):
 
             if not producto:
                 if not codigo:
-                    errores.append(f'Producto {producto_id}: sin codigo_barras, no se puede crear desde tienda')
+                    errores.append(f'Producto {producto_id}: sin codigo_barras, no se puede crear')
                     continue
                 try:
                     producto = Producto(
@@ -688,23 +661,23 @@ def procesar_push(tienda_id, datos):
                     )
                     db.session.add(producto)
                     db.session.flush()
-                    print(f'  [push] Producto nuevo desde tienda {t_id}: '
-                          f'{producto.nombre} (id_central={producto.id}, '
-                          f'codigo={codigo})')
                 except Exception as e:
                     db.session.rollback()
                     errores.append(f'Producto {producto_id}: no se pudo crear ({e})')
                     continue
 
-            # v2.49-fix-categoria-push: actualizar categoria si viene en el push
+            # Categoria
             if producto and p_data.get('categoria') is not None:
                 cat_nueva = (p_data.get('categoria') or '').strip()
                 if cat_nueva and producto.categoria != cat_nueva:
                     producto.categoria = cat_nueva
-                    print(f'  [push] Categoria actualizada: "{producto.nombre}" '
-                          f'-> {cat_nueva}')
 
-            # v2.19-fix-barcode-push: si el codigo cambio en la tienda, actualizarlo
+            # Nombre (solo si matcheo por barcode, para no romper match por nombre)
+            if producto and nombre and producto.nombre != nombre:
+                if codigo and producto.codigo_barras == codigo:
+                    producto.nombre = nombre
+
+            # Barcode
             if producto and codigo and producto.codigo_barras != codigo:
                 codigo_anterior = producto.codigo_barras
                 otro = Producto.query.filter(
@@ -713,13 +686,10 @@ def procesar_push(tienda_id, datos):
                 ).first()
                 if otro:
                     errores.append(
-                        f'Producto {producto_id}: codigo {codigo} ya existe en '
-                        f'"{otro.nombre}" (id={otro.id}), no se actualiza'
+                        f'Producto {producto_id}: codigo {codigo} ya existe en "{otro.nombre}"'
                     )
                 else:
                     producto.codigo_barras = codigo
-                    print(f'  [push] Barcode actualizado: "{producto.nombre}" '
-                          f'{codigo_anterior} -> {codigo}')
 
             pres = ProductoTienda.query.filter_by(
                 producto_id=producto.id, tienda_id=t_id
@@ -728,24 +698,23 @@ def procesar_push(tienda_id, datos):
             if not pres:
                 try:
                     pres = ProductoTienda(
-                        producto_id=producto.id,
-                        tienda_id=t_id,
-                        cantidad=0,
-                        precio_venta=Decimal('0'),
-                        precio_venta1=Decimal('0'),
-                        precio_venta2=Decimal('0'),
-                        precio_venta3=Decimal('0'),
+                        producto_id=producto.id, tienda_id=t_id, cantidad=0,
+                        precio_venta=Decimal('0'), precio_venta1=Decimal('0'),
+                        precio_venta2=Decimal('0'), precio_venta3=Decimal('0'),
                     )
                     db.session.add(pres)
                     db.session.flush()
-                    print(f'  [push] Presentacion creada: producto_id={producto.id}, '
-                          f'tienda_id={t_id}')
                 except Exception as e:
                     db.session.rollback()
                     errores.append(f'Producto {producto_id}: no se pudo crear presentacion ({e})')
                     continue
 
+            # TODOS los campos de ProductoTienda
             pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
+            pres.precio_proveedor = Decimal(str(p_data.get('precio_proveedor', pres.precio_proveedor or 0)))
+            pres.precio_proveedor2 = Decimal(str(p_data.get('precio_proveedor2', pres.precio_proveedor2 or 0)))
+            pres.precio_proveedor3 = Decimal(str(p_data.get('precio_proveedor3', pres.precio_proveedor3 or 0)))
+            pres.porcentaje = Decimal(str(p_data.get('porcentaje', pres.porcentaje or 0)))
             pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
             pres.precio_venta1 = Decimal(str(p_data.get('precio_venta1', 0)))
             pres.precio_venta2 = Decimal(str(p_data.get('precio_venta2', 0)))
@@ -774,12 +743,10 @@ def procesar_push(tienda_id, datos):
 
 # ==================== PULL FACTURAS ====================
 def obtener_facturas_para_tienda(tienda_id, desde=None):
-    """Devuelve SOLO las facturas remotas pendientes para esa tienda."""
     query = Factura.query.filter(
         Factura.tienda_id == tienda_id,
         Factura.origen == 'remota',
     )
-
     if desde:
         try:
             if isinstance(desde, str):
@@ -795,67 +762,50 @@ def obtener_facturas_para_tienda(tienda_id, desde=None):
         cliente_data = None
         if f.cliente:
             cliente_data = {
-                'nombre': f.cliente.nombre,
-                'documento': f.cliente.documento or '',
-                'direccion': f.cliente.direccion or '',
-                'telefono': f.cliente.telefono or '',
-                'email': f.cliente.email or '',
-                'saldo_actual': float(f.cliente.saldo_actual or 0),
+                'nombre': f.cliente.nombre, 'documento': f.cliente.documento or '',
+                'direccion': f.cliente.direccion or '', 'telefono': f.cliente.telefono or '',
+                'email': f.cliente.email or '', 'saldo_actual': float(f.cliente.saldo_actual or 0),
             }
-
         detalles = []
         for d in f.detalles.all():
             detalles.append({
                 'producto_id': d.producto_id,
                 'codigo_barras': d.producto.codigo_barras if d.producto else '',
-                'producto_nombre': d.producto_nombre,
-                'cantidad': d.cantidad,
+                'producto_nombre': d.producto_nombre, 'cantidad': d.cantidad,
                 'precio_unitario': float(d.precio_unitario or 0),
                 'subtotal': float(d.subtotal or 0),
             })
-
         resultado.append({
-            'id': f.id,
-            'numero_factura': f.numero_factura,
-            'tienda_id': f.tienda_id,
+            'id': f.id, 'numero_factura': f.numero_factura, 'tienda_id': f.tienda_id,
             'fecha_hora': f.fecha_hora.isoformat() if f.fecha_hora else None,
             'cliente': cliente_data,
             'usuario_nombre': f.usuario.nombre if f.usuario else None,
-            'subtotal': float(f.subtotal or 0),
-            'total': float(f.total or 0),
+            'subtotal': float(f.subtotal or 0), 'total': float(f.total or 0),
             'metodo_pago': f.metodo_pago or '',
             'recargo_nequi': float(f.recargo_nequi or 0),
             'recargo_bolsa': float(f.recargo_bolsa or 0),
-            'valor_pagado': float(f.valor_pagado or 0),
-            'vueltas': float(f.vueltas or 0),
+            'valor_pagado': float(f.valor_pagado or 0), 'vueltas': float(f.vueltas or 0),
             'tipo_pago': f.tipo_pago or 'contado',
             'estado_credito': f.estado_credito or 'pagado',
             'saldo_pendiente': float(f.saldo_pendiente or 0),
             'precio_manual': bool(getattr(f, 'precio_manual', False)),
             'detalles': detalles,
         })
-
     return resultado
 
 
 def marcar_facturas_enviadas(ids):
-    """v2.13-fix-F: tambien actualiza sync_estado='sincronizado'."""
     if not ids:
         return 0
-
-    n = (Factura.query
-         .filter(Factura.id.in_(ids))
-         .update({
-             'origen': 'remota_recibida',
-             'sync_estado': 'sincronizado',
-             'sync_fecha': datetime.utcnow(),
-         }, synchronize_session=False))
+    n = (Factura.query.filter(Factura.id.in_(ids)).update({
+        'origen': 'remota_recibida', 'sync_estado': 'sincronizado',
+        'sync_fecha': datetime.utcnow(),
+    }, synchronize_session=False))
     db.session.commit()
     return n
 
 
 def aplicar_facturas_recibidas(tienda_id, facturas):
-    """Aplica las facturas recibidas del central en la BD local."""
     insertadas = 0
     omitidas = 0
 
@@ -863,7 +813,6 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
         numero = f_data.get('numero_factura')
         if not numero:
             continue
-
         existente = Factura.query.filter_by(
             tienda_id=tienda_id, numero_factura=numero
         ).first()
@@ -876,27 +825,21 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
         if c_data and c_data.get('nombre'):
             nombre = c_data['nombre'].strip()
             documento = (c_data.get('documento') or '').strip()
-
             query = Cliente.query.filter_by(tienda_id=tienda_id, nombre=nombre)
             if documento:
                 query = query.filter_by(documento=documento)
             cliente_local = query.first()
-
             if not cliente_local:
                 cliente_local = Cliente(
-                    tienda_id=tienda_id,
-                    nombre=nombre,
-                    documento=documento or None,
+                    tienda_id=tienda_id, nombre=nombre, documento=documento or None,
                     direccion=c_data.get('direccion') or None,
                     telefono=c_data.get('telefono') or None,
                     email=c_data.get('email') or None,
                     saldo_actual=Decimal(str(c_data.get('saldo_actual', 0))),
-                    sync_estado='sincronizado',
-                    sync_fecha=datetime.utcnow(),
+                    sync_estado='sincronizado', sync_fecha=datetime.utcnow(),
                 )
                 db.session.add(cliente_local)
                 db.session.flush()
-
             cliente_local_id = cliente_local.id
 
         if not cliente_local_id:
@@ -905,8 +848,7 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
             ).first()
             if not cliente_gen:
                 cliente_gen = Cliente(
-                    tienda_id=tienda_id,
-                    nombre='Cliente remoto',
+                    tienda_id=tienda_id, nombre='Cliente remoto',
                     saldo_actual=Decimal('0'),
                 )
                 db.session.add(cliente_gen)
@@ -921,11 +863,8 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
                 pass
 
         factura = Factura(
-            numero_factura=numero,
-            tienda_id=tienda_id,
-            fecha_hora=fecha_hora,
-            cliente_id=cliente_local_id,
-            usuario_id=None,
+            numero_factura=numero, tienda_id=tienda_id, fecha_hora=fecha_hora,
+            cliente_id=cliente_local_id, usuario_id=None,
             subtotal=Decimal(str(f_data.get('subtotal', 0))),
             total=Decimal(str(f_data.get('total', 0))),
             metodo_pago=f_data.get('metodo_pago', ''),
@@ -938,8 +877,7 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
             saldo_pendiente=Decimal(str(f_data.get('saldo_pendiente', 0))),
             origen='remota_recibida',
             precio_manual=bool(f_data.get('precio_manual', False)),
-            sync_estado='sincronizado',
-            sync_fecha=datetime.utcnow(),
+            sync_estado='sincronizado', sync_fecha=datetime.utcnow(),
         )
         db.session.add(factura)
         db.session.flush()
@@ -948,7 +886,6 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
             prod_local = None
             codigo = d.get('codigo_barras') or ''
             nombre_det = d.get('producto_nombre', '')
-
             if codigo:
                 prod_local = Producto.query.filter_by(codigo_barras=codigo).first()
             if not prod_local and nombre_det:
@@ -957,97 +894,45 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
                 prod_local = Producto.query.first()
             if not prod_local:
                 continue
-
             detalle = DetalleFactura(
-                factura_id=factura.id,
-                producto_id=prod_local.id,
+                factura_id=factura.id, producto_id=prod_local.id,
                 producto_nombre=nombre_det,
                 cantidad=int(d.get('cantidad', 0)),
                 precio_unitario=Decimal(str(d.get('precio_unitario', 0))),
                 subtotal=Decimal(str(d.get('subtotal', 0))),
             )
             db.session.add(detalle)
-
         insertadas += 1
 
     db.session.commit()
     return insertadas
 
 
-# ==================== HELPERS DE FORMATO ====================
+# ==================== HELPERS ====================
 def _factura_to_dict_extendida(f):
-    """Convierte una factura a dict CON cliente y detalles."""
-    cliente_data = None
-    if f.cliente:
-        cliente_data = {
-            'nombre': f.cliente.nombre,
-            'documento': f.cliente.documento or '',
-            'direccion': f.cliente.direccion or '',
-            'telefono': f.cliente.telefono or '',
-            'email': f.cliente.email or '',
-            'saldo_actual': float(f.cliente.saldo_actual or 0),
-        }
-    detalles = []
-    for d in f.detalles.all():
-        detalles.append({
-            'producto_id': d.producto_id,
-            'codigo_barras': d.producto.codigo_barras if d.producto else '',
-            'producto_nombre': d.producto_nombre,
-            'cantidad': d.cantidad,
-            'precio_unitario': float(d.precio_unitario or 0),
-            'subtotal': float(d.subtotal or 0),
-        })
-    return {
-        'id': f.id,
-        'numero_factura': f.numero_factura,
-        'tienda_id': f.tienda_id,
-        'fecha_hora': f.fecha_hora.isoformat() if f.fecha_hora else None,
-        'cliente': cliente_data,
-        'usuario_nombre': f.usuario.nombre if f.usuario else None,
-        'subtotal': float(f.subtotal or 0),
-        'total': float(f.total or 0),
-        'metodo_pago': f.metodo_pago or '',
-        'recargo_nequi': float(f.recargo_nequi or 0),
-        'recargo_bolsa': float(f.recargo_bolsa or 0),
-        'valor_pagado': float(f.valor_pagado or 0),
-        'vueltas': float(f.vueltas or 0),
-        'tipo_pago': f.tipo_pago or 'contado',
-        'estado_credito': f.estado_credito or 'pagado',
-        'saldo_pendiente': float(f.saldo_pendiente or 0),
-        'origen': getattr(f, 'origen', 'local'),
-        'precio_manual': bool(getattr(f, 'precio_manual', False)),
-        'detalles': detalles,
-    }
+    return _factura_to_dict(f)
 
 
 # ==================== PUSH INMEDIATO ====================
 def push_factura_individual(tienda_id, factura_id):
-    """Empuja UNA factura (y su cliente) al central inmediatamente."""
     import requests
-    from flask import current_app
-
     factura = db.session.get(Factura, factura_id)
     if not factura:
         return False
-
     central_url = (current_app.config.get('CENTRAL_URL') or '').rstrip('/')
     sync_key = current_app.config.get('SYNC_KEY') or ''
     if not central_url or not sync_key:
         return False
-
     payload = {
         'tienda_id': tienda_id,
         'facturas': [_factura_to_dict(factura)],
         'pagos': [],
         'clientes': [_cliente_to_dict(factura.cliente)] if factura.cliente else [],
     }
-
     try:
         r = requests.post(
             central_url + '/api/sync/push',
-            json=payload,
-            headers={'X-Sync-Key': sync_key},
-            timeout=8,
+            json=payload, headers={'X-Sync-Key': sync_key}, timeout=8,
         )
         if r.status_code != 200:
             return False
@@ -1062,10 +947,7 @@ def push_factura_individual(tienda_id, factura_id):
 
 # ==================== DETECTAR FACTURAS FANTASMA ====================
 def detectar_facturas_faltantes(tienda_id):
-    """Detecta facturas marcadas como sincronizadas que no existen en central."""
     import requests
-    from flask import current_app
-
     central_url = (current_app.config.get('CENTRAL_URL') or '').rstrip('/')
     sync_key = current_app.config.get('SYNC_KEY') or ''
     if not central_url or not sync_key:
@@ -1076,43 +958,37 @@ def detectar_facturas_faltantes(tienda_id):
         Factura.sync_estado == 'sincronizado',
         Factura.origen != 'remota_recibida',
     ).all()
-
     if not facturas:
         return 0
 
     numeros = [f.numero_factura for f in facturas]
-
     try:
         r = requests.post(
             central_url + '/api/sync/facturas-existen',
             json={'tienda_id': tienda_id, 'numeros': numeros},
-            headers={'X-Sync-Key': sync_key},
-            timeout=15,
+            headers={'X-Sync-Key': sync_key}, timeout=15,
         )
         if r.status_code != 200:
             return 0
         data = r.json()
         if not data.get('ok'):
             return 0
-
         faltan = data.get('faltan', [])
         if not faltan:
             return 0
-
         n = (Factura.query
              .filter(Factura.tienda_id == tienda_id,
                      Factura.numero_factura.in_(faltan))
              .update({'sync_estado': 'pendiente'}, synchronize_session=False))
         db.session.commit()
         return n
-
     except requests.RequestException:
         return 0
 
 
 # ==================== PRODUCTOS PENDIENTES DE PUSH ====================
 def obtener_productos_pendientes_push(tienda_id):
-    """Devuelve los productos LOCALES de esta tienda que fueron editados."""
+    """Devuelve TODOS los campos del producto para push."""
     query = ProductoTienda.query.filter_by(
         tienda_id=tienda_id,
         sync_estado='pendiente'
@@ -1128,6 +1004,10 @@ def obtener_productos_pendientes_push(tienda_id):
             'codigo_barras': prod.codigo_barras if prod else None,
             'categoria': prod.categoria if prod else None,
             'cantidad': int(pres.cantidad or 0),
+            'precio_proveedor': float(pres.precio_proveedor or 0),
+            'precio_proveedor2': float(pres.precio_proveedor2 or 0),
+            'precio_proveedor3': float(pres.precio_proveedor3 or 0),
+            'porcentaje': float(pres.porcentaje or 0),
             'precio_venta': float(pres.precio_venta or 0),
             'precio_venta1': float(pres.precio_venta1 or 0),
             'precio_venta2': float(pres.precio_venta2 or 0),
@@ -1140,11 +1020,9 @@ def obtener_productos_pendientes_push(tienda_id):
     return resultado
 
 
-# ==================== PULL DE PAGOS (CENTRAL → TIENDA) ====================
+# ==================== PULL DE PAGOS ====================
 def obtener_pagos_para_tienda(tienda_id, desde=None):
-    """Devuelve pagos que estan en el central pero no en la tienda."""
     from app.models.pago import Pago
-
     if isinstance(desde, str) and desde:
         try:
             desde = datetime.fromisoformat(desde.replace('Z', '+00:00'))
@@ -1158,46 +1036,36 @@ def obtener_pagos_para_tienda(tienda_id, desde=None):
         .filter(Pago.sync_estado != 'enviado_tienda')
         .filter(Pago.origen == 'local')
     )
-
     if desde:
         query = query.filter(Pago.fecha >= desde)
-
     query = query.order_by(Pago.fecha.asc()).limit(200)
     pagos = query.all()
 
     resultado = []
     for p in pagos:
         resultado.append({
-            'id': p.id,
-            'factura_id': p.factura_id,
+            'id': p.id, 'factura_id': p.factura_id,
             'numero_factura': p.factura.numero_factura if p.factura else None,
             'tienda_id': p.tienda_id,
             'fecha': p.fecha.isoformat() if p.fecha else None,
             'monto': float(p.monto or 0),
             'metodo_pago': p.metodo_pago or 'efectivo',
         })
-
     return resultado
 
 
 def marcar_pagos_enviados_tienda(ids_pagos):
-    """Marca los pagos como enviados a la tienda."""
     from app.models.pago import Pago
     if not ids_pagos:
         return 0
-    actualizados = (
-        Pago.query
-        .filter(Pago.id.in_(ids_pagos))
-        .update({'sync_estado': 'enviado_tienda'}, synchronize_session=False)
-    )
+    actualizados = (Pago.query.filter(Pago.id.in_(ids_pagos))
+                    .update({'sync_estado': 'enviado_tienda'}, synchronize_session=False))
     db.session.commit()
     return actualizados
 
 
 def aplicar_pagos_recibidos(tienda_id, pagos):
-    """Aplica los pagos recibidos del central en la BD local."""
     from app.models.pago import Pago
-
     insertados = 0
     omitidos = 0
     errores = []
@@ -1217,9 +1085,7 @@ def aplicar_pagos_recibidos(tienda_id, pagos):
                 errores.append(f'Pago {p_data.get("id")}: factura {numero} no encontrada')
                 continue
 
-            existente = Pago.query.filter_by(
-                factura_id=factura.id, monto=monto
-            ).first()
+            existente = Pago.query.filter_by(factura_id=factura.id, monto=monto).first()
             if existente:
                 omitidos += 1
                 continue
@@ -1231,14 +1097,9 @@ def aplicar_pagos_recibidos(tienda_id, pagos):
                 fecha_pago = datetime.utcnow()
 
             nuevo_pago = Pago(
-                factura_id=factura.id,
-                tienda_id=tienda_id,
-                fecha=fecha_pago,
-                monto=monto,
-                metodo_pago=p_data.get('metodo_pago', 'efectivo'),
-                origen='remota',
-                sync_estado='sincronizado',
-                sync_fecha=datetime.utcnow(),
+                factura_id=factura.id, tienda_id=tienda_id, fecha=fecha_pago,
+                monto=monto, metodo_pago=p_data.get('metodo_pago', 'efectivo'),
+                origen='remota', sync_estado='sincronizado', sync_fecha=datetime.utcnow(),
             )
             db.session.add(nuevo_pago)
 
@@ -1251,13 +1112,9 @@ def aplicar_pagos_recibidos(tienda_id, pagos):
             factura.sync_fecha = datetime.utcnow()
 
             if factura.cliente_id:
-                nuevo_saldo_cli = (
-                    db.session.query(
-                        db.func.coalesce(db.func.sum(Factura.saldo_pendiente), 0)
-                    )
-                    .filter(Factura.cliente_id == factura.cliente_id)
-                    .scalar()
-                )
+                nuevo_saldo_cli = (db.session.query(
+                    db.func.coalesce(db.func.sum(Factura.saldo_pendiente), 0)
+                ).filter(Factura.cliente_id == factura.cliente_id).scalar())
                 cli = Cliente.query.get(factura.cliente_id)
                 if cli:
                     if nuevo_saldo_cli is None:
@@ -1265,7 +1122,6 @@ def aplicar_pagos_recibidos(tienda_id, pagos):
                     if nuevo_saldo_cli < 0:
                         nuevo_saldo_cli = Decimal('0')
                     cli.saldo_actual = Decimal(str(nuevo_saldo_cli))
-
             insertados += 1
         except Exception as e:
             errores.append(f'Pago {p_data.get("id")}: {e}')
@@ -1274,65 +1130,44 @@ def aplicar_pagos_recibidos(tienda_id, pagos):
     return insertados, omitidos, errores
 
 
-# ==================== PULL/PUSH DE CONFIGURACION ====================
+# ==================== CONFIGURACION ====================
 def _config_to_dict(c):
-    return {
-        'id': c.id,
-        'clave': c.clave,
-        'valor': c.valor,
-        'tienda_id': c.tienda_id,
-    }
+    return {'id': c.id, 'clave': c.clave, 'valor': c.valor, 'tienda_id': c.tienda_id}
 
 
 def obtener_config_pendientes_push(tienda_id):
     from app.models.configuracion import Configuracion
     query = Configuracion.query.filter(
-        Configuracion.tienda_id.is_(None),
-        Configuracion.sync_estado == 'pendiente',
+        Configuracion.tienda_id.is_(None), Configuracion.sync_estado == 'pendiente',
     ).all()
     return [_config_to_dict(c) for c in query]
 
 
 def procesar_config_push(tienda_id, configs):
     from app.models.configuracion import Configuracion
-
     aplicadas = 0
     errores = []
-
     for c_data in configs:
         clave = (c_data.get('clave') or '').strip()
         valor = c_data.get('valor')
-
         if not clave or valor is None:
             errores.append(f'Config invalida: {c_data}')
             continue
-
         try:
             existente = Configuracion.query.filter(
-                Configuracion.tienda_id.is_(None),
-                Configuracion.clave == clave,
+                Configuracion.tienda_id.is_(None), Configuracion.clave == clave,
             ).first()
-
             if existente:
                 if existente.valor != str(valor):
-                    print(f'  [push] Config "{clave}": "{existente.valor}" -> "{valor}" '
-                          f'(desde tienda {tienda_id})')
                     existente.valor = str(valor)
             else:
-                existente = Configuracion(
-                    tienda_id=None,
-                    clave=clave,
-                    valor=str(valor),
-                )
+                existente = Configuracion(tienda_id=None, clave=clave, valor=str(valor))
                 db.session.add(existente)
-                print(f'  [push] Config "{clave}" creada en Central')
-
             existente.sync_estado = 'pendiente'
             existente.sync_fecha = datetime.utcnow()
             aplicadas += 1
         except Exception as e:
             errores.append(f'Config {clave}: {e}')
-
     db.session.commit()
     return aplicadas, errores
 
@@ -1340,8 +1175,7 @@ def procesar_config_push(tienda_id, configs):
 def obtener_config_para_tienda(tienda_id, desde=None):
     from app.models.configuracion import Configuracion
     query = Configuracion.query.filter(
-        Configuracion.tienda_id.is_(None),
-        Configuracion.sync_estado == 'pendiente',
+        Configuracion.tienda_id.is_(None), Configuracion.sync_estado == 'pendiente',
     ).order_by(Configuracion.clave).limit(100)
     return [_config_to_dict(c) for c in query.all()]
 
@@ -1350,10 +1184,8 @@ def marcar_config_enviada_tienda(ids_configs):
     from app.models.configuracion import Configuracion
     if not ids_configs:
         return 0
-    n = (Configuracion.query
-         .filter(Configuracion.id.in_(ids_configs))
-         .update({'sync_estado': 'sincronizado',
-                  'sync_fecha': datetime.utcnow()},
+    n = (Configuracion.query.filter(Configuracion.id.in_(ids_configs))
+         .update({'sync_estado': 'sincronizado', 'sync_fecha': datetime.utcnow()},
                  synchronize_session=False))
     db.session.commit()
     return n
@@ -1361,40 +1193,28 @@ def marcar_config_enviada_tienda(ids_configs):
 
 def aplicar_config_recibida(configs):
     from app.models.configuracion import Configuracion
-
     aplicadas = 0
     ids_aplicados = []
-
     for c_data in configs:
         clave = (c_data.get('clave') or '').strip()
         valor = c_data.get('valor')
         if not clave or valor is None:
             continue
-
         existente = Configuracion.query.filter(
-            Configuracion.tienda_id.is_(None),
-            Configuracion.clave == clave,
+            Configuracion.tienda_id.is_(None), Configuracion.clave == clave,
         ).first()
-
         if existente:
             if existente.valor != str(valor):
-                print(f'  [pull] Config "{clave}": "{existente.valor}" -> "{valor}"')
                 existente.valor = str(valor)
             existente.sync_estado = 'sincronizado'
             existente.sync_fecha = datetime.utcnow()
         else:
             existente = Configuracion(
-                tienda_id=None,
-                clave=clave,
-                valor=str(valor),
-                sync_estado='sincronizado',
-                sync_fecha=datetime.utcnow(),
+                tienda_id=None, clave=clave, valor=str(valor),
+                sync_estado='sincronizado', sync_fecha=datetime.utcnow(),
             )
             db.session.add(existente)
-            print(f'  [pull] Config "{clave}" creada: {valor}')
-
         ids_aplicados.append(c_data.get('id'))
         aplicadas += 1
-
     db.session.commit()
     return aplicadas, ids_aplicados
