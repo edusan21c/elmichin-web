@@ -10,6 +10,7 @@ class Producto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(200), unique=True, nullable=False, index=True)
     codigo_barras = db.Column(db.String(50), unique=True, index=True)
+    codigo_global = db.Column(db.String(36), unique=True, index=True, nullable=True)
     categoria = db.Column(db.String(50))
     creado_en = db.Column(db.DateTime, default=datetime.utcnow)
     actualizado_en = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

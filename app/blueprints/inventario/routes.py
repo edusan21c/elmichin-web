@@ -1,3 +1,4 @@
+import uuid
 # app/blueprints/inventario/routes.py
 from flask import render_template, redirect, url_for, flash, request, jsonify, abort, current_app
 from datetime import datetime
@@ -141,6 +142,7 @@ def nuevo():
             nombre=form.nombre.data.strip(),
             codigo_barras=form.codigo_barras.data.strip() if form.codigo_barras.data else None,
             categoria=form.categoria.data or None,
+            codigo_global=str(uuid.uuid4()),
         )
         db.session.add(producto)
         db.session.flush()

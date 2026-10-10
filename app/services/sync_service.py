@@ -1,5 +1,6 @@
 # app/services/sync_service.py
 """Logica de sincronizacion entre tienda y central."""
+import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 from flask import current_app
@@ -191,6 +192,7 @@ def obtener_cambios_pull(tienda_id, desde=None, limite=200):
             'producto_id': p.id,
             'nombre': p.nombre,
             'codigo_barras': p.codigo_barras,
+            'codigo_global': p.codigo_global,
             'categoria': p.categoria,
             'tienda_id': pres.tienda_id,
             'cantidad': int(pres.cantidad or 0),
@@ -245,8 +247,13 @@ def aplicar_cambios_pull(datos):
         if not tienda_id:
             continue
 
+        codigo_global = p_data.get('codigo_global')
+
+        # v2.54: matchear primero por codigo_global, después barcode, después nombre
         producto = None
-        if codigo:
+        if codigo_global:
+            producto = Producto.query.filter_by(codigo_global=codigo_global).first()
+        if not producto and codigo:
             producto = Producto.query.filter_by(codigo_barras=codigo).first()
         if not producto and nombre:
             producto = Producto.query.filter_by(nombre=nombre).first()
@@ -257,6 +264,7 @@ def aplicar_cambios_pull(datos):
                     nombre=nombre or f'Producto {producto_id}',
                     codigo_barras=codigo or None,
                     categoria=p_data.get('categoria') or None,
+                    codigo_global=codigo_global or str(uuid.uuid4()),
                 )
                 db.session.add(producto)
                 db.session.flush()
@@ -264,6 +272,13 @@ def aplicar_cambios_pull(datos):
                 db.session.rollback()
                 print(f'  [pull] No se pudo crear producto {producto_id}: {e}')
                 continue
+        elif codigo_global and producto.codigo_global != codigo_global:
+            # v2.54-fix-alinear-uuid: Central es la fuente de verdad para UUIDs.
+            # Si T1 tenía un UUID distinto para el mismo producto, adoptar el de Central.
+            uuid_viejo = producto.codigo_global[:8] if producto.codigo_global else "None"
+            print(f'  [pull] UUID alineado: "{producto.nombre}" '
+                  f'({uuid_viejo}... -> {codigo_global[:8]}...)')
+            producto.codigo_global = codigo_global
 
         # Barcode
         if producto and codigo and producto.codigo_barras != codigo:
@@ -643,8 +658,13 @@ def procesar_push(tienda_id, datos):
             if not t_id:
                 continue
 
+            codigo_global = p_data.get('codigo_global')
+
+            # v2.54: matchear primero por codigo_global, después barcode, después nombre
             producto = None
-            if codigo:
+            if codigo_global:
+                producto = Producto.query.filter_by(codigo_global=codigo_global).first()
+            if not producto and codigo:
                 producto = Producto.query.filter_by(codigo_barras=codigo).first()
             if not producto and nombre:
                 producto = Producto.query.filter_by(nombre=nombre).first()
@@ -658,6 +678,7 @@ def procesar_push(tienda_id, datos):
                         nombre=nombre or f'Producto {producto_id}',
                         codigo_barras=codigo,
                         categoria=p_data.get('categoria') or None,
+                        codigo_global=codigo_global or str(uuid.uuid4()),
                     )
                     db.session.add(producto)
                     db.session.flush()
@@ -665,6 +686,9 @@ def procesar_push(tienda_id, datos):
                     db.session.rollback()
                     errores.append(f'Producto {producto_id}: no se pudo crear ({e})')
                     continue
+            elif codigo_global and not producto.codigo_global:
+                # Producto existente sin codigo_global → asignarlo
+                producto.codigo_global = codigo_global
 
             # Categoria
             if producto and p_data.get('categoria') is not None:
@@ -1002,6 +1026,7 @@ def obtener_productos_pendientes_push(tienda_id):
             'tienda_id': pres.tienda_id,
             'nombre': prod.nombre if prod else None,
             'codigo_barras': prod.codigo_barras if prod else None,
+            'codigo_global': prod.codigo_global if prod else None,
             'categoria': prod.categoria if prod else None,
             'cantidad': int(pres.cantidad or 0),
             'precio_proveedor': float(pres.precio_proveedor or 0),
