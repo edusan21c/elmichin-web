@@ -8,6 +8,7 @@ from . import bp
 from .forms import ProductoForm, StockForm
 from app.extensions import db
 from app.models.producto import Producto, ProductoTienda
+from app.models.factura import DetalleFactura
 from app.models.tienda import Tienda
 from app.utils.decorators import admin_requerido, programador_requerido
 
@@ -223,11 +224,24 @@ def editar(producto_id):
         viejo_precio = float(pres.precio_venta or 0)
         viejo_prov = float(pres.precio_proveedor or 0)
 
-        producto.nombre = form.nombre.data.strip()
+        nuevo_nombre = form.nombre.data.strip()
+
+        producto.nombre = nuevo_nombre
         producto.codigo_barras = form.codigo_barras.data.strip() if form.codigo_barras.data else None
         producto.categoria = form.categoria.data or None
         producto.modificado_por_nombre = current_user.nombre
         producto.modificado_en = datetime.utcnow()
+
+        # v2.62-fix-rename-historico: actualizar nombre en ventas viejas
+        if viejo_nombre != nuevo_nombre:
+            n_actualizadas = (DetalleFactura.query
+                              .filter_by(producto_id=producto.id,
+                                         producto_nombre=viejo_nombre)
+                              .update({'producto_nombre': nuevo_nombre},
+                                      synchronize_session=False))
+            if n_actualizadas > 0:
+                print(f'[editar] Histórico actualizado: {n_actualizadas} filas '
+                      f'"{viejo_nombre}" -> "{nuevo_nombre}"')
 
         pres.precio_proveedor = form.precio_proveedor.data or 0
         pres.precio_proveedor2 = form.precio_proveedor2.data or 0
@@ -307,6 +321,18 @@ def eliminar(producto_id):
     producto = Producto.query.get_or_404(producto_id)
     nombre = producto.nombre
     pid = producto.id
+
+    # v2.62-fix-no-borrar: bloquear borrado si tiene facturas asociadas
+    # (evita que el ID se reutilice y corrompa históricos)
+    tiene_facturas = DetalleFactura.query.filter_by(producto_id=pid).first()
+    if tiene_facturas:
+        flash(
+            f'No se puede eliminar "{nombre}": tiene ventas asociadas. '
+            f'Si ya no lo vendés, cambialo de categoría o dejaló inactivo.',
+            'danger'
+        )
+        return redirect(url_for('inventario.lista'))
+
     db.session.delete(producto)
     db.session.commit()
 
