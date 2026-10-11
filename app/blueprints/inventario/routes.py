@@ -177,7 +177,9 @@ def nuevo():
         )
 
         flash(f'Producto "{producto.nombre}" creado correctamente.', 'success')
-        return redirect(url_for('inventario.lista'))
+        q = request.args.get('q', '')
+        filtro = request.args.get('filtro', '')
+        return redirect(url_for('inventario.lista', q=q, filtro=filtro))
 
     return render_template('inventario/form.html', form=form, producto=None)
 
@@ -321,6 +323,10 @@ def eliminar(producto_id):
     producto = Producto.query.get_or_404(producto_id)
     nombre = producto.nombre
     pid = producto.id
+    # v2.63-fix-preservar-busqueda: capturar q y filtro para mantener
+    # la búsqueda tras eliminar (o tras el bloqueo por facturas)
+    q = request.args.get('q', '')
+    filtro = request.args.get('filtro', '')
 
     # v2.62-fix-no-borrar: bloquear borrado si tiene facturas asociadas
     # (evita que el ID se reutilice y corrompa históricos)
@@ -331,7 +337,7 @@ def eliminar(producto_id):
             f'Si ya no lo vendés, cambialo de categoría o dejaló inactivo.',
             'danger'
         )
-        return redirect(url_for('inventario.lista'))
+        return redirect(url_for('inventario.lista', q=q, filtro=filtro))
 
     db.session.delete(producto)
     db.session.commit()
@@ -339,7 +345,7 @@ def eliminar(producto_id):
     _audit('producto_eliminar', f'{nombre} (ID {pid})')
 
     flash(f'Producto "{nombre}" eliminado.', 'success')
-    return redirect(url_for('inventario.lista'))
+    return redirect(url_for('inventario.lista', q=q, filtro=filtro))
 
 
 # ==================== ACTUALIZAR STOCK ====================

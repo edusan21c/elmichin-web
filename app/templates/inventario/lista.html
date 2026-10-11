@@ -275,7 +275,7 @@
                                 </a>
                             {% endif %}
                             {% if current_user.es_programador() %}
-                                <form method="POST" action="{{ url_for('inventario.eliminar', producto_id=p.id) }}"
+                                <form method="POST" action="{{ url_for('inventario.eliminar', producto_id=p.id, q=busqueda, filtro=filtro_stock) }}"
                                       class="d-inline"
                                       onsubmit="return confirm('¿Eliminar {{ p.nombre }}?');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -406,7 +406,10 @@ document.querySelectorAll('.btn-stock').forEach(function(btn) {
     });
 
     // 3. Auto-redirigir con búsqueda guardada al entrar sin filtros
-    if (inputQ && !urlParams.has('q') && !urlParams.has('filtro') && !urlParams.has('page')) {
+    // v2.62-fix-flash: NO redirigir si hay un mensaje flash visible
+    // (evita que el mensaje rojo de error desaparezca al recargar)
+    const hayFlash = document.querySelector('.alert-dismissible, .alert-success, .alert-danger, .alert-warning, .alert-info');
+    if (!hayFlash && inputQ && !urlParams.has('q') && !urlParams.has('filtro') && !urlParams.has('page')) {
         const guardado = localStorage.getItem(KEY);
         if (guardado) {
             const url = new URL(window.location.href);
