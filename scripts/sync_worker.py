@@ -143,7 +143,6 @@ def registrar_falla(operacion, error_msg):
     fallas_previas = op.get('fallas', 0)
     fallas = fallas_previas + 1
 
-    # Indice del backoff (maximo el ultimo de la lista)
     idx = min(fallas - 1, len(BACKOFF_MINUTOS) - 1)
     espera_min = BACKOFF_MINUTOS[idx]
 
@@ -159,7 +158,6 @@ def registrar_falla(operacion, error_msg):
     log(f'  {operacion.upper()}: falla {fallas} registrada, '
         f'proximo intento en {espera_min} min')
 
-    # v2.15-alertas: disparar alerta cuando alcanza el umbral exacto
     if fallas == UMBRAL_ALERTA_FALLAS:
         try:
             from flask import current_app
@@ -204,9 +202,7 @@ def detectar_fantasmas(app, tienda_id):
 
 
 def corregir_saldos_negativos(app):
-    """v2.37-fix-saldo-negativo: red de seguridad.
-    Si algun cliente quedo con saldo_actual < 0 por un bug del sync,
-    lo recalcula a partir de las facturas y lo clampea a 0."""
+    """v2.37-fix-saldo-negativo: red de seguridad."""
     from app.models.cliente import Cliente
     from app.models.factura import Factura
 
@@ -240,18 +236,14 @@ def corregir_saldos_negativos(app):
 
 
 def hacer_push(app, central_url, sync_key, tienda_id):
-    """Envia datos pendientes al central (facturas, pagos, clientes, productos).
-    v2.14-backoff: salta si esta en periodo de espera."""
+    """Envia datos pendientes al central."""
     if not puede_intentar('push'):
         return True
 
     with app.app_context():
         pendientes = sync_service.obtener_pendientes_push(tienda_id)
-
         productos_pendientes = sync_service.obtener_productos_pendientes_push(tienda_id)
         pendientes['productos'] = productos_pendientes
-
-        # v2.27-sync-configuracion: agregar configs globales pendientes
         config_pendientes = sync_service.obtener_config_pendientes_push(tienda_id)
         pendientes['configuracion'] = config_pendientes
 
@@ -269,11 +261,7 @@ def hacer_push(app, central_url, sync_key, tienda_id):
             return True
 
         log(f'  PUSH: enviando {total} registros...')
-
-        payload = {
-            'tienda_id': tienda_id,
-            **pendientes,
-        }
+        payload = {'tienda_id': tienda_id, **pendientes}
 
         try:
             r = requests.post(
@@ -289,27 +277,20 @@ def hacer_push(app, central_url, sync_key, tienda_id):
                     sync_service.marcar_sincronizados(tienda_id, data)
                     log(f'  PUSH: OK - {data.get("recibidas", {})}')
                     sync_service.registrar_log(
-                        tienda_id, 'push', 'mixto', total,
-                        True, str(data.get('recibidas', {}))
+                        tienda_id, 'push', 'mixto', total, True, str(data.get('recibidas', {}))
                     )
                     registrar_exito('push')
                     return True
                 else:
                     err = str(data.get('error', 'unknown'))
                     log(f'  PUSH: ERROR - {err}')
-                    sync_service.registrar_log(
-                        tienda_id, 'push', 'mixto', 0,
-                        False, err
-                    )
+                    sync_service.registrar_log(tienda_id, 'push', 'mixto', 0, False, err)
                     registrar_falla('push', err)
                     return False
             else:
                 err = f'HTTP {r.status_code}'
                 log(f'  PUSH: {err}')
-                sync_service.registrar_log(
-                    tienda_id, 'push', 'mixto', 0,
-                    False, err
-                )
+                sync_service.registrar_log(tienda_id, 'push', 'mixto', 0, False, err)
                 registrar_falla('push', err)
                 return False
 
@@ -320,28 +301,20 @@ def hacer_push(app, central_url, sync_key, tienda_id):
 
 
 def hacer_pull(app, central_url, sync_key, tienda_id):
-    """Recibe cambios del central (productos Y facturas).
-    v2.14-pull-lotes: itera en lotes de 200.
-    v2.14-fix-ack: envia header X-Sync-Ack y confirma cada lote aplicado.
-    v2.14-backoff: salta si esta en periodo de espera.
-    v2.15-alertas: alerta en fallas consecutivas."""
+    """Recibe cambios del central (productos Y facturas)."""
     if not puede_intentar('pull'):
         return True
 
     with app.app_context():
         desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
-
-        headers_pull = {
-            'X-Sync-Key': sync_key,
-            'X-Sync-Ack': 'true',
-        }
+        headers_pull = {'X-Sync-Key': sync_key, 'X-Sync-Ack': 'true'}
+        hubo_error_pull = False
 
         # ============ 1. PULL PRODUCTOS (en lotes) ============
         log(f'  PULL productos desde {desde[:10]}...')
         total_productos = 0
         ids_pendientes_ack = []
         MAX_ITERACIONES = 50
-        hubo_error_pull = False
 
         for i in range(MAX_ITERACIONES):
             try:
@@ -363,17 +336,14 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 if not productos:
                     break
 
-                resultado = sync_service.aplicar_cambios_pull(
-                    {'productos': productos}
-                )
+                resultado = sync_service.aplicar_cambios_pull({'productos': productos})
                 aplicados = resultado.get('actualizados', 0)
                 ids_lote = resultado.get('ids_aplicados', [])
 
                 total_productos += aplicados
                 ids_pendientes_ack.extend(ids_lote)
 
-                log(f'  PULL productos lote {i+1}: {aplicados} '
-                    f'actualizados (hay_mas={hay_mas})')
+                log(f'  PULL productos lote {i+1}: {aplicados} actualizados (hay_mas={hay_mas})')
 
                 if not hay_mas:
                     break
@@ -382,7 +352,6 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 hubo_error_pull = True
                 break
 
-        # v2.14-fix-ack: enviar ACK al central con todos los IDs aplicados
         if ids_pendientes_ack:
             try:
                 r = requests.post(
@@ -404,7 +373,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
         else:
             log('  PULL productos: sin cambios')
 
-        # ============ PULL CONFIGURACION GLOBAL (v2.27) ============
+        # ============ 2. PULL CONFIGURACION GLOBAL ============
         try:
             r = requests.get(
                 central_url.rstrip('/') + '/api/sync/pull-config',
@@ -418,7 +387,6 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 if configs:
                     aplicadas, ids_conf = sync_service.aplicar_config_recibida(configs)
                     log(f'  PULL config: {aplicadas} aplicadas')
-                    # ACK a Central para que no las reenvie
                     if ids_conf:
                         try:
                             requests.post(
@@ -429,12 +397,16 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                             )
                         except requests.RequestException:
                             pass
+                else:
+                    log('  PULL config: sin cambios')
+            else:
+                log(f'  PULL config: HTTP {r.status_code}')
+                hubo_error_pull = True
         except requests.RequestException as e:
             log(f'  PULL config: fallo red - {e}')
             hubo_error_pull = True
 
-       
-        # ============ 2. PULL FACTURAS REMOTAS ============
+        # ============ 3. PULL FACTURAS REMOTAS ============
         log(f'  PULL facturas desde {desde[:10]}...')
         try:
             r = requests.get(
@@ -447,15 +419,9 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 datos = r.json()
                 facturas = datos.get('facturas', [])
                 if facturas:
-                    insertadas = sync_service.aplicar_facturas_recibidas(
-                        tienda_id, facturas
-                    )
-                    log(f'  PULL facturas: {insertadas} nuevas '
-                        f'(recibidas {len(facturas)})')
-                    sync_service.registrar_log(
-                        tienda_id, 'pull', 'facturas',
-                        insertadas, True, ''
-                    )
+                    insertadas = sync_service.aplicar_facturas_recibidas(tienda_id, facturas)
+                    log(f'  PULL facturas: {insertadas} nuevas (recibidas {len(facturas)})')
+                    sync_service.registrar_log(tienda_id, 'pull', 'facturas', insertadas, True, '')
                 else:
                     log('  PULL facturas: sin cambios')
             else:
@@ -465,7 +431,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
             log(f'  PULL facturas: fallo red - {e}')
             hubo_error_pull = True
 
-        # ============ 3. PULL PAGOS (v2.24) ============
+        # ============ 4. PULL PAGOS ============
         log(f'  PULL pagos desde {desde[:10]}...')
         try:
             r = requests.get(
@@ -478,11 +444,8 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 datos = r.json()
                 pagos = datos.get('pagos', [])
                 if pagos:
-                    insertados, omitidos, errores = sync_service.aplicar_pagos_recibidos(
-                        tienda_id, pagos
-                    )
-                    log(f'  PULL pagos: {insertados} nuevos, {omitidos} omitidos, '
-                        f'{len(errores)} errores')
+                    insertados, omitidos, errores = sync_service.aplicar_pagos_recibidos(tienda_id, pagos)
+                    log(f'  PULL pagos: {insertados} nuevos, {omitidos} omitidos, {len(errores)} errores')
                     ids_ok = [p['id'] for p in pagos]
                     if ids_ok:
                         try:
@@ -503,7 +466,6 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
             log(f'  PULL pagos: fallo red - {e}')
             hubo_error_pull = True
 
-        # v2.14-backoff: registrar exito o falla (AL FINAL, después de todo)
         if hubo_error_pull:
             registrar_falla('pull', 'Error en algun paso del pull')
         else:
@@ -540,19 +502,15 @@ def main():
 
     log('Conexion al central OK')
 
-    # ============ VERIFICAR FACTURAS FANTASMA ============
     log('--- VERIFICACION (facturas fantasma) ---')
     detectar_fantasmas(app, tienda_id)
 
-    # PUSH
     log('--- PUSH (enviar pendientes) ---')
     hacer_push(app, central_url, sync_key, tienda_id)
 
-    # PULL
     log('--- PULL (recibir cambios) ---')
     hacer_pull(app, central_url, sync_key, tienda_id)
 
-    # v2.37-fix-saldo-negativo: red de seguridad despues de sync
     log('--- FIX SALDOS NEGATIVOS (v2.37) ---')
     corregir_saldos_negativos(app)
 
