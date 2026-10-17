@@ -83,6 +83,7 @@ def sync_pull():
 
     tienda_id = request.args.get('tienda_id', type=int)
     desde = request.args.get('desde', '')
+    desde_id = request.args.get('desde_id', 0, type=int)  # NUEVO
 
     if not tienda_id or tienda_id <= 0:
         return jsonify({'ok': False, 'error': 'tienda_id requerido', 'productos': []}), 400
@@ -90,7 +91,7 @@ def sync_pull():
     # v2.14-fix-ack: detectar si el cliente soporta ACK
     soporta_ack = request.headers.get('X-Sync-Ack', '').lower() == 'true'
 
-    datos = sync_service.obtener_cambios_pull(tienda_id, desde)
+    datos = sync_service.obtener_cambios_pull(tienda_id, desde, desde_id)  # NUEVO: pasar desde_id
 
     # v2.12-fix-A / v2.14-fix-ack: marcar al servir SOLO si el cliente NO usa ACK
     if not soporta_ack:

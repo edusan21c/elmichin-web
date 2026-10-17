@@ -3,6 +3,7 @@
 # v2.14-backoff: retry exponencial en fallas de push/pull.
 # v2.15-alertas: notificaciones por Telegram en fallas consecutivas.
 # v2.37-fix-saldo-negativo: sanitizador de clientes con saldo negativo.
+# v2.66-fix-paginacion: paginacion por desde_id para evitar 10.000 vueltas.
 
 import os
 import sys
@@ -309,6 +310,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
         desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
         headers_pull = {'X-Sync-Key': sync_key, 'X-Sync-Ack': 'true'}
         hubo_error_pull = False
+        desde_id = 0  # NUEVO: Paginación
 
         # ============ 1. PULL PRODUCTOS (en lotes) ============
         log(f'  PULL productos desde {desde[:10]}...')
@@ -320,7 +322,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
             try:
                 r = requests.get(
                     central_url.rstrip('/') + '/api/sync/pull',
-                    params={'tienda_id': tienda_id, 'desde': desde},
+                    params={'tienda_id': tienda_id, 'desde': desde, 'desde_id': desde_id}, # NUEVO
                     headers=headers_pull,
                     timeout=TIMEOUT_REQUEST,
                 )
@@ -332,6 +334,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 datos = r.json()
                 productos = datos.get('productos', [])
                 hay_mas = datos.get('hay_mas', False)
+                ultimo_id = datos.get('ultimo_id', desde_id) # NUEVO
 
                 if not productos:
                     break
@@ -342,6 +345,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
 
                 total_productos += aplicados
                 ids_pendientes_ack.extend(ids_lote)
+                desde_id = ultimo_id # NUEVO: actualizar para el siguiente lote
 
                 log(f'  PULL productos lote {i+1}: {aplicados} actualizados (hay_mas={hay_mas})')
 

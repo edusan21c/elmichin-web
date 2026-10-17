@@ -163,16 +163,17 @@ def marcar_sincronizados(tienda_id, resultado):
 
 
 # ==================== PULL (CENTRAL -> TIENDA) ====================
-def obtener_cambios_pull(tienda_id, desde=None, limite=200):
+def obtener_cambios_pull(tienda_id, desde=None, desde_id=0, limite=200):
     if not tienda_id:
         return {'productos': [], 'timestamp': datetime.utcnow().isoformat(),
-                'hay_mas': False}
+                'hay_mas': False, 'ultimo_id': 0}
 
     query = (db.session.query(Producto, ProductoTienda)
              .join(ProductoTienda, Producto.id == ProductoTienda.producto_id)
              .filter(
                  ProductoTienda.tienda_id == tienda_id,
-                 ProductoTienda.sync_estado == 'pendiente'
+                 ProductoTienda.sync_estado == 'pendiente',
+                 ProductoTienda.producto_id > desde_id  # NUEVO: Paginación
              )
              .order_by(ProductoTienda.producto_id)
              .limit(limite + 1))
@@ -185,6 +186,7 @@ def obtener_cambios_pull(tienda_id, desde=None, limite=200):
         'productos': [],
         'timestamp': datetime.utcnow().isoformat(),
         'hay_mas': hay_mas,
+        'ultimo_id': registros[-1][1].producto_id if registros else desde_id # NUEVO: Devolver el último ID
     }
 
     for p, pres in registros:
@@ -212,7 +214,6 @@ def obtener_cambios_pull(tienda_id, desde=None, limite=200):
         })
 
     return resultado
-
 
 def marcar_productos_ack(tienda_id, ids_productos):
     if not ids_productos or not tienda_id:
