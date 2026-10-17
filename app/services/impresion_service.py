@@ -171,6 +171,17 @@ def generar_ticket_escpos(factura, detalles, cliente, tienda, config, config_tie
     partes.append(_texto('No se aceptan reclamos sin factura'))
     partes.append(b'\n')
 
+    # ==================== FIRMA DEL DESARROLLADOR ====================
+    partes.append(_texto('-' * W))
+    partes.append(b'\n')
+    partes.append(_texto('Sistema de facturacion desarrollado por'))
+    partes.append(b'\n')
+    partes.append(_texto('Jean Eduar Sanchez C'))
+    partes.append(b'\n')
+    partes.append(_texto('Cel: 3144914897'))
+    partes.append(b'\n')
+    # ===================================================================
+
     # Feed final + corte + beep
     partes.append(CMD_FEED)
     partes.append(CMD_BEEP)
