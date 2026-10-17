@@ -75,7 +75,18 @@
                 <div class="text-muted small">TOTAL A COBRAR</div>
                 <div id="lbl-total" class="display-3 fw-bold text-success mb-3">$0</div>
 
-                <div class="mb-3">
+                <!-- Selector de método de pago -->
+                <div class="mb-3 text-start">
+                    <label class="form-label fw-bold">Método de pago:</label>
+                    <select id="select-metodo-pago" class="form-select form-select-lg">
+                        <option value="efectivo" selected>Efectivo</option>
+                        <option value="nequi">Nequi (+{{ recargo_porcentaje }}%)</option>
+                        <option value="daviplata">Daviplata (+{{ recargo_porcentaje }}%)</option>
+                    </select>
+                </div>
+
+                <!-- Campo de pago (solo para efectivo) -->
+                <div class="mb-3" id="div-pagado-efectivo">
                     <label class="form-label">Con cuánto paga</label>
                     <div class="input-group input-group-lg">
                         <span class="input-group-text">$</span>
@@ -115,6 +126,7 @@
         urlBuscarProductos: "{{ url_for('venta_rapida.api_productos') }}",
         urlCrear: "{{ url_for('venta_rapida.crear') }}",
         csrfToken: "{{ csrf_token() }}",
+        recargoPorcentaje: {{ recargo_porcentaje or 0.4 }},
     };
 </script>
 <script src="{{ url_for('static', filename='js/michin-modal.js') }}"></script>

@@ -8,7 +8,7 @@ from app.extensions import db
 from app.models.producto import Producto, ProductoTienda
 from app.models.tienda import Tienda
 from app.services.facturacion_service import crear_factura_completa
-
+from app.blueprints.configuracion.routes import get_valor
 
 def tienda_actual():
     if current_user.es_programador():
@@ -19,18 +19,24 @@ def tienda_actual():
         return primera.id if primera else None
     return current_user.tienda_id
 
-
 @bp.route('/')
 @login_required
 def nueva():
     tienda_id = tienda_actual()
     tiendas = Tienda.query.filter_by(activa=True).all()
+    
+    # Leer recargo dinámico de la configuración
+    try:
+        recargo = float(get_valor('recargo_nequi', None) or 0.4)
+    except (ValueError, TypeError):
+        recargo = 0.4
+
     return render_template(
         'venta_rapida/nueva.html',
         tienda_id=tienda_id,
         tiendas=tiendas,
+        recargo_porcentaje=recargo,
     )
-
 
 @bp.route('/api/productos')
 @login_required
@@ -49,7 +55,6 @@ def api_productos():
     empieza_con_numero = q[0].isdigit() if q else False
 
     if empieza_con_numero:
-        # Buscar por barcode primero
         productos = (Producto.query
                      .filter(Producto.codigo_barras.ilike(f'%{q}%'))
                      .order_by(Producto.nombre)
@@ -62,7 +67,6 @@ def api_productos():
                          .limit(20)
                          .all())
     else:
-        # Buscar por nombre primero (con unaccent)
         productos = (Producto.query
                      .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
                      .limit(50)
@@ -108,7 +112,6 @@ def api_productos():
 
     return jsonify(resultados)
 
-
 @bp.route('/crear', methods=['POST'])
 @login_required
 def crear():
@@ -132,17 +135,34 @@ def crear():
     except Exception as e:
         return jsonify({'ok': False, 'error': f'Error calculando total: {e}'}), 400
 
+    metodo = data.get('metodo_pago', 'efectivo')
+    
+    # Leer recargo dinámico de la configuración
+    try:
+        recargo_porcentaje = Decimal(str(get_valor('recargo_nequi', None) or 0.4))
+    except (ValueError, TypeError):
+        recargo_porcentaje = Decimal('0.4')
+
+    if metodo not in ('nequi', 'daviplata'):
+        recargo_porcentaje = Decimal('0')
+        
+    recargo_valor = Decimal('0')
+    if recargo_porcentaje > 0:
+        recargo_valor = total * (recargo_porcentaje / Decimal('100'))
+        
+    total_con_recargo = total + recargo_valor
+
     try:
         factura_id, error = crear_factura_completa(
             tienda_id=tienda_id,
             usuario_id=current_user.id,
             cliente_data={'nombre': 'Venta Rápida'},
             carrito=carrito,
-            metodo_pago='efectivo',
-            recargo_porcentaje=Decimal('0'),
+            metodo_pago=metodo,
+            recargo_porcentaje=recargo_porcentaje,
             bolsas_cantidad=0,
             valor_bolsa=Decimal('0'),
-            valor_pagado=total,
+            valor_pagado=total_con_recargo,
             precio_manual=bool(data.get('precio_manual', False)),
         )
     except Exception as e:

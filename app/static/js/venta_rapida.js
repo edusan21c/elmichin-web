@@ -13,6 +13,7 @@
         carrito: [],
         valorPagado: '',
         modoPrecioLibre: false,
+        metodoPago: 'efectivo',
     };
 
     function guardarEstado() {
@@ -33,6 +34,7 @@
                     carrito: data.carrito || [],
                     valorPagado: data.valorPagado || '',
                     modoPrecioLibre: !!data.modoPrecioLibre,
+                    metodoPago: data.metodoPago || 'efectivo',
                 };
             }
         } catch (e) {
@@ -82,7 +84,6 @@
         timeout = setTimeout(() => buscar(q), 150);
     });
 
-    // v2.16-flechas-busqueda: navegacion con flechas arriba/abajo
     let indiceActivo = -1;
 
     function actualizarActivo(items) {
@@ -133,7 +134,7 @@
 
     function pintarResultados(data) {
         resultados.innerHTML = '';
-        indiceActivo = -1;  // v2.16-flechas-busqueda: resetear navegacion
+        indiceActivo = -1;
         if (!data.length) {
             resultados.innerHTML = '<div class="list-group-item text-muted text-center py-3">Sin resultados o sin stock</div>';
             return;
@@ -296,12 +297,20 @@
 
     // ==================== TOTAL + VUELTAS ====================
     function renderTotal() {
-        const total = estado.carrito.reduce((s, it) => s + it.subtotal, 0);
-        $('#lbl-total').textContent = fmt(total);
+        let total = estado.carrito.reduce((s, it) => s + it.subtotal, 0);
+        
+        let recargo = 0;
+        if (estado.metodoPago === 'nequi' || estado.metodoPago === 'daviplata') {
+            const pct = (CFG.recargoPorcentaje || 0.4) / 100;
+            recargo = total * pct;
+        }
+        
+        const totalFinal = total + recargo;
+        $('#lbl-total').textContent = fmt(totalFinal);
 
         const pagado = parseFloat(estado.valorPagado) || 0;
         if (pagado > 0) {
-            const vueltas = pagado - total;
+            const vueltas = pagado - totalFinal;
             if (vueltas >= 0) {
                 $('#lbl-vueltas').innerHTML = `<span class="text-success">Vueltas: ${fmt(vueltas)}</span>`;
             } else {
@@ -329,6 +338,22 @@
         });
     }
 
+    // ==================== SELECTOR DE METODO DE PAGO ====================
+    const selectMetodo = $('#select-metodo-pago');
+    if (selectMetodo) {
+        selectMetodo.addEventListener('change', function() {
+            estado.metodoPago = this.value;
+            if (this.value === 'efectivo') {
+                $('#div-pagado-efectivo').classList.remove('d-none');
+            } else {
+                $('#div-pagado-efectivo').classList.add('d-none');
+                estado.valorPagado = '';
+            }
+            guardarEstado();
+            renderTotal();
+        });
+    }
+
     // ==================== COBRAR ====================
     $('#btn-finalizar').addEventListener('click', async function() {
         const carrito = estado.carrito;
@@ -338,15 +363,24 @@
             return;
         }
 
-        const total = carrito.reduce((s, it) => s + it.subtotal, 0);
-        const pagado = parseFloat(estado.valorPagado) || 0;
+        const totalBase = carrito.reduce((s, it) => s + it.subtotal, 0);
+        let recargo = 0;
+        if (estado.metodoPago === 'nequi' || estado.metodoPago === 'daviplata') {
+            const pct = (CFG.recargoPorcentaje || 0.4) / 100;
+            recargo = totalBase * pct;
+        }
+        const total = totalBase + recargo;
+        
+        let pagado = parseFloat(estado.valorPagado) || 0;
+        if (estado.metodoPago !== 'efectivo') {
+            pagado = total;
+        }
 
         if (pagado < total - 0.01) {
             alert(`Faltan ${fmt(total - pagado)} para completar el pago`);
             return;
         }
 
-        // v2.16-precio-libre: detectar si algun item tiene precio editado
         const tienePrecioManual = carrito.some(it => it.precio_editado === true);
 
         const payload = {
@@ -356,6 +390,7 @@
                 precio_unitario: it.precio_unitario,
             })),
             precio_manual: tienePrecioManual,
+            metodo_pago: estado.metodoPago,
         };
 
         const btn = this;
@@ -490,6 +525,14 @@
     // Restaurar switch de precio libre
     if (switchPrecio) {
         switchPrecio.checked = !!estado.modoPrecioLibre;
+    }
+
+    // Restaurar método de pago
+    if (selectMetodo) {
+        selectMetodo.value = estado.metodoPago;
+        if (estado.metodoPago !== 'efectivo') {
+            $('#div-pagado-efectivo').classList.add('d-none');
+        }
     }
 
     renderCarrito();
