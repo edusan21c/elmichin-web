@@ -256,6 +256,8 @@ def crear_factura_completa(
         db.session.add(venta)
 
         item['presentacion'].cantidad = item['presentacion'].cantidad - item['cantidad']
+        item['presentacion'].sync_estado = 'pendiente'
+        item['presentacion'].sync_fecha = None
 
     if saldo_pendiente > 0:
         cliente.saldo_actual = redondear(Decimal(str(cliente.saldo_actual or 0)) + saldo_pendiente)
