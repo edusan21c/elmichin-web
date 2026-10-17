@@ -25,7 +25,6 @@ def nueva():
     tienda_id = tienda_actual()
     tiendas = Tienda.query.filter_by(activa=True).all()
     
-    # Leer recargo dinámico de la configuración
     try:
         recargo = float(get_valor('recargo_nequi', None) or 0.4)
     except (ValueError, TypeError):
@@ -41,7 +40,6 @@ def nueva():
 @bp.route('/api/productos')
 @login_required
 def api_productos():
-    """v2.60: numero → barcode primero. Letra → nombre primero."""
     q = request.args.get('q', '', type=str).strip()
     if not q:
         return jsonify([])
@@ -57,59 +55,40 @@ def api_productos():
     if empieza_con_numero:
         productos = (Producto.query
                      .filter(Producto.codigo_barras.ilike(f'%{q}%'))
-                     .order_by(Producto.nombre)
-                     .limit(20)
-                     .all())
+                     .order_by(Producto.nombre).limit(20).all())
         if not productos:
             productos = (Producto.query
                          .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
-                         .order_by(Producto.nombre)
-                         .limit(20)
-                         .all())
+                         .order_by(Producto.nombre).limit(20).all())
     else:
         productos = (Producto.query
                      .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
-                     .limit(50)
-                     .all())
-
+                     .limit(50).all())
         if productos:
             def prioridad(prod):
                 nombre_lower = (prod.nombre or '').lower()
-                if nombre_lower.startswith(q_lower):
-                    return (1, nombre_lower)
+                if nombre_lower.startswith(q_lower): return (1, nombre_lower)
                 for palabra in nombre_lower.split():
-                    if palabra.startswith(q_lower):
-                        return (2, nombre_lower)
+                    if palabra.startswith(q_lower): return (2, nombre_lower)
                 return (3, nombre_lower)
             productos = sorted(productos, key=prioridad)[:20]
         else:
             productos = (Producto.query
                          .filter(Producto.codigo_barras.ilike(f'%{q}%'))
-                         .order_by(Producto.nombre)
-                         .limit(20)
-                         .all())
+                         .order_by(Producto.nombre).limit(20).all())
 
     resultados = []
     for p in productos:
-        pres = ProductoTienda.query.filter_by(
-            producto_id=p.id, tienda_id=tienda_id
-        ).first()
+        pres = ProductoTienda.query.filter_by(producto_id=p.id, tienda_id=tienda_id).first()
         if not pres or pres.cantidad <= 0:
             continue
         resultados.append({
-            'id': p.id,
-            'nombre': p.nombre,
-            'codigo': p.codigo_barras or '',
-            'stock': pres.cantidad,
-            'precio': float(pres.precio_venta or 0),
-            'condicion1': pres.condicion1 or '',
-            'precio1': float(pres.precio_venta1 or 0),
-            'condicion2': pres.condicion2 or '',
-            'precio2': float(pres.precio_venta2 or 0),
-            'condicion3': pres.condicion3 or '',
-            'precio3': float(pres.precio_venta3 or 0),
+            'id': p.id, 'nombre': p.nombre, 'codigo': p.codigo_barras or '',
+            'stock': pres.cantidad, 'precio': float(pres.precio_venta or 0),
+            'condicion1': pres.condicion1 or '', 'precio1': float(pres.precio_venta1 or 0),
+            'condicion2': pres.condicion2 or '', 'precio2': float(pres.precio_venta2 or 0),
+            'condicion3': pres.condicion3 or '', 'precio3': float(pres.precio_venta3 or 0),
         })
-
     return jsonify(resultados)
 
 @bp.route('/crear', methods=['POST'])
@@ -128,26 +107,25 @@ def crear():
         return jsonify({'ok': False, 'error': 'El carrito esta vacio'}), 400
 
     try:
-        total = sum(
-            Decimal(str(it['precio_unitario'])) * int(it['cantidad'])
-            for it in carrito
-        )
+        total = sum(Decimal(str(it['precio_unitario'])) * int(it['cantidad']) for it in carrito)
     except Exception as e:
         return jsonify({'ok': False, 'error': f'Error calculando total: {e}'}), 400
 
     metodo = data.get('metodo_pago', 'efectivo')
+    pagos_recibidos = data.get('pagos', None)
     
-    # Leer recargo dinámico de la configuración
-    try:
-        recargo_porcentaje = Decimal(str(get_valor('recargo_nequi', None) or 0.4))
-    except (ValueError, TypeError):
-        recargo_porcentaje = Decimal('0.4')
+    recargo_porcentaje = Decimal('0')
+    if metodo in ('nequi', 'daviplata', 'mixto'):
+        try:
+            recargo_porcentaje = Decimal(str(get_valor('recargo_nequi', None) or 0.4))
+        except (ValueError, TypeError):
+            recargo_porcentaje = Decimal('0.4')
 
-    if metodo not in ('nequi', 'daviplata'):
+    if metodo not in ('nequi', 'daviplata', 'mixto'):
         recargo_porcentaje = Decimal('0')
         
     recargo_valor = Decimal('0')
-    if recargo_porcentaje > 0:
+    if recargo_porcentaje > 0 and metodo != 'mixto':
         recargo_valor = total * (recargo_porcentaje / Decimal('100'))
         
     total_con_recargo = total + recargo_valor
@@ -162,8 +140,9 @@ def crear():
             recargo_porcentaje=recargo_porcentaje,
             bolsas_cantidad=0,
             valor_bolsa=Decimal('0'),
-            valor_pagado=total_con_recargo,
+            valor_pagado=total_con_recargo if metodo != 'mixto' else Decimal('0'),
             precio_manual=bool(data.get('precio_manual', False)),
+            pagos=pagos_recibidos,
         )
     except Exception as e:
         import traceback
