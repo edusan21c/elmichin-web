@@ -2,184 +2,190 @@
 {% block titulo %}{{ 'Editar' if producto else 'Nuevo' }} Producto{% endblock %}
 
 {% block contenido %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">
-        <i class="bi bi-{{ 'pencil' if producto else 'plus-circle' }}"></i>
-        {{ 'Editar producto' if producto else 'Nuevo producto' }}
-    </h1>
-    <a href="{{ url_for('inventario.lista') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> Volver
-    </a>
-</div>
+{% if tienda_actual_obj and tienda_actual_obj.id == 1 %}
+    {% set bg_color = '#e3f2fd' %}
+    {% set alert_color = 'alert-primary' %}
+{% elif tienda_actual_obj and tienda_actual_obj.id == 2 %}
+    {% set bg_color = '#e8f5e9' %}
+    {% set alert_color = 'alert-success' %}
+{% else %}
+    {% set bg_color = '#f8f9fa' %}
+    {% set alert_color = 'alert-secondary' %}
+{% endif %}
 
-<form method="POST" novalidate>
-    {{ form.hidden_tag() }}
+<div class="p-4" style="background-color: {{ bg_color }}; border-radius: 10px;">
 
-    <div class="row g-3">
-        <!-- ==================== COLUMNA IZQUIERDA ==================== -->
-        <div class="col-lg-7">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">
+            <i class="bi bi-{{ 'pencil' if producto else 'plus-circle' }}"></i>
+            {{ 'Editar producto' if producto else 'Nuevo producto' }}
+        </h1>
+        <a href="{{ url_for('inventario.lista', tienda=tienda_actual_obj.id if tienda_actual_obj else '') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
 
-            <!-- Datos básicos -->
-            <div class="card mb-3">
-                <div class="card-header bg-white fw-semibold">
-                    <i class="bi bi-info-circle"></i> Datos básicos
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        {{ form.nombre.label(class="form-label") }}
-                        {{ form.nombre(class="form-control" + (" is-invalid" if form.nombre.errors else ""), placeholder="Ej: Coca-Cola 400ml") }}
-                        {% for error in form.nombre.errors %}
-                            <div class="invalid-feedback">{{ error }}</div>
-                        {% endfor %}
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            {{ form.codigo_barras.label(class="form-label") }}
-                            {{ form.codigo_barras(class="form-control", placeholder="Opcional") }}
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            {{ form.categoria.label(class="form-label") }}
-                            {{ form.categoria(class="form-select") }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Precios por cantidad -->
-            <div class="card mb-3">
-                <div class="card-header bg-white fw-semibold">
-                    <i class="bi bi-tags"></i> Precios por cantidad (opcional)
-                </div>
-                <div class="card-body">
-                    <p class="text-muted small mb-3">
-                        Si el cliente compra una cantidad mayor o igual a la indicada, se aplica el precio especial.
-                    </p>
-
-                    <!-- Condición 1 -->
-                    <div class="row g-2 mb-2">
-                        <div class="col-md-4">
-                            {{ form.condicion1(class="form-control", placeholder="Ej: 3") }}
-                        </div>
-                        <div class="col-md-8">
-                            <div class="input-group">
-                                <span class="input-group-text">$</span>
-                                {{ form.precio_venta1(class="form-control") }}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-4"><small class="text-muted">Cant. mínima 1</small></div>
-                        <div class="col-md-8"><small class="text-muted">Precio unitario con descuento 1</small></div>
-                    </div>
-
-                    <!-- Condición 2 -->
-                    <div class="row g-2 mb-2">
-                        <div class="col-md-4">
-                            {{ form.condicion2(class="form-control", placeholder="Ej: 6") }}
-                        </div>
-                        <div class="col-md-8">
-                            <div class="input-group">
-                                <span class="input-group-text">$</span>
-                                {{ form.precio_venta2(class="form-control") }}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-4"><small class="text-muted">Cant. mínima 2</small></div>
-                        <div class="col-md-8"><small class="text-muted">Precio unitario con descuento 2</small></div>
-                    </div>
-
-                    <!-- Condición 3 -->
-                    <div class="row g-2 mb-2">
-                        <div class="col-md-4">
-                            {{ form.condicion3(class="form-control", placeholder="Ej: 12") }}
-                        </div>
-                        <div class="col-md-8">
-                            <div class="input-group">
-                                <span class="input-group-text">$</span>
-                                {{ form.precio_venta3(class="form-control") }}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row g-2">
-                        <div class="col-md-4"><small class="text-muted">Cant. mínima 3</small></div>
-                        <div class="col-md-8"><small class="text-muted">Precio unitario con descuento 3</small></div>
-                    </div>
-                </div>
-            </div>
-
+    {% if tienda_actual_obj %}
+    <div class="alert {{ alert_color }} d-flex align-items-center mb-4 shadow-sm">
+        <i class="bi bi-shop fs-2 me-3"></i>
+        <div>
+            <h5 class="alert-heading mb-1">Editando inventario de: <strong>{{ tienda_actual_obj.nombre }}</strong></h5>
+            <p class="mb-0 small">Los cambios de precio y stock se guardarán <strong>exclusivamente para esta tienda</strong>.</p>
         </div>
+    </div>
+    {% endif %}
 
-        <!-- ==================== COLUMNA DERECHA ==================== -->
-        <div class="col-lg-5">
+    <form method="POST" novalidate>
+        {{ form.hidden_tag() }}
 
-            <!-- Precios de proveedor -->
-            <div class="card mb-3">
-                <div class="card-header bg-white fw-semibold">
-                    <i class="bi bi-truck"></i> Precios de proveedor
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        {{ form.precio_proveedor.label(class="form-label") }}
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            {{ form.precio_proveedor(class="form-control", placeholder="0") }}
-                        </div>
+        <div class="row g-3">
+            <!-- ==================== COLUMNA IZQUIERDA ==================== -->
+            <div class="col-lg-7">
+                <div class="card mb-3">
+                    <div class="card-header bg-white fw-semibold">
+                        <i class="bi bi-info-circle"></i> Datos básicos
                     </div>
-                    <div class="mb-3">
-                        {{ form.precio_proveedor2.label(class="form-label") }}
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            {{ form.precio_proveedor2(class="form-control", placeholder="0") }}
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        {{ form.precio_proveedor3.label(class="form-label") }}
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            {{ form.precio_proveedor3(class="form-control", placeholder="0") }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Precio de venta -->
-            <div class="card mb-3 border-primary">
-                <div class="card-header bg-primary text-white fw-semibold">
-                    <i class="bi bi-cash-coin"></i> Precio de venta
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        {{ form.precio_venta.label(class="form-label fw-bold") }}
-                        <div class="input-group input-group-lg">
-                            <span class="input-group-text">$</span>
-                            {{ form.precio_venta(class="form-control" + (" is-invalid" if form.precio_venta.errors else ""), placeholder="0") }}
-                            {% for error in form.precio_venta.errors %}
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ form.nombre.label(class="form-label") }}
+                            {{ form.nombre(class="form-control" + (" is-invalid" if form.nombre.errors else ""), placeholder="Ej: Coca-Cola 400ml") }}
+                            {% for error in form.nombre.errors %}
                                 <div class="invalid-feedback">{{ error }}</div>
                             {% endfor %}
                         </div>
-                    </div>
-                    <div class="mb-0">
-                        {{ form.porcentaje.label(class="form-label") }}
-                        <div class="input-group">
-                            {{ form.porcentaje(class="form-control", placeholder="0") }}
-                            <span class="input-group-text">%</span>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.codigo_barras.label(class="form-label") }}
+                                {{ form.codigo_barras(class="form-control", placeholder="Opcional") }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.categoria.label(class="form-label") }}
+                                {{ form.categoria(class="form-select") }}
+                            </div>
                         </div>
-                        <small class="text-muted">% de ganancia sobre el costo promedio</small>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header bg-white fw-semibold">
+                        <i class="bi bi-tags"></i> Precios por cantidad (opcional)
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Si el cliente compra una cantidad mayor o igual a la indicada, se aplica el precio especial.</p>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-4">
+                                {{ form.condicion1(class="form-control", placeholder="Ej: 3") }}
+                            </div>
+                            <div class="col-md-8">
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.precio_venta1(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4"><small class="text-muted">Cant. mínima 1</small></div>
+                            <div class="col-md-8"><small class="text-muted">Precio unitario con descuento 1</small></div>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-4">
+                                {{ form.condicion2(class="form-control", placeholder="Ej: 6") }}
+                            </div>
+                            <div class="col-md-8">
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.precio_venta2(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4"><small class="text-muted">Cant. mínima 2</small></div>
+                            <div class="col-md-8"><small class="text-muted">Precio unitario con descuento 2</small></div>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-4">
+                                {{ form.condicion3(class="form-control", placeholder="Ej: 12") }}
+                            </div>
+                            <div class="col-md-8">
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.precio_venta3(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-md-4"><small class="text-muted">Cant. mínima 3</small></div>
+                            <div class="col-md-8"><small class="text-muted">Precio unitario con descuento 3</small></div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Botones -->
-            <div class="d-grid gap-2">
-                {{ form.submit(class="btn btn-primary btn-lg") }}
-                <a href="{{ url_for('inventario.lista') }}" class="btn btn-outline-secondary">
-                    Cancelar
-                </a>
-            </div>
+            <!-- ==================== COLUMNA DERECHA ==================== -->
+            <div class="col-lg-5">
+                <div class="card mb-3">
+                    <div class="card-header bg-white fw-semibold">
+                        <i class="bi bi-truck"></i> Precios de proveedor
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ form.precio_proveedor.label(class="form-label") }}
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                {{ form.precio_proveedor(class="form-control", placeholder="0") }}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            {{ form.precio_proveedor2.label(class="form-label") }}
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                {{ form.precio_proveedor2(class="form-control", placeholder="0") }}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            {{ form.precio_proveedor3.label(class="form-label") }}
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                {{ form.precio_proveedor3(class="form-control", placeholder="0") }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
+                <div class="card mb-3 border-primary">
+                    <div class="card-header bg-primary text-white fw-semibold">
+                        <i class="bi bi-cash-coin"></i> Precio de venta
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ form.precio_venta.label(class="form-label fw-bold") }}
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text">$</span>
+                                {{ form.precio_venta(class="form-control" + (" is-invalid" if form.precio_venta.errors else ""), placeholder="0") }}
+                                {% for error in form.precio_venta.errors %}
+                                    <div class="invalid-feedback">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="mb-0">
+                            {{ form.porcentaje.label(class="form-label") }}
+                            <div class="input-group">
+                                {{ form.porcentaje(class="form-control", placeholder="0") }}
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <small class="text-muted">% de ganancia sobre el costo promedio</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    {{ form.submit(class="btn btn-primary btn-lg") }}
+                    <a href="{{ url_for('inventario.lista', tienda=tienda_actual_obj.id if tienda_actual_obj else '') }}" class="btn btn-outline-secondary">
+                        Cancelar
+                    </a>
+                </div>
+            </div>
         </div>
-    </div>
-</form>
+    </form>
+</div>
 {% endblock %}

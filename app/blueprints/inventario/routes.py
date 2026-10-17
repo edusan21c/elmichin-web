@@ -14,14 +14,10 @@ from app.utils.decorators import admin_requerido, programador_requerido
 
 
 def es_central():
-    """v2.23: True si esta instancia corre en el servidor central."""
     return current_app.config.get('MODO', 'tienda_local') == 'central'
 
 
 def tienda_actual():
-    # v2.23-selector-admin-solo-central:
-    # Solo admin/programador EN CENTRAL puede cambiar de tienda.
-    # En tiendas, siempre la tienda del usuario (o primera si programador local).
     if es_central() and (current_user.es_programador() or current_user.es_admin()):
         tid = request.args.get('tienda', type=int)
         if tid:
@@ -57,15 +53,11 @@ def lista():
     per_page = 20
 
     query = Producto.query
-
     if busqueda:
-        query = query.filter(
-            or_(
-                Producto.nombre.ilike(f'%{busqueda}%'),
-                Producto.codigo_barras.ilike(f'%{busqueda}%')
-            )
-        )
-
+        query = query.filter(or_(
+            Producto.nombre.ilike(f'%{busqueda}%'),
+            Producto.codigo_barras.ilike(f'%{busqueda}%')
+        ))
     query = query.order_by(Producto.nombre)
 
     if filtro_stock and tienda_id:
@@ -95,15 +87,13 @@ def lista():
         })
 
     tiendas = Tienda.query.filter_by(activa=True).all()
+    tienda_actual_obj = Tienda.query.get(tienda_id) if tienda_id else None
 
     contadores = {'total': 0, 'sin_stock': 0, 'bajo': 0}
     if tienda_id:
         contadores['total'] = ProductoTienda.query.filter_by(tienda_id=tienda_id).count()
-        contadores['sin_stock'] = ProductoTienda.query.filter_by(
-            tienda_id=tienda_id).filter(ProductoTienda.cantidad <= 0).count()
-        contadores['bajo'] = ProductoTienda.query.filter_by(
-            tienda_id=tienda_id).filter(
-            ProductoTienda.cantidad.between(1, 5)).count()
+        contadores['sin_stock'] = ProductoTienda.query.filter_by(tienda_id=tienda_id).filter(ProductoTienda.cantidad <= 0).count()
+        contadores['bajo'] = ProductoTienda.query.filter_by(tienda_id=tienda_id).filter(ProductoTienda.cantidad.between(1, 5)).count()
 
     return render_template(
         'inventario/lista.html',
@@ -112,6 +102,7 @@ def lista():
         busqueda=busqueda,
         filtro_stock=filtro_stock,
         tienda_id=tienda_id,
+        tienda_actual_obj=tienda_actual_obj,
         tiendas=tiendas,
         puede_editar=puede_editar(),
         contadores=contadores,
@@ -125,19 +116,21 @@ def lista():
 @admin_requerido
 def nuevo():
     form = ProductoForm()
+    tienda_id = tienda_actual()
+    tienda_actual_obj = Tienda.query.get(tienda_id) if tienda_id else None
+
     if form.validate_on_submit():
         existente = Producto.query.filter_by(nombre=form.nombre.data.strip()).first()
         if existente:
             flash('Ya existe un producto con ese nombre.', 'danger')
-            return render_template('inventario/form.html', form=form, producto=None)
+            return render_template('inventario/form.html', form=form, producto=None, tienda_actual_obj=tienda_actual_obj)
 
-        # v2.16-validar-codigo: el codigo de barras debe ser unico
         codigo_nuevo = form.codigo_barras.data.strip() if form.codigo_barras.data else None
         if codigo_nuevo:
             existe_codigo = Producto.query.filter_by(codigo_barras=codigo_nuevo).first()
             if existe_codigo:
                 flash(f'Ya existe un producto con el codigo "{codigo_nuevo}": {existe_codigo.nombre}', 'danger')
-                return render_template('inventario/form.html', form=form, producto=None)
+                return render_template('inventario/form.html', form=form, producto=None, tienda_actual_obj=tienda_actual_obj)
 
         producto = Producto(
             nombre=form.nombre.data.strip(),
@@ -150,38 +143,27 @@ def nuevo():
         db.session.add(producto)
         db.session.flush()
 
+        # Crear el producto en TODAS las tiendas activas
         for tienda in Tienda.query.filter_by(activa=True).all():
             pres = ProductoTienda(
-                producto_id=producto.id,
-                tienda_id=tienda.id,
-                cantidad=0,
+                producto_id=producto.id, tienda_id=tienda.id, cantidad=0,
                 precio_proveedor=form.precio_proveedor.data or 0,
                 precio_proveedor2=form.precio_proveedor2.data or 0,
                 precio_proveedor3=form.precio_proveedor3.data or 0,
                 porcentaje=form.porcentaje.data or 0,
                 precio_venta=form.precio_venta.data or 0,
-                condicion1=form.condicion1.data or '',
-                precio_venta1=form.precio_venta1.data or 0,
-                condicion2=form.condicion2.data or '',
-                precio_venta2=form.precio_venta2.data or 0,
-                condicion3=form.condicion3.data or '',
-                precio_venta3=form.precio_venta3.data or 0,
+                condicion1=form.condicion1.data or '', precio_venta1=form.precio_venta1.data or 0,
+                condicion2=form.condicion2.data or '', precio_venta2=form.precio_venta2.data or 0,
+                condicion3=form.condicion3.data or '', precio_venta3=form.precio_venta3.data or 0,
             )
             db.session.add(pres)
 
         db.session.commit()
-
-        _audit(
-            'producto_crear',
-            f'{producto.nombre} (ID {producto.id}) | Precio venta: ${float(form.precio_venta.data or 0):,.0f}'
-        )
-
+        _audit('producto_crear', f'{producto.nombre} (ID {producto.id})')
         flash(f'Producto "{producto.nombre}" creado correctamente.', 'success')
-        q = request.args.get('q', '')
-        filtro = request.args.get('filtro', '')
-        return redirect(url_for('inventario.lista', q=q, filtro=filtro))
+        return redirect(url_for('inventario.lista', tienda=tienda_id))
 
-    return render_template('inventario/form.html', form=form, producto=None)
+    return render_template('inventario/form.html', form=form, producto=None, tienda_actual_obj=tienda_actual_obj)
 
 
 # ==================== EDITAR ====================
@@ -190,11 +172,12 @@ def nuevo():
 @admin_requerido
 def editar(producto_id):
     producto = Producto.query.get_or_404(producto_id)
+    
+    # AQUÍ ESTÁ EL ARREGLO: Identificar siempre la tienda actual
     tienda_id = tienda_actual() or 1
-    pres = ProductoTienda.query.filter_by(
-        producto_id=producto.id, tienda_id=tienda_id
-    ).first()
+    tienda_actual_obj = Tienda.query.get(tienda_id)
 
+    pres = ProductoTienda.query.filter_by(producto_id=producto.id, tienda_id=tienda_id).first()
     if pres is None:
         pres = ProductoTienda(producto_id=producto.id, tienda_id=tienda_id, cantidad=0)
         db.session.add(pres)
@@ -203,48 +186,30 @@ def editar(producto_id):
     form = ProductoForm(obj=producto)
 
     if form.validate_on_submit():
-        existe_otro = Producto.query.filter(
-            Producto.nombre == form.nombre.data.strip(),
-            Producto.id != producto.id
-        ).first()
+        existe_otro = Producto.query.filter(Producto.nombre == form.nombre.data.strip(), Producto.id != producto.id).first()
         if existe_otro:
             flash('Ya existe otro producto con ese nombre.', 'danger')
-            return render_template('inventario/form.html', form=form, producto=producto)
+            return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
 
-        # v2.16-validar-codigo: el codigo de barras debe ser unico (excepto el propio)
         codigo_nuevo = form.codigo_barras.data.strip() if form.codigo_barras.data else None
         if codigo_nuevo:
-            existe_codigo = Producto.query.filter(
-                Producto.codigo_barras == codigo_nuevo,
-                Producto.id != producto.id
-            ).first()
+            existe_codigo = Producto.query.filter(Producto.codigo_barras == codigo_nuevo, Producto.id != producto.id).first()
             if existe_codigo:
                 flash(f'Ya existe otro producto con el codigo "{codigo_nuevo}": {existe_codigo.nombre}', 'danger')
-                return render_template('inventario/form.html', form=form, producto=producto)
+                return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
 
         viejo_nombre = producto.nombre
-        viejo_precio = float(pres.precio_venta or 0)
-        viejo_prov = float(pres.precio_proveedor or 0)
-
-        nuevo_nombre = form.nombre.data.strip()
-
-        producto.nombre = nuevo_nombre
+        producto.nombre = form.nombre.data.strip()
         producto.codigo_barras = form.codigo_barras.data.strip() if form.codigo_barras.data else None
         producto.categoria = form.categoria.data or None
         producto.modificado_por_nombre = current_user.nombre
         producto.modificado_en = datetime.utcnow()
 
-        # v2.62-fix-rename-historico: actualizar nombre en ventas viejas
-        if viejo_nombre != nuevo_nombre:
-            n_actualizadas = (DetalleFactura.query
-                              .filter_by(producto_id=producto.id,
-                                         producto_nombre=viejo_nombre)
-                              .update({'producto_nombre': nuevo_nombre},
-                                      synchronize_session=False))
-            if n_actualizadas > 0:
-                print(f'[editar] Histórico actualizado: {n_actualizadas} filas '
-                      f'"{viejo_nombre}" -> "{nuevo_nombre}"')
+        # Si el nombre cambia, actualizar históricos
+        if viejo_nombre != producto.nombre:
+            DetalleFactura.query.filter_by(producto_id=producto.id, producto_nombre=viejo_nombre).update({'producto_nombre': producto.nombre}, synchronize_session=False)
 
+        # Actualizar SOLO los datos de la tienda seleccionada
         pres.precio_proveedor = form.precio_proveedor.data or 0
         pres.precio_proveedor2 = form.precio_proveedor2.data or 0
         pres.precio_proveedor3 = form.precio_proveedor3.data or 0
@@ -256,48 +221,24 @@ def editar(producto_id):
         pres.precio_venta2 = form.precio_venta2.data or 0
         pres.condicion3 = form.condicion3.data or ''
         pres.precio_venta3 = form.precio_venta3.data or 0
+        
+        # Marcar la tienda actual para sincronizar
+        pres.sync_estado = 'pendiente'
+        pres.sync_fecha = datetime.utcnow()
 
-        # v2.22-fix-marcar-todas-tiendas: si es admin en Central, marcar TODAS
-        # las tiendas activas. Si es operario, solo su tienda.
-        if current_user.es_admin() or current_user.es_programador():
-            tiendas_activas = Tienda.query.filter_by(activa=True).all()
-            for t in tiendas_activas:
-                p_t = ProductoTienda.query.filter_by(
-                    producto_id=producto.id, tienda_id=t.id
-                ).first()
-                if not p_t:
-                    p_t = ProductoTienda(
-                        producto_id=producto.id, tienda_id=t.id, cantidad=0
-                    )
-                    db.session.add(p_t)
-                p_t.sync_estado = 'pendiente'
-                p_t.sync_fecha = datetime.utcnow()
-        else:
-            pres.sync_estado = 'pendiente'
-            pres.sync_fecha = datetime.utcnow()
+        # Si el nombre o código cambiaron, avisar a todas las tiendas
+        if viejo_nombre != producto.nombre:
+            for t in Tienda.query.filter_by(activa=True).all():
+                p_t = ProductoTienda.query.filter_by(producto_id=producto.id, tienda_id=t.id).first()
+                if p_t:
+                    p_t.sync_estado = 'pendiente'
+                    p_t.sync_fecha = datetime.utcnow()
 
         db.session.commit()
 
-        cambios = []
-        if viejo_nombre != producto.nombre:
-            cambios.append(f'nombre: "{viejo_nombre}" -> "{producto.nombre}"')
-        nuevo_precio = float(pres.precio_venta or 0)
-        if viejo_precio != nuevo_precio:
-            cambios.append(f'precio: ${viejo_precio:,.0f} -> ${nuevo_precio:,.0f}')
-        nuevo_prov = float(pres.precio_proveedor or 0)
-        if viejo_prov != nuevo_prov:
-            cambios.append(f'costo: ${viejo_prov:,.0f} -> ${nuevo_prov:,.0f}')
-
-        detalle = f'{producto.nombre} (ID {producto.id}, tienda {tienda_id})'
-        if cambios:
-            detalle += ' | ' + ' | '.join(cambios)
-        else:
-            detalle += ' (sin cambios significativos)'
-
-        _audit('producto_editar', detalle, tienda_id=tienda_id)
-
-        flash(f'Producto "{producto.nombre}" actualizado.', 'success')
-        return redirect(url_for('inventario.lista'))
+        _audit('producto_editar', f'{producto.nombre} (ID {producto.id}, tienda {tienda_id})', tienda_id=tienda_id)
+        flash(f'Producto "{producto.nombre}" actualizado para {tienda_actual_obj.nombre}.', 'success')
+        return redirect(url_for('inventario.lista', tienda=tienda_id))
 
     if request.method == 'GET':
         form.precio_proveedor.data = float(pres.precio_proveedor) if pres.precio_proveedor else 0
@@ -312,7 +253,7 @@ def editar(producto_id):
         form.condicion3.data = pres.condicion3 or ''
         form.precio_venta3.data = float(pres.precio_venta3) if pres.precio_venta3 else 0
 
-    return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres)
+    return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
 
 
 # ==================== ELIMINAR ====================
@@ -323,29 +264,20 @@ def eliminar(producto_id):
     producto = Producto.query.get_or_404(producto_id)
     nombre = producto.nombre
     pid = producto.id
-    # v2.63-fix-preservar-busqueda: capturar q y filtro para mantener
-    # la búsqueda tras eliminar (o tras el bloqueo por facturas)
     q = request.args.get('q', '')
     filtro = request.args.get('filtro', '')
+    tienda_id = request.args.get('tienda', type=int)
 
-    # v2.62-fix-no-borrar: bloquear borrado si tiene facturas asociadas
-    # (evita que el ID se reutilice y corrompa históricos)
     tiene_facturas = DetalleFactura.query.filter_by(producto_id=pid).first()
     if tiene_facturas:
-        flash(
-            f'No se puede eliminar "{nombre}": tiene ventas asociadas. '
-            f'Si ya no lo vendés, cambialo de categoría o dejaló inactivo.',
-            'danger'
-        )
-        return redirect(url_for('inventario.lista', q=q, filtro=filtro))
+        flash(f'No se puede eliminar "{nombre}": tiene ventas asociadas.', 'danger')
+        return redirect(url_for('inventario.lista', q=q, filtro=filtro, tienda=tienda_id))
 
     db.session.delete(producto)
     db.session.commit()
-
     _audit('producto_eliminar', f'{nombre} (ID {pid})')
-
     flash(f'Producto "{nombre}" eliminado.', 'success')
-    return redirect(url_for('inventario.lista', q=q, filtro=filtro))
+    return redirect(url_for('inventario.lista', q=q, filtro=filtro, tienda=tienda_id))
 
 
 # ==================== ACTUALIZAR STOCK ====================
@@ -359,12 +291,9 @@ def actualizar_stock(producto_id):
 
     if cantidad is None or cantidad < 0:
         flash('Cantidad inválida.', 'danger')
-        return redirect(url_for('inventario.lista'))
+        return redirect(url_for('inventario.lista', tienda=tienda_id))
 
-    pres = ProductoTienda.query.filter_by(
-        producto_id=producto_id, tienda_id=tienda_id
-    ).first()
-
+    pres = ProductoTienda.query.filter_by(producto_id=producto_id, tienda_id=tienda_id).first()
     if pres is None:
         pres = ProductoTienda(producto_id=producto_id, tienda_id=tienda_id, cantidad=0)
         db.session.add(pres)
@@ -375,14 +304,9 @@ def actualizar_stock(producto_id):
     pres.sync_fecha = datetime.utcnow()
     db.session.commit()
 
-    _audit(
-        'producto_stock',
-        f'{producto.nombre} (ID {producto.id}, tienda {tienda_id}) | Stock: {cantidad_vieja} -> {cantidad}',
-        tienda_id=tienda_id,
-    )
-
+    _audit('producto_stock', f'{producto.nombre} (ID {producto.id}, tienda {tienda_id}) | Stock: {cantidad_vieja} -> {cantidad}', tienda_id=tienda_id)
     flash(f'Stock de "{producto.nombre}" actualizado a {cantidad}.', 'success')
-    return redirect(url_for('inventario.lista'))
+    return redirect(url_for('inventario.lista', tienda=tienda_id))
 
 
 # ==================== STOCK MASIVO ====================
@@ -405,15 +329,11 @@ def stock_masivo():
                     nueva_cant = int(value)
                     if nueva_cant < 0:
                         continue
-                    pres = ProductoTienda.query.filter_by(
-                        producto_id=producto_id, tienda_id=tienda_id
-                    ).first()
+                    pres = ProductoTienda.query.filter_by(producto_id=producto_id, tienda_id=tienda_id).first()
                     if pres and pres.cantidad != nueva_cant:
                         producto = Producto.query.get(producto_id)
                         if producto:
-                            cambios_detalle.append(
-                                f'{producto.nombre}: {pres.cantidad} -> {nueva_cant}'
-                            )
+                            cambios_detalle.append(f'{producto.nombre}: {pres.cantidad} -> {nueva_cant}')
                         pres.cantidad = nueva_cant
                         pres.sync_estado = 'pendiente'
                         pres.sync_fecha = datetime.utcnow()
@@ -423,33 +343,19 @@ def stock_masivo():
         db.session.commit()
 
         if cambios > 0:
-            _audit(
-                'producto_stock_masivo',
-                f'{cambios} productos actualizados en tienda {tienda_id} | ' +
-                '; '.join(cambios_detalle[:10]) +
-                (f' ... (+{len(cambios_detalle)-10} más)' if len(cambios_detalle) > 10 else ''),
-                tienda_id=tienda_id,
-            )
+            _audit('producto_stock_masivo', f'{cambios} productos actualizados en tienda {tienda_id} | ' + '; '.join(cambios_detalle[:10]), tienda_id=tienda_id)
 
         flash(f'{cambios} productos actualizados.', 'success')
-        return redirect(url_for('inventario.stock_masivo',
-                                q=request.args.get('q', ''),
-                                filtro=request.args.get('filtro', '')))
+        return redirect(url_for('inventario.stock_masivo', q=request.args.get('q', ''), filtro=request.args.get('filtro', ''), tienda=tienda_id))
 
     busqueda = request.args.get('q', '', type=str).strip()
     filtro = request.args.get('filtro', '', type=str).strip()
     page = request.args.get('page', 1, type=int)
 
-    q = db.session.query(Producto, ProductoTienda).join(
-        ProductoTienda, Producto.id == ProductoTienda.producto_id
-    ).filter(ProductoTienda.tienda_id == tienda_id)
+    q = db.session.query(Producto, ProductoTienda).join(ProductoTienda, Producto.id == ProductoTienda.producto_id).filter(ProductoTienda.tienda_id == tienda_id)
 
     if busqueda:
-        q = q.filter(or_(
-            Producto.nombre.ilike(f'%{busqueda}%'),
-            Producto.codigo_barras.ilike(f'%{busqueda}%')
-        ))
-
+        q = q.filter(or_(Producto.nombre.ilike(f'%{busqueda}%'), Producto.codigo_barras.ilike(f'%{busqueda}%')))
     if filtro == 'sin_stock':
         q = q.filter(ProductoTienda.cantidad <= 0)
     elif filtro == 'bajo':
@@ -457,17 +363,9 @@ def stock_masivo():
 
     q = q.order_by(Producto.nombre)
     paginacion = q.paginate(page=page, per_page=50, error_out=False)
-
     tiendas = Tienda.query.filter_by(activa=True).all()
 
-    return render_template(
-        'inventario/stock_masivo.html',
-        paginacion=paginacion,
-        busqueda=busqueda,
-        filtro=filtro,
-        tienda_id=tienda_id,
-        tiendas=tiendas,
-    )
+    return render_template('inventario/stock_masivo.html', paginacion=paginacion, busqueda=busqueda, filtro=filtro, tienda_id=tienda_id, tiendas=tiendas)
 
 
 # ==================== API: BÚSQUEDA RÁPIDA ====================
@@ -479,20 +377,13 @@ def api_buscar():
         return jsonify([])
 
     tienda_id = tienda_actual()
-    productos = Producto.query.filter(
-        or_(
-            Producto.nombre.ilike(f'%{q}%'),
-            Producto.codigo_barras.ilike(f'%{q}%')
-        )
-    ).limit(20).all()
+    productos = Producto.query.filter(or_(Producto.nombre.ilike(f'%{q}%'), Producto.codigo_barras.ilike(f'%{q}%'))).limit(20).all()
 
     resultados = []
     for p in productos:
         pres = None
         if tienda_id:
-            pres = ProductoTienda.query.filter_by(
-                producto_id=p.id, tienda_id=tienda_id
-            ).first()
+            pres = ProductoTienda.query.filter_by(producto_id=p.id, tienda_id=tienda_id).first()
         resultados.append({
             'id': p.id,
             'nombre': p.nombre,
