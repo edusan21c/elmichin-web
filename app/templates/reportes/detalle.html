@@ -140,7 +140,7 @@
                                    placeholder="0" min="1" required autofocus>
                         </div>
                         <button type="button" class="btn btn-outline-secondary btn-sm mt-1 py-0 px-2"
-                                onclick="document.getElementById('abono-monto').value = {{ factura.saldo_pendiente|int }}">
+                                onclick="document.getElementById('abono-monto').value = {{ factura.saldo_pendiente|int }}; document.getElementById('abono-monto').dispatchEvent(new Event('input'));">
                             Pagar todo ({{ "{:,.0f}".format(factura.saldo_pendiente) }})
                         </button>
                     </div>
@@ -187,6 +187,11 @@
 
                         const metodo = selectMetodo.value;
                         const esDigital = (metodo === 'nequi' || metodo === 'daviplata');
+                        
+                        // Mostrar u ocultar la casilla de recargo
+                        checkRecargoBox.style.display = esDigital ? 'block' : 'none';
+                        if (!esDigital) checkRecargo.checked = false;
+
                         const aplicar = esDigital && checkRecargo.checked;
 
                         let recargo = 0;
@@ -194,23 +199,26 @@
                         const total = monto + recargo;
 
                         let html = '';
-                        if (monto > 0) {
+                        if (esDigital && monto === 0) {
+                            html = '<div class="text-muted text-center py-1">Ingrese el monto base para calcular el recargo...</div>';
+                        } else if (monto > 0) {
                             html += '<div class="d-flex justify-content-between"><span>Abono a la deuda:</span><strong>' + fmt(monto) + '</strong></div>';
+                            
                             if (recargo > 0) {
                                 html += '<div class="d-flex justify-content-between text-warning"><span>Recargo (' + RECARGO_PCT + '%):</span><strong>' + fmt(recargo) + '</strong></div>';
+                                html += '<div class="d-flex justify-content-between border-top mt-1 pt-1"><span><strong>Cliente debe entregar:</strong></span><strong class="text-success">' + fmt(total) + '</strong></div>';
+                            } else {
+                                html += '<div class="d-flex justify-content-between border-top mt-1 pt-1"><span><strong>Cliente debe entregar:</strong></span><strong class="text-success">' + fmt(total) + '</strong></div>';
                             }
-                            html += '<div class="d-flex justify-content-between border-top mt-1 pt-1"><span><strong>Cliente debe entregar:</strong></span><strong class="text-success">' + fmt(total) + '</strong></div>';
 
                             const nuevoSaldo = SALDO - monto;
-                            if (nuevoSaldo > 0) {
+                            if (nuevoSaldo > 0.1) {
                                 html += '<div class="d-flex justify-content-between text-muted"><span>Saldo que quedará:</span><strong>' + fmt(nuevoSaldo) + '</strong></div>';
                             } else {
                                 html += '<div class="d-flex justify-content-between text-success"><span>✅ Se cancela la deuda</span></div>';
                             }
                         }
                         resumen.innerHTML = html;
-
-                        checkRecargoBox.style.display = esDigital ? 'block' : 'none';
                     }
 
                     inputMonto.addEventListener('input', calcular);
