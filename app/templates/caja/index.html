@@ -5,15 +5,6 @@
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h1 class="h3 mb-0">
         <i class="bi bi-cash-coin"></i> Caja — Medios de Pago
-        {% if current_user.es_programador() and tiendas|length > 1 %}
-            <small class="text-muted">- Tienda:
-                <select id="selector-tienda" class="form-select form-select-sm d-inline-block" style="width:auto;">
-                    {% for t in tiendas %}
-                        <option value="{{ t.id }}" {% if t.id == tienda_id %}selected{% endif %}>{{ t.nombre }}</option>
-                    {% endfor %}
-                </select>
-            </small>
-        {% endif %}
     </h1>
     <div class="btn-group">
         <a href="?periodo=dia{% if tienda_id %}&tienda={{ tienda_id }}{% endif %}"
@@ -585,16 +576,6 @@
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') document.getElementById('modal-categoria').style.display = 'none';
     });
-
-    // Selector de tienda
-    const st = document.getElementById('selector-tienda');
-    if (st) {
-        st.addEventListener('change', function() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('tienda', this.value);
-            window.location.href = url.toString();
-        });
-    }
 
     // ============================================================
     // v2.59-buscador: buscador en vivo de productos

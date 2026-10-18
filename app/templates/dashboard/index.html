@@ -2,29 +2,47 @@
 {% block titulo %}Inicio{% endblock %}
 
 {% block contenido %}
-<h1 class="h3 mb-4">🐱 ¡Hola, {{ current_user.nombre }}!</h1>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-house-door"></i> ¡Hola, {{ current_user.nombre }}!
+    </h1>
+    
+    <!-- SELECTOR ÚNICO: Solo visible en el Inicio para Admin/Programador -->
+    {% if config.MODO == 'central' and (current_user.es_programador() or current_user.es_admin()) and tiendas|length > 1 %}
+    <div class="card border-primary shadow-sm">
+        <div class="card-body py-2 d-flex align-items-center">
+            <label class="fw-bold mb-0 me-2 text-primary"><i class="bi bi-shop"></i> Seleccionar Tienda:</label>
+            <select id="selector-tienda-global" class="form-select form-select-sm fw-bold" style="width: auto;">
+                {% for t in tiendas %}
+                    <option value="{{ t.id }}" {% if t.id == tienda_actual %}selected{% endif %}>{{ t.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    {% endif %}
+</div>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="card border-primary">
+    <div class="col-md-4">
+        <div class="card border-primary h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-muted small">Productos</div>
-                        <div class="fs-3 fw-bold text-primary">{{ total_productos }}</div>
+                        <div class="text-muted small">Productos en Catálogo</div>
+                        <div class="fs-2 fw-bold text-primary">{{ total_productos }}</div>
                     </div>
                     <i class="bi bi-box-seam fs-1 text-primary opacity-50"></i>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card border-success">
+    <div class="col-md-4">
+        <div class="card border-success h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-muted small">Tiendas</div>
-                        <div class="fs-3 fw-bold text-success">{{ total_tiendas }}</div>
+                        <div class="text-muted small">Tiendas Activas</div>
+                        <div class="fs-2 fw-bold text-success">{{ total_tiendas }}</div>
                     </div>
                     <i class="bi bi-shop fs-1 text-success opacity-50"></i>
                 </div>
@@ -34,15 +52,43 @@
 </div>
 
 <div class="card">
-    <div class="card-header bg-white">
+    <div class="card-header bg-white fw-semibold">
         <i class="bi bi-info-circle"></i> Estado del sistema
     </div>
     <div class="card-body">
-        <ul class="mb-0">
-            <li><strong>Modo:</strong> {{ modo }}</li>
-            <li><strong>Tienda ID:</strong> {{ tienda_id }}</li>
+        <ul class="list-unstyled mb-0">
+            <li class="mb-2"><strong>Modo:</strong> {{ config.MODO }}</li>
+            <li class="mb-2"><strong>Tienda Seleccionada ID:</strong> {{ tienda_actual }}</li>
             <li><strong>Rol:</strong> {{ current_user.rol }}</li>
         </ul>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selector = document.getElementById('selector-tienda-global');
+    if (selector) {
+        const tiendaOriginal = selector.value;
+
+        selector.addEventListener('change', function() {
+            const nuevaTienda = this.value;
+            if (nuevaTienda === tiendaOriginal) return;
+
+            // Advertencia para el Administrador / Programador
+            const mensaje = "⚠️ ATENCIÓN:\n\nSi cambias de tienda, se borrará automáticamente cualquier factura o venta rápida que tengas en curso para evitar errores de precios y stock.\n\n¿Estás seguro de que deseas cambiar a otra tienda?";
+            
+            if (confirm(mensaje)) {
+                // Limpiamos toda la memoria del navegador (carritos, busquedas, etc)
+                localStorage.clear();
+                
+                // Redirigimos a la nueva tienda
+                window.location.href = '/?tienda=' + nuevaTienda;
+            } else {
+                // Si cancela, devolvemos el selector a la tienda original
+                this.value = tiendaOriginal;
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

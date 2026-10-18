@@ -5,15 +5,6 @@
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h1 class="h3 mb-0">
         <i class="bi bi-graph-up"></i> BI — Business Intelligence
-        {% if current_user.es_programador() and tiendas|length > 1 %}
-            <small class="text-muted">- Tienda:
-                <select id="selector-tienda" class="form-select form-select-sm d-inline-block" style="width:auto;">
-                    {% for t in tiendas %}
-                        <option value="{{ t.id }}" {% if t.id == tienda_id %}selected{% endif %}>{{ t.nombre }}</option>
-                    {% endfor %}
-                </select>
-            </small>
-        {% endif %}
     </h1>
     <div class="d-flex gap-2">
         <div>
@@ -740,7 +731,6 @@
     }
     onCambio('selector-anio', 'anio');
     onCambio('selector-mes', 'mes');
-    onCambio('selector-tienda', 'tienda');
 
     const selCli2 = document.getElementById('selector-cliente');
     if (selCli2) {
