@@ -13,14 +13,49 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
     {% block estilos_extra %}{% endblock %}
 </head>
-<body class="bg-light">
+
+<!-- Calculamos el color según la tienda en la URL -->
+{% set tienda_actual_url = request.args.get('tienda', current_user.tienda_id if current_user.is_authenticated else 1) %}
+{% if current_user.is_authenticated and tienda_actual_url|int == 1 %}
+    {% set bg_color = '#e3f2fd' %} <!-- Azul claro para T1 -->
+{% elif current_user.is_authenticated and tienda_actual_url|int == 2 %}
+    {% set bg_color = '#e8f5e9' %} <!-- Verde claro para T2 -->
+{% else %}
+    {% set bg_color = '#f8f9fa' %} <!-- Gris para login o sin tienda -->
+{% endif %}
+
+<!-- Quitamos el bg-light de Bootstrap para que nuestro color funcione -->
+<body style="background-color: {{ bg_color }};">
 
 {% if current_user.is_authenticated %}
     {% include 'layout/navbar.html' %}
+    
     <div class="container-fluid">
         <div class="row">
             {% include 'layout/sidebar.html' %}
+            
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+                
+                <!-- ================= SELECTOR GLOBAL ================= -->
+                {% if (current_user.es_programador() or current_user.es_admin()) and request.path != '/configuracion/' %}
+                <div class="d-flex justify-content-end mb-3">
+                    <form method="GET" class="d-flex align-items-center bg-white p-2 rounded shadow-sm border">
+                        <!-- Mantener búsqueda actual si existe -->
+                        <input type="hidden" name="q" value="{{ request.args.get('q', '') }}">
+                        {% if request.args.get('filtro') %}
+                            <input type="hidden" name="filtro" value="{{ request.args.get('filtro') }}">
+                        {% endif %}
+                        
+                        <label class="fw-bold mb-0 me-2"><i class="bi bi-shop"></i> Viendo tienda:</label>
+                        <select name="tienda" class="form-select form-select-sm fw-bold" style="width: auto;" onchange="this.form.submit()">
+                            <option value="1" {% if tienda_actual_url|int == 1 %}selected{% endif %}>El Michín Uno (Azul)</option>
+                            <option value="2" {% if tienda_actual_url|int == 2 %}selected{% endif %}>El Michín Dos (Verde)</option>
+                        </select>
+                    </form>
+                </div>
+                {% endif %}
+                <!-- ==================================================== -->
+
                 {% include 'layout/flash.html' %}
                 {% block contenido %}{% endblock %}
             </main>
