@@ -1,5 +1,5 @@
 # app/services/impresion_service.py
-"""Servicio de impresion ESC/POS directa por socket TCP."""
+"""Servicio de impresion ESC/POS directa por socket TCP o USB."""
 import socket
 from datetime import timedelta
 
@@ -43,7 +43,7 @@ def _texto(s):
 def generar_ticket_escpos(factura, detalles, cliente, tienda, config, config_tienda):
     """
     Genera los bytes ESC/POS del ticket.
-    Retorna bytes listos para enviar por socket.
+    Retorna bytes listos para enviar por socket o USB.
     """
     W = 42  # Ancho de caracteres por linea
     partes = []
@@ -190,11 +190,32 @@ def generar_ticket_escpos(factura, detalles, cliente, tienda, config, config_tie
     return b''.join(partes)
 
 
-def enviar_a_impresora(ip, puerto, datos):
+def enviar_a_impresora(ip, puerto, datos, nombre_impresora_windows="POS-80c1"):
     """
-    Envia bytes a la impresora por socket TCP.
-    Retorna (exito, mensaje).
+    Envia bytes a la impresora.
+    Si la IP es 'USB', usa el puerto USB de Windows (para T2).
+    Si no, usa socket de red (para T1).
     """
+    if str(ip).upper() == 'USB':
+        try:
+            import win32print
+            # Abrir la impresora de Windows
+            printer = win32print.OpenPrinter(nombre_impresora_windows)
+            try:
+                # Iniciar el trabajo de impresión RAW
+                job = win32print.StartDocPrinter(printer, 1, ("Ticket Michin", None, "RAW"))
+                win32print.StartPagePrinter(printer)
+                # Enviar los bytes directos a la impresora
+                win32print.WritePrinter(printer, datos)
+                win32print.EndPagePrinter(printer)
+                win32print.EndDocPrinter(printer)
+            finally:
+                win32print.ClosePrinter(printer)
+            return True, f'Ticket enviado por USB a {nombre_impresora_windows}'
+        except Exception as e:
+            return False, f'Error USB: {str(e)}. ¿Está la impresora encendida?'
+    
+    # Si no es USB, usa la red normal (T1)
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
