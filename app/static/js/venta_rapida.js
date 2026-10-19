@@ -100,23 +100,47 @@
         } else if (e.key === 'Escape') { resultados.innerHTML = ''; indiceActivo = -1; }
     });
 
-    async function buscar(q) {
+    let ultimaBusqueda = '';
+        async function buscar(q) {
         try {
             const r = await fetch(CFG.urlBuscarProductos + '?q=' + encodeURIComponent(q));
             const data = await r.json();
-            pintarResultados(data);
+            
+            // LA SOLUCIÓN: Solo pintar si el buscador TODAVÍA tiene el mismo texto que buscamos
+            if (inputBuscar.value.trim() === q) {
+                pintarResultados(data);
+            }
         } catch (e) { console.error(e); }
     }
 
     function pintarResultados(data) {
         resultados.innerHTML = ''; indiceActivo = -1;
-        if (!data.length) { resultados.innerHTML = '<div class="list-group-item text-muted text-center py-3">Sin resultados o sin stock</div>'; return; }
+        if (!data.length) { 
+            resultados.innerHTML = '<div class="list-group-item text-muted text-center py-3">Sin resultados o sin stock</div>'; 
+            return; 
+        }
+        
         data.forEach(p => {
             const item = document.createElement('button');
             item.type = 'button';
             item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2';
+            
+            // Manejo seguro de la imagen sin romper el HTML
+            const imgUrl = p.imagen ? `/static/img/productos/${p.imagen}` : '';
+            const fallbackHtml = `<div style="width: 40px; height: 40px; margin-right: 10px; background-color: #f0f0f0; border-radius: 5px; align-items: center; justify-content: center; display: ${imgUrl ? 'none' : 'flex'};"><i class="bi bi-image text-muted"></i></div>`;
+            const imgTag = imgUrl ? `<img src="${imgUrl}" alt="${p.nombre}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 5px; margin-right: 10px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : '';
+
             item.innerHTML = `
-                <div class="text-start"><div class="fw-semibold">${p.nombre}</div><small class="text-muted">${p.codigo || ''}</small></div>
+                <div class="text-start d-flex align-items-center">
+                    <div style="display: flex; align-items: center;">
+                        ${imgTag}
+                        ${fallbackHtml}
+                    </div>
+                    <div>
+                        <div class="fw-semibold">${p.nombre}</div>
+                        <small class="text-muted">${p.codigo || ''}</small>
+                    </div>
+                </div>
                 <div class="text-end"><div class="fw-bold text-success">${fmt(p.precio)}</div><small class="text-muted">Stock: ${p.stock}</small></div>
             `;
             item.addEventListener('click', () => agregarAlCarrito(p));

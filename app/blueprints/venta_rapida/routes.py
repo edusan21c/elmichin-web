@@ -95,7 +95,7 @@ def api_productos():
         if not pres or pres.cantidad <= 0:
             continue
         resultados.append({
-            'id': p.id, 'nombre': p.nombre, 'codigo': p.codigo_barras or '',
+            'id': p.id, 'nombre': p.nombre, 'codigo': p.codigo_barras or '', 'imagen': p.imagen or '',
             'stock': pres.cantidad, 'precio': float(pres.precio_venta or 0),
             'condicion1': pres.condicion1 or '', 'precio1': float(pres.precio_venta1 or 0),
             'condicion2': pres.condicion2 or '', 'precio2': float(pres.precio_venta2 or 0),
