@@ -35,6 +35,10 @@
 .chip-modificado.badge-a { background: #e8f5e9; border-color: #a3cfbb; }
 .chip-modificado.badge-o { background: #fff3e0; border-color: #ffd8a8; }
 .chip-modificado.badge-x { background: #f1f3f5; border-color: #dee2e6; }
+
+/* Estilos nuevos para la imagen del producto */
+.producto-img { width: 40px; height: 40px; object-fit: cover; border-radius: 5px; margin-right: 12px; flex-shrink: 0; }
+.producto-img-fallback { width: 40px; height: 40px; margin-right: 12px; background-color: #f0f0f0; border-radius: 5px; align-items: center; justify-content: center; flex-shrink: 0; }
 </style>
 
 <div class="p-4" style="background-color: {{ bg_color }}; border-radius: 10px;">
@@ -112,45 +116,57 @@
                         <tr>
                             <td class="text-muted small">{{ p.id }}</td>
                             <td>
-                                <div class="producto-nombre">{{ p.nombre }}</div>
-                                <div class="producto-meta">
-                                    {% if p.categoria %}
-                                        {% set cat_lower = p.categoria|lower %}
-                                        {% if 'cigarro' in cat_lower or 'cigarrillo' in cat_lower %}
-                                            {% set cat_bg = 'linear-gradient(135deg, #8d6e63, #5d4037)' %}
-                                        {% elif 'dulce' in cat_lower %}
-                                            {% set cat_bg = 'linear-gradient(135deg, #ec407a, #c2185b)' %}
-                                        {% elif 'snack' in cat_lower or 'mecato' in cat_lower %}
-                                            {% set cat_bg = 'linear-gradient(135deg, #ff9800, #e65100)' %}
-                                        {% elif 'bebida' in cat_lower %}
-                                            {% set cat_bg = 'linear-gradient(135deg, #2196f3, #0d47a1)' %}
-                                        {% elif 'licor' in cat_lower %}
-                                            {% set cat_bg = 'linear-gradient(135deg, #9c27b0, #4a148c)' %}
-                                        {% elif 'aseo' in cat_lower %}
-                                            {% set cat_bg = 'linear-gradient(135deg, #4caf50, #1b5e20)' %}
-                                        {% else %}
-                                            {% set cat_bg = 'linear-gradient(135deg, #78909c, #455a64)' %}
-                                        {% endif %}
-                                        <span class="badge-categoria" style="background: {{ cat_bg }}; color: #fff;">{{ p.categoria }}</span>
+                                <!-- SECCIÓN MODIFICADA CON LA IMAGEN -->
+                                <div class="d-flex align-items-center">
+                                    {% if p.imagen %}
+                                        <img src="{{ url_for('static', filename='img/productos/' + p.imagen) }}" alt="{{ p.nombre }}" class="producto-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                        <div class="producto-img-fallback" style="display: none;"><i class="bi bi-image text-muted"></i></div>
+                                    {% else %}
+                                        <div class="producto-img-fallback" style="display: flex;"><i class="bi bi-image text-muted"></i></div>
                                     {% endif %}
-                                    {% if p.modificado_por_nombre and p.modificado_en %}
-                                        {% set inicial = p.modificado_por_nombre[0].upper() %}
-                                        {% if 'rograma' in p.modificado_por_nombre %}
-                                            {% set clase_rol = 'badge-p' %}
-                                        {% elif 'dmin' in p.modificado_por_nombre %}
-                                            {% set clase_rol = 'badge-a' %}
-                                        {% elif 'ajero' in p.modificado_por_nombre or 'perario' in p.modificado_por_nombre %}
-                                            {% set clase_rol = 'badge-o' %}
-                                        {% else %}
-                                            {% set clase_rol = 'badge-x' %}
-                                        {% endif %}
-                                        <span class="chip-modificado {{ clase_rol }}" title="Modificado por {{ p.modificado_por_nombre }} el {{ p.modificado_en|fecha_local }}">
-                                            <span class="chip-avatar">{{ inicial }}</span>
-                                            <i class="bi bi-pencil-fill chip-icono"></i>
-                                            <span class="chip-fecha">{{ p.modificado_en|fecha_local }}</span>
-                                        </span>
-                                    {% endif %}
+                                    <div>
+                                        <div class="producto-nombre">{{ p.nombre }}</div>
+                                        <div class="producto-meta">
+                                            {% if p.categoria %}
+                                                {% set cat_lower = p.categoria|lower %}
+                                                {% if 'cigarro' in cat_lower or 'cigarrillo' in cat_lower %}
+                                                    {% set cat_bg = 'linear-gradient(135deg, #8d6e63, #5d4037)' %}
+                                                {% elif 'dulce' in cat_lower %}
+                                                    {% set cat_bg = 'linear-gradient(135deg, #ec407a, #c2185b)' %}
+                                                {% elif 'snack' in cat_lower or 'mecato' in cat_lower %}
+                                                    {% set cat_bg = 'linear-gradient(135deg, #ff9800, #e65100)' %}
+                                                {% elif 'bebida' in cat_lower %}
+                                                    {% set cat_bg = 'linear-gradient(135deg, #2196f3, #0d47a1)' %}
+                                                {% elif 'licor' in cat_lower %}
+                                                    {% set cat_bg = 'linear-gradient(135deg, #9c27b0, #4a148c)' %}
+                                                {% elif 'aseo' in cat_lower %}
+                                                    {% set cat_bg = 'linear-gradient(135deg, #4caf50, #1b5e20)' %}
+                                                {% else %}
+                                                    {% set cat_bg = 'linear-gradient(135deg, #78909c, #455a64)' %}
+                                                {% endif %}
+                                                <span class="badge-categoria" style="background: {{ cat_bg }}; color: #fff;">{{ p.categoria }}</span>
+                                            {% endif %}
+                                            {% if p.modificado_por_nombre and p.modificado_en %}
+                                                {% set inicial = p.modificado_por_nombre[0].upper() %}
+                                                {% if 'rograma' in p.modificado_por_nombre %}
+                                                    {% set clase_rol = 'badge-p' %}
+                                                {% elif 'dmin' in p.modificado_por_nombre %}
+                                                    {% set clase_rol = 'badge-a' %}
+                                                {% elif 'ajero' in p.modificado_por_nombre or 'perario' in p.modificado_por_nombre %}
+                                                    {% set clase_rol = 'badge-o' %}
+                                                {% else %}
+                                                    {% set clase_rol = 'badge-x' %}
+                                                {% endif %}
+                                                <span class="chip-modificado {{ clase_rol }}" title="Modificado por {{ p.modificado_por_nombre }} el {{ p.modificado_en|fecha_local }}">
+                                                    <span class="chip-avatar">{{ inicial }}</span>
+                                                    <i class="bi bi-pencil-fill chip-icono"></i>
+                                                    <span class="chip-fecha">{{ p.modificado_en|fecha_local }}</span>
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
                                 </div>
+                                <!-- FIN DE SECCIÓN MODIFICADA -->
                             </td>
                             <td class="text-muted small">{{ p.codigo_barras or '-' }}</td>
                             <td class="text-end fw-semibold">
