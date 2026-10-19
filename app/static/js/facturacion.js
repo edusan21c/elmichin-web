@@ -20,8 +20,8 @@
             cliente: { nombre: '', documento: '', telefono: '', direccion: '' },
             metodoPago: 'efectivo',
             bolsas: 0,
-            pagos: ['', '', ''],                        // montos
-            pagosMetodos: ['efectivo', 'efectivo', 'efectivo'],  // v2.34-pagos-mixtos
+            pagos: ['', '', ''],                        
+            pagosMetodos: ['efectivo', 'efectivo', 'efectivo'],  
             modoPrecioLibre: false,
         };
     }
@@ -50,22 +50,18 @@
             const data = JSON.parse(raw);
             if (data && Array.isArray(data.pestanas) && data.pestanas.length > 0) {
                 estado = data;
-                // Sanity check
                 if (estado.activa >= estado.pestanas.length) {
                     estado.activa = 0;
                 }
-                // Asegurar que cada pestaña tenga todos los campos
                 estado.pestanas.forEach(p => {
                     if (typeof p.modoPrecioLibre === 'undefined') p.modoPrecioLibre = false;
                     if (!p.cliente) p.cliente = { nombre: '', documento: '', telefono: '', direccion: '' };
                     if (!Array.isArray(p.carrito)) p.carrito = [];
-                    // v2.16-pagos-parciales: migrar valorPagado viejo a pagos[0]
                     if (!Array.isArray(p.pagos)) {
                         p.pagos = ['', '', ''];
                         if (p.valorPagado) p.pagos[0] = String(p.valorPagado);
                         delete p.valorPagado;
                     }
-                    // v2.34-pagos-mixtos: migrar pagosMetodos
                     if (!Array.isArray(p.pagosMetodos) || p.pagosMetodos.length !== 3) {
                         p.pagosMetodos = ['efectivo', 'efectivo', 'efectivo'];
                     }
@@ -104,12 +100,10 @@
             btn.className = 'nav-link d-flex align-items-center gap-2' + (activa ? ' active' : '');
             btn.setAttribute('data-idx', idx);
 
-            // Contenido: letra + punto azul si tiene items
             let contenidoHTML = `<span class="fw-bold">${p.id}</span>`;
             if (tieneItems) {
                 contenidoHTML += `<span class="badge bg-primary rounded-pill">${items}</span>`;
             }
-            // Botón de cerrar (solo si hay más de 1 pestaña)
             if (estado.pestanas.length > 1) {
                 contenidoHTML += `<span class="pestana-cerrar ms-1" data-cerrar="${idx}" title="Cerrar pestaña">×</span>`;
             }
@@ -124,7 +118,6 @@
             container.appendChild(li);
         });
 
-        // Botón [+] si no llegamos al máximo
         if (estado.pestanas.length < MAX_PESTANAS) {
             const li = document.createElement('li');
             li.className = 'nav-item';
@@ -138,7 +131,6 @@
             container.appendChild(li);
         }
 
-        // Listeners para las X
         container.querySelectorAll('[data-cerrar]').forEach(el => {
             el.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -203,31 +195,26 @@
     function cargarPestanaEnUI() {
         const p = pestanaActual();
 
-        // Cliente
         $('#cliente-nombre').value = p.cliente.nombre || '';
         $('#cliente-documento').value = p.cliente.documento || '';
         $('#cliente-telefono').value = p.cliente.telefono || '';
         $('#cliente-direccion').value = p.cliente.direccion || '';
         $('#cliente-info').textContent = '';
 
-        // Pago
         $('#metodo-pago').value = p.metodoPago || 'efectivo';
         $('#bolsas').value = p.bolsas || 0;
         $('#pago-1').value = (p.pagos && p.pagos[0]) || '';
         $('#pago-2').value = (p.pagos && p.pagos[1]) || '';
         $('#pago-3').value = (p.pagos && p.pagos[2]) || '';
-        // v2.34-pagos-mixtos
         const metodos = p.pagosMetodos || ['efectivo', 'efectivo', 'efectivo'];
         ['#pago-metodo-1', '#pago-metodo-2', '#pago-metodo-3'].forEach((sel, i) => {
             const el = $(sel);
             if (el) el.value = metodos[i] || 'efectivo';
         });
 
-        // Switch Precio Libre
         const sw = $('#switch-precio-libre');
         if (sw) sw.checked = !!p.modoPrecioLibre;
 
-        // Carrito
         renderCarrito();
     }
 
@@ -259,7 +246,6 @@
         timeoutBuscar = setTimeout(() => buscarProductos(q), 250);
     });
 
-    // v2.16-flechas-busqueda: navegacion con flechas arriba/abajo
     let indiceActivo = -1;
 
     function actualizarActivo(items) {
@@ -310,27 +296,34 @@
 
     function pintarResultados(data) {
         resultados.innerHTML = '';
-        indiceActivo = -1;  // v2.16-flechas-busqueda: resetear navegacion
+        indiceActivo = -1;
+        
         if (!data.length) {
             resultados.innerHTML = '<div class="list-group-item text-muted">Sin resultados</div>';
             return;
         }
+
         data.forEach(p => {
             const item = document.createElement('button');
             item.type = 'button';
-            item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
-
-            const stockClass = p.stock === 0 ? 'text-danger' : (p.stock <= 5 ? 'text-warning' : 'text-success');
-            const stockIcon = p.stock === 0 ? '🔴' : (p.stock <= 5 ? '🟡' : '🟢');
+            item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2';
+            
+            // Preparamos la etiqueta <img> si tiene imagen, o un ícono gris si no
+            const imgHtml = p.imagen 
+                ? `<img src="/static/img/productos/${p.imagen}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 5px; margin-right: 12px;">` 
+                : `<div style="width: 45px; height: 45px; background: #f0f0f0; border-radius: 5px; margin-right: 12px; display: flex; align-items: center; justify-content: center; color: #ccc;"><i class="bi bi-image"></i></div>`;
 
             item.innerHTML = `
-                <div class="text-start">
-                    <div class="fw-semibold">${p.nombre}</div>
-                    <small class="text-muted">${p.codigo || ''}</small>
+                <div class="d-flex align-items-center text-start">
+                    ${imgHtml}
+                    <div>
+                        <div class="fw-semibold">${p.nombre}</div>
+                        <small class="text-muted">${p.codigo || ''}</small>
+                    </div>
                 </div>
                 <div class="text-end">
-                    <div class="fw-bold">${fmt(p.precio)}</div>
-                    <small class="${stockClass}">${stockIcon} ${p.stock}</small>
+                    <div class="fw-bold text-success">${fmt(p.precio)}</div>
+                    <small class="text-muted">Stock: ${p.stock}</small>
                 </div>
             `;
             item.addEventListener('click', () => agregarAlCarrito(p));
@@ -339,14 +332,14 @@
     }
 
     // ==================== AGREGAR AL CARRITO ====================
-       async function agregarAlCarrito(prod) {
+    async function agregarAlCarrito(prod) {
         if (prod.stock <= 0) {
             alert('Producto sin stock');
             return;
         }
 
         const cantidad = await window.michinPedirCantidad(prod.nombre, prod.stock, 1);
-        if (cantidad === null) return;  // Canceló
+        if (cantidad === null) return;
 
         const p = pestanaActual();
         const existente = p.carrito.find(it => it.producto_id === prod.id);
@@ -372,7 +365,7 @@
                 stock_max: prod.stock,
                 prod_data: prod,
                 precio_editado: false,
-                _empacado: false,   // v2.33-carrito-empacado
+                _empacado: false,
             });
         }
 
@@ -406,11 +399,9 @@
             tabla.classList.remove('d-none');
             vacio.classList.add('d-none');
             carrito.forEach((item, idx) => {
-                // v2.33-carrito-empacado: estado del check
                 const empacado = !!item._empacado;
                 const checked = empacado ? 'checked' : '';
 
-                // Celda de precio: input si modo libre, texto si no
                 const celdaPrecio = modoLibre
                     ? `<input type="number" class="form-control form-control-sm text-end"
                               value="${item.precio_unitario}" min="0" step="50"
@@ -445,7 +436,6 @@
                 body.appendChild(tr);
             });
 
-            // Listener: cambio de cantidad
             body.querySelectorAll('input[data-accion="cantidad"]').forEach(inp => {
                 inp.addEventListener('change', function() {
                     const idx = parseInt(this.dataset.idx);
@@ -467,7 +457,6 @@
                 });
             });
 
-            // Listener: cambio de precio (solo en modo libre)
             body.querySelectorAll('input[data-accion="precio"]').forEach(inp => {
                 inp.addEventListener('change', function() {
                     const idx = parseInt(this.dataset.idx);
@@ -476,7 +465,6 @@
                     const item = carrito[idx];
                     item.precio_unitario = nuevoPrecio;
                     item.subtotal = nuevoPrecio * item.cantidad;
-                    // Marcar como editado si difiere del original calculado
                     const precioOriginal = calcularPrecioProducto(item.prod_data, item.cantidad);
                     item.precio_editado = (nuevoPrecio !== precioOriginal);
                     guardarEstado();
@@ -485,7 +473,6 @@
                 });
             });
 
-            // Listener: eliminar
             body.querySelectorAll('button[data-accion="eliminar"]').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const idx = parseInt(this.dataset.idx);
@@ -496,7 +483,6 @@
                 });
             });
 
-            // v2.33-carrito-empacado: listener del checkbox
             body.querySelectorAll('input[data-accion="empacado"]').forEach(chk => {
                 chk.addEventListener('change', function() {
                     const idx = parseInt(this.dataset.idx);
@@ -520,15 +506,13 @@
         const bolsas = parseInt(p.bolsas) || 0;
         const totalBolsas = bolsas * CFG.valorBolsa;
 
-        // v2.34-pagos-mixtos: detectar si algun pago es digital
         const metodos = p.pagosMetodos || ['efectivo', 'efectivo', 'efectivo'];
         const hayDigital = metodos.some(m => m === 'nequi' || m === 'daviplata');
 
         let recargo = 0;
         if (metodo === 'credito') {
-            // Credito no aplica recargo
+            // Credito no aplica
         } else if (hayDigital) {
-            // v2.34: recargo solo depende de los metodos de las casillas
             recargo = subtotal * (CFG.recargoPorcentaje / 100);
         }
 
@@ -537,7 +521,6 @@
         $('#lbl-subtotal').textContent = fmt(subtotal);
         $('#lbl-total').textContent = fmt(total);
 
-        // Recargo
         if (recargo > 0) {
             $('#fila-recargo').classList.remove('d-none');
             $('#lbl-recargo').textContent = fmt(recargo) + ` (${CFG.recargoPorcentaje}%)`;
@@ -545,7 +528,6 @@
             $('#fila-recargo').classList.add('d-none');
         }
 
-        // Credito
         if (metodo === 'credito') {
             $('#card-pago').classList.add('d-none');
             $('#alerta-credito').classList.remove('d-none');
@@ -554,7 +536,6 @@
             $('#card-pago').classList.remove('d-none');
             $('#alerta-credito').classList.add('d-none');
 
-            // v2.16-pagos-parciales: suma de los 3 pagos
             const pagos = p.pagos || ['', '', ''];
             const pagado = (parseFloat(pagos[0]) || 0) + (parseFloat(pagos[1]) || 0) + (parseFloat(pagos[2]) || 0);
             const vueltas = pagado - total;
@@ -578,8 +559,6 @@
         const metodoNuevo = this.value;
         p.metodoPago = metodoNuevo;
 
-        // v2.34-fix-metodo-global: propagar el método global a las 3 casillas
-        // (excepto Crédito, que oculta las casillas)
         if (metodoNuevo !== 'credito') {
             p.pagosMetodos = [metodoNuevo, metodoNuevo, metodoNuevo];
             ['#pago-metodo-1', '#pago-metodo-2', '#pago-metodo-3'].forEach(sel => {
@@ -598,7 +577,6 @@
         renderTotales();
     });
 
-        // v2.16-pagos-parciales: 3 inputs en lugar de 1
     ['#pago-1', '#pago-2', '#pago-3'].forEach((sel, idx) => {
         const el = $(sel);
         if (!el) return;
@@ -611,7 +589,6 @@
         });
     });
 
-    // v2.34-pagos-mixtos: selectores de método por casilla
     ['#pago-metodo-1', '#pago-metodo-2', '#pago-metodo-3'].forEach((sel, idx) => {
         const el = $(sel);
         if (!el) return;
@@ -624,7 +601,6 @@
         });
     });
 
-    // Switch Precio Libre
     const switchPrecio = $('#switch-precio-libre');
     if (switchPrecio) {
         switchPrecio.addEventListener('change', function() {
@@ -634,7 +610,6 @@
         });
     }
 
-    // Cliente
     $('#cliente-nombre').addEventListener('input', function() {
         pestanaActual().cliente.nombre = this.value;
         guardarEstado();
@@ -675,7 +650,6 @@
         const pagosMetodos = p.pagosMetodos || ['efectivo', 'efectivo', 'efectivo'];
         const valorPagado = (parseFloat(pagos[0]) || 0) + (parseFloat(pagos[1]) || 0) + (parseFloat(pagos[2]) || 0);
 
-        // v2.34-pagos-mixtos: construir lista de pagos
         const listaPagos = [];
         for (let i = 0; i < 3; i++) {
             const monto = parseFloat(pagos[i]) || 0;
@@ -702,7 +676,6 @@
             }
         }
 
-        // Detectar si hay algún producto con precio manual
         const tienePrecioManual = carrito.some(it => it.precio_editado === true);
 
         const payload = {
@@ -721,7 +694,7 @@
             recargo_porcentaje: CFG.recargoPorcentaje,
             bolsas: bolsas,
             valor_pagado: valorPagado,
-            pagos: listaPagos,          // v2.34-pagos-mixtos
+            pagos: listaPagos,
             precio_manual: tienePrecioManual,
         };
 
@@ -741,13 +714,12 @@
             const data = await r.json();
 
             if (data.ok) {
-                // Limpiar SOLO esta pestaña
                 p.carrito = [];
                 p.cliente = { nombre: '', documento: '', telefono: '', direccion: '' };
                 p.metodoPago = 'efectivo';
                 p.bolsas = 0;
                 p.pagos = ['', '', ''];
-                p.pagosMetodos = ['efectivo', 'efectivo', 'efectivo'];  // v2.34
+                p.pagosMetodos = ['efectivo', 'efectivo', 'efectivo'];
                 p.modoPrecioLibre = false;
                 guardarEstado();
 
@@ -774,7 +746,7 @@
         p.metodoPago = 'efectivo';
         p.bolsas = 0;
         p.pagos = ['', '', ''];
-        p.pagosMetodos = ['efectivo', 'efectivo', 'efectivo'];  // v2.34
+        p.pagosMetodos = ['efectivo', 'efectivo', 'efectivo'];
         p.modoPrecioLibre = false;
         guardarEstado();
         renderPestanas();

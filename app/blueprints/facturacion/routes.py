@@ -2,7 +2,7 @@
 from decimal import Decimal
 from flask import (
     render_template, request, jsonify, redirect, url_for,
-    flash, current_app
+    flash, current_app, session
 )
 from flask_login import login_required, current_user
 from sqlalchemy import or_, func
@@ -17,12 +17,20 @@ from app.services.facturacion_service import (
     crear_factura_completa, obtener_o_crear_cliente
 )
 
+def es_central():
+    return current_app.config.get('MODO', 'tienda_local') == 'central'
 
 def tienda_actual():
-    if current_user.es_programador():
+    from flask import session, current_app
+    from app.models.tienda import Tienda
+    
+    if current_app.config.get('MODO') == 'central' and (current_user.es_programador() or current_user.es_admin()):
         tid = request.args.get('tienda', type=int)
         if tid:
+            session['tienda_actual_id'] = tid
             return tid
+        if session.get('tienda_actual_id'):
+            return session.get('tienda_actual_id')
         primera = Tienda.query.filter_by(activa=True).first()
         return primera.id if primera else None
     return current_user.tienda_id
@@ -34,8 +42,7 @@ def tienda_actual():
 def nueva():
     tienda_id = tienda_actual()
     tiendas = Tienda.query.filter_by(activa=True).all()
-
-    from app.blueprints.configuracion.routes import get_valor
+    tienda_actual_obj = Tienda.query.get(tienda_id) if tienda_id else None
 
     try:
         recargo = float(get_valor('recargo_nequi', None) or 0.4)
@@ -50,11 +57,11 @@ def nueva():
     return render_template(
         'facturacion/nueva.html',
         tienda_id=tienda_id,
+        tienda_actual_obj=tienda_actual_obj,
         tiendas=tiendas,
         recargo_porcentaje=recargo,
         valor_bolsa=valor_bolsa_config,
     )
-
 
 # ==================== API: BUSCAR PRODUCTOS ====================
 @bp.route('/api/productos')
@@ -70,74 +77,53 @@ def api_productos():
 
     patron_unaccent = func.unaccent(f'%{q}%')
     q_lower = q.lower()
-
-    # v2.60: si empieza con número → priorizar barcode. Si empieza con letra → nombre.
     empieza_con_numero = q[0].isdigit() if q else False
 
     if empieza_con_numero:
-        # Buscar por barcode primero (escaneo con pistola o tipeo de código)
         productos = (Producto.query
                      .filter(Producto.codigo_barras.ilike(f'%{q}%'))
-                     .order_by(Producto.nombre)
-                     .limit(20)
-                     .all())
-        # Si no encuentra por barcode, intentar por nombre (por si el nombre empieza con número)
+                     .order_by(Producto.nombre).limit(20).all())
         if not productos:
             productos = (Producto.query
                          .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
-                         .order_by(Producto.nombre)
-                         .limit(20)
-                         .all())
+                         .order_by(Producto.nombre).limit(20).all())
     else:
-        # Buscar por nombre primero (con unaccent)
         productos = (Producto.query
                      .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
-                     .limit(50)
-                     .all())
+                     .limit(50).all())
 
         if productos:
             def prioridad(prod):
                 nombre_lower = (prod.nombre or '').lower()
-                if nombre_lower.startswith(q_lower):
-                    return (1, nombre_lower)
+                if nombre_lower.startswith(q_lower): return (1, nombre_lower)
                 for palabra in nombre_lower.split():
-                    if palabra.startswith(q_lower):
-                        return (2, nombre_lower)
+                    if palabra.startswith(q_lower): return (2, nombre_lower)
                 return (3, nombre_lower)
             productos = sorted(productos, key=prioridad)[:20]
         else:
-            # Fallback por barcode
             productos = (Producto.query
                          .filter(Producto.codigo_barras.ilike(f'%{q}%'))
-                         .order_by(Producto.nombre)
-                         .limit(20)
-                         .all())
+                         .order_by(Producto.nombre).limit(20).all())
 
     resultados = []
     for p in productos:
-        pres = ProductoTienda.query.filter_by(
-            producto_id=p.id, tienda_id=tienda_id
-        ).first()
+        pres = ProductoTienda.query.filter_by(producto_id=p.id, tienda_id=tienda_id).first()
         if not pres:
             continue
-
         resultados.append({
-            'id': p.id,
-            'nombre': p.nombre,
+            'id': p.id, 
+            'nombre': p.nombre, 
             'codigo': p.codigo_barras or '',
-            'categoria': p.categoria or '',
+            'categoria': p.categoria or '', 
+            'imagen': p.imagen or '',  # <--- EL CAMPO IMAGEN
             'stock': pres.cantidad,
             'precio': float(pres.precio_venta or 0),
-            'condicion1': pres.condicion1 or '',
-            'precio1': float(pres.precio_venta1 or 0),
-            'condicion2': pres.condicion2 or '',
-            'precio2': float(pres.precio_venta2 or 0),
-            'condicion3': pres.condicion3 or '',
-            'precio3': float(pres.precio_venta3 or 0),
+            'condicion1': pres.condicion1 or '', 'precio1': float(pres.precio_venta1 or 0),
+            'condicion2': pres.condicion2 or '', 'precio2': float(pres.precio_venta2 or 0),
+            'condicion3': pres.condicion3 or '', 'precio3': float(pres.precio_venta3 or 0),
         })
 
     return jsonify(resultados)
-
 
 # ==================== API: BUSCAR CLIENTES ====================
 @bp.route('/api/clientes')
@@ -154,18 +140,13 @@ def api_clientes():
     clientes = (Cliente.query
                 .filter_by(tienda_id=tienda_id)
                 .filter(Cliente.nombre.ilike(f'%{q}%'))
-                .limit(10)
-                .all())
+                .limit(10).all())
 
     return jsonify([{
-        'id': c.id,
-        'nombre': c.nombre,
-        'documento': c.documento or '',
-        'telefono': c.telefono or '',
-        'direccion': c.direccion or '',
+        'id': c.id, 'nombre': c.nombre, 'documento': c.documento or '',
+        'telefono': c.telefono or '', 'direccion': c.direccion or '',
         'saldo': float(c.saldo_actual or 0),
     } for c in clientes])
-
 
 # ==================== CREAR FACTURA ====================
 @bp.route('/crear', methods=['POST'])
@@ -207,7 +188,6 @@ def crear():
         'redirect': url_for('facturacion.ticket', factura_id=factura_id),
     })
 
-
 # ==================== VER TICKET ====================
 @bp.route('/<int:factura_id>/ticket')
 @login_required
@@ -221,7 +201,6 @@ def ticket(factura_id):
         cliente=factura.cliente,
     )
 
-
 # ==================== API: CLIENTE POR NOMBRE EXACTO ====================
 @bp.route('/api/cliente-exacto')
 @login_required
@@ -233,11 +212,8 @@ def api_cliente_exacto():
     c = Cliente.query.filter_by(tienda_id=tienda_id, nombre=nombre).first()
     if c:
         return jsonify({
-            'id': c.id,
-            'nombre': c.nombre,
-            'documento': c.documento or '',
-            'telefono': c.telefono or '',
-            'direccion': c.direccion or '',
+            'id': c.id, 'nombre': c.nombre, 'documento': c.documento or '',
+            'telefono': c.telefono or '', 'direccion': c.direccion or '',
             'saldo': float(c.saldo_actual or 0),
         })
     return jsonify(None)

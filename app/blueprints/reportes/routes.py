@@ -17,13 +17,20 @@ def hora_local():
 
 
 def tienda_actual():
-    if current_user.es_programador():
+    from flask import session, current_app
+    from app.models.tienda import Tienda
+    
+    if current_app.config.get('MODO') == 'central' and (current_user.es_programador() or current_user.es_admin()):
         tid = request.args.get('tienda', type=int)
         if tid:
+            session['tienda_actual_id'] = tid
             return tid
+        if session.get('tienda_actual_id'):
+            return session.get('tienda_actual_id')
         primera = Tienda.query.filter_by(activa=True).first()
         return primera.id if primera else None
     return current_user.tienda_id
+
 
 
 def redondear(v):
@@ -186,12 +193,10 @@ def registrar_abono():
 
     saldo_actual = float(factura.saldo_pendiente)
 
-    # Cap automático: si el monto supera el saldo, se ajusta
     if monto > saldo_actual + 0.01:
         flash(f'Monto ajustado al saldo pendiente (${saldo_actual:,.0f}).', 'info')
         monto = saldo_actual
 
-    # Redondear al saldo exacto si está muy cerca
     if abs(monto - saldo_actual) < 1.0:
         monto = saldo_actual
 
@@ -207,39 +212,40 @@ def registrar_abono():
         porcentaje = Decimal(conf.valor) if conf else Decimal('0.4')
         recargo = redondear(monto_base * (porcentaje / Decimal('100')))
 
-    # Vueltas: el form ya no las pide. Siempre 0.
-    vueltas = Decimal('0')
+    # El pago total incluye el recargo
+    monto_total_pagado = monto_base + recargo
 
-    # Crear pago con recargo
     pago = Pago(
         factura_id=factura.id,
         tienda_id=factura.tienda_id,
-        monto=monto_base,
-        #recargo=recargo,
+        monto=monto_total_pagado,
         metodo_pago=metodo,
     )
     db.session.add(pago)
 
-    # Actualizar factura
+    # Actualizar saldo (solo se abona el monto base, no el recargo)
     nuevo_saldo = redondear(Decimal(str(saldo_actual)) - monto_base)
     factura.saldo_pendiente = nuevo_saldo
     if nuevo_saldo <= 0.5:
         factura.estado_credito = 'pagado'
         factura.saldo_pendiente = Decimal('0')
 
+    # ACTUALIZAR TOTALES DE LA FACTURA CON EL RECARGO
+    if recargo > 0:
+        factura.total = (factura.total or 0) + recargo
+        factura.recargo_nequi = (factura.recargo_nequi or 0) + recargo
+
+    factura.valor_pagado = (factura.valor_pagado or 0) + monto_total_pagado
+
     # Actualizar cliente
     cliente = factura.cliente
-    nuevo_saldo_cli = redondear(
-        Decimal(str(cliente.saldo_actual or 0)) - monto_base
-    )
-    # v2.32-fix-saldo-cliente: si queda residuo < 0.50, limpiar
+    nuevo_saldo_cli = redondear(Decimal(str(cliente.saldo_actual or 0)) - monto_base)
     if nuevo_saldo_cli <= Decimal('0.50'):
         nuevo_saldo_cli = Decimal('0')
     cliente.saldo_actual = nuevo_saldo_cli
 
     db.session.commit()
 
-    # Auditoría: abono registrado
     try:
         from app.services.auditoria_service import registrar_auditoria
         detalle_audit = (
@@ -248,15 +254,10 @@ def registrar_abono():
         )
         if recargo > 0:
             detalle_audit += f' | Recargo: ${float(recargo):,.0f}'
-        registrar_auditoria(
-            'abono_registrar',
-            detalle_audit,
-            tienda_id=factura.tienda_id,
-        )
+        registrar_auditoria('abono_registrar', detalle_audit, tienda_id=factura.tienda_id)
     except Exception as e:
         print(f'[auditoria abono] aviso: {e}')
 
-    # Mensaje con desglose
     msg = f'Abono de ${float(monto_base):,.0f}'
     if recargo > 0:
         msg += f' + recargo ${float(recargo):,.0f}'

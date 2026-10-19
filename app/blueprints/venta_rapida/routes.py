@@ -1,6 +1,6 @@
 # app/blueprints/venta_rapida/routes.py
 from decimal import Decimal
-from flask import render_template, request, jsonify, url_for, current_app
+from flask import render_template, request, jsonify, url_for, current_app, session
 from flask_login import login_required, current_user
 from sqlalchemy import or_, func
 from . import bp
@@ -10,20 +10,31 @@ from app.models.tienda import Tienda
 from app.services.facturacion_service import crear_factura_completa
 from app.blueprints.configuracion.routes import get_valor
 
+def es_central():
+    return current_app.config.get('MODO', 'tienda_local') == 'central'
+
 def tienda_actual():
-    if current_user.es_programador():
+    from flask import session, current_app
+    from app.models.tienda import Tienda
+    
+    if current_app.config.get('MODO') == 'central' and (current_user.es_programador() or current_user.es_admin()):
         tid = request.args.get('tienda', type=int)
         if tid:
+            session['tienda_actual_id'] = tid
             return tid
+        if session.get('tienda_actual_id'):
+            return session.get('tienda_actual_id')
         primera = Tienda.query.filter_by(activa=True).first()
         return primera.id if primera else None
     return current_user.tienda_id
+
 
 @bp.route('/')
 @login_required
 def nueva():
     tienda_id = tienda_actual()
     tiendas = Tienda.query.filter_by(activa=True).all()
+    tienda_actual_obj = Tienda.query.get(tienda_id) if tienda_id else None
     
     try:
         recargo = float(get_valor('recargo_nequi', None) or 0.4)
@@ -33,6 +44,7 @@ def nueva():
     return render_template(
         'venta_rapida/nueva.html',
         tienda_id=tienda_id,
+        tienda_actual_obj=tienda_actual_obj,
         tiendas=tiendas,
         recargo_porcentaje=recargo,
     )
