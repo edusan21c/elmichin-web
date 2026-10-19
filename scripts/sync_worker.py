@@ -518,6 +518,20 @@ def main():
     log('--- FIX SALDOS NEGATIVOS (v2.37) ---')
     corregir_saldos_negativos(app)
 
+    # --- ACTUALIZACION AUTOMATICA DE ARCHIVOS (v2.84) ---
+    log('--- GIT PULL (buscando fotos nuevas) ---')
+    import subprocess
+    try:
+        r = subprocess.run(['git', 'pull', 'origin', 'main'], cwd=RAIZ, capture_output=True, text=True, timeout=30)
+        if 'Already up to date' not in r.stdout and 'Ya está actualizado' not in r.stdout and 'Fast-forward' in r.stdout:
+            log('Git Pull: Se descargaron archivos nuevos.')
+        else:
+            log('Git Pull: Sin archivos nuevos.')
+    except Exception as e:
+        log(f'Git Pull Error: {e}')
+    # ----------------------------------------------------
+
+
     log('Ciclo completado.')
     log('')
 
