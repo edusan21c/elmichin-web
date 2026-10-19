@@ -196,6 +196,7 @@ def obtener_cambios_pull(tienda_id, desde=None, desde_id=0, limite=200):
             'codigo_barras': p.codigo_barras,
             'codigo_global': p.codigo_global,
             'categoria': p.categoria,
+            'imagen': p.imagen,
             'modificado_por_nombre': p.modificado_por_nombre,
             'modificado_en': p.modificado_en.isoformat() if p.modificado_en else None,
             'tienda_id': pres.tienda_id,
@@ -268,6 +269,7 @@ def aplicar_cambios_pull(datos):
                     codigo_barras=codigo or None,
                     categoria=p_data.get('categoria') or None,
                     codigo_global=codigo_global or str(uuid.uuid4()),
+                    imagen=p_data.get('imagen'),
                 )
                 db.session.add(producto)
                 db.session.flush()
@@ -303,6 +305,10 @@ def aplicar_cambios_pull(datos):
                 print(f'  [pull] Categoria actualizada: "{producto.nombre}" '
                       f'-> {cat_nueva}')
                 producto.categoria = cat_nueva
+
+        # Imagen
+        if producto and p_data.get('imagen') is not None and producto.imagen != p_data.get('imagen'):
+            producto.imagen = p_data.get('imagen')
 
         # Nombre
         if producto and nombre and producto.nombre != nombre:
@@ -691,6 +697,7 @@ def procesar_push(tienda_id, datos):
                         codigo_barras=codigo,
                         categoria=p_data.get('categoria') or None,
                         codigo_global=codigo_global or str(uuid.uuid4()),
+                        imagen=p_data.get('imagen'),
                     )
                     db.session.add(producto)
                     db.session.flush()
@@ -706,6 +713,10 @@ def procesar_push(tienda_id, datos):
                 cat_nueva = (p_data.get('categoria') or '').strip()
                 if cat_nueva and producto.categoria != cat_nueva:
                     producto.categoria = cat_nueva
+
+            # Imagen
+            if producto and p_data.get('imagen') is not None and producto.imagen != p_data.get('imagen'):
+                producto.imagen = p_data.get('imagen')
 
             # Nombre
             if producto and nombre and producto.nombre != nombre:
@@ -1048,6 +1059,7 @@ def obtener_productos_pendientes_push(tienda_id):
             'codigo_barras': prod.codigo_barras if prod else None,
             'codigo_global': prod.codigo_global if prod else None,
             'categoria': prod.categoria if prod else None,
+            'imagen': prod.imagen if prod else None,
             'modificado_por_nombre': prod.modificado_por_nombre if prod else None,
             'modificado_en': prod.modificado_en.isoformat() if prod and prod.modificado_en else None,
             'cantidad': int(pres.cantidad or 0),
