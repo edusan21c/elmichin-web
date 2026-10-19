@@ -18,24 +18,24 @@ NOMBRE_TAREA = 'MichinUpdate'
 
 # ==================== VERSION LOCAL ====================
 def get_version_local():
-    """Obtiene la version actual. Lee git tag o version.py."""
-    # Intentar con git describe
+    """Obtiene la version actual leyendo el tag mas reciente de Git."""
     try:
+        # Lista todos los tags ordenados por version (el mas nuevo primero)
         result = subprocess.run(
-            ['git', 'describe', '--tags', '--abbrev=0'],
+            ['git', 'tag', '--sort=-v:refname'],
             cwd=RAIZ,
             capture_output=True,
             text=True,
             timeout=5,
         )
         if result.returncode == 0:
-            version = result.stdout.strip()
-            if version.startswith('v'):
-                return version
+            tags = result.stdout.strip().split('\n')
+            if tags and tags[0]:
+                return tags[0]
     except Exception:
         pass
 
-    # Fallback a version.py
+    # Fallback por si Git falla
     try:
         sys.path.insert(0, RAIZ)
         from version import VERSION
