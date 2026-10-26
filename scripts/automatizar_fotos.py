@@ -49,7 +49,7 @@ def procesar_todo():
     print("--- SUBIENDO A GITHUB ---")
     subprocess.run(["git", "add", "app/static/img/productos/"], check=True)
     # Solo hace commit si hay cambios reales
-    status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+    status = subprocess.run(["git", "status", "--porcelain", "app/static/img/productos/"], capture_output=True, text=True)
     if status.stdout.strip():
         subprocess.run(["git", "commit", "-m", "feat: actualizacion automatica de fotos"], check=True)
         subprocess.run(["git", "push", "origin", "main"], check=True)
