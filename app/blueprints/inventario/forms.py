@@ -25,6 +25,10 @@ class ProductoForm(FlaskForm):
             ('aseo', 'Aseo'),
             ('licor', 'Licor'),
             ('otro', 'Otro'),
+            ('abarrotes', 'Abarrotes'),
+            ('panaderia', 'Panadería'),
+            ('desechables', 'Desechables'),
+            ('INACTIVO', 'INACTIVO (Ocultar)'),
         ],
         validators=[Optional()]
     )

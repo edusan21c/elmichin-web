@@ -16,8 +16,6 @@ def create_app(config_class=None):
     app = Flask(__name__)
 
     # ============ ProxyFix ============
-    # Confiar en los headers X-Forwarded-* que envía Cloudflare Tunnel
-    # IMPORTANTE: debe ir ANTES de cargar la configuración
     app.wsgi_app = ProxyFix(
         app.wsgi_app,
         x_for=1,
@@ -37,7 +35,7 @@ def create_app(config_class=None):
     login_manager.init_app(app)
     csrf.init_app(app)
 
-    # ============ Importar modelos (para que Alembic los detecte) ============
+    # ============ Importar modelos ============
     from .models import usuario, tienda, producto, cliente, factura
     from .models import pago, venta, borrador, configuracion, sync_log
 
@@ -60,6 +58,9 @@ def create_app(config_class=None):
     from .blueprints.estadisticas import bp as estadisticas_bp
     from .blueprints.bi import bp as bi_bp
     from .blueprints.caja import bp as caja_bp
+    
+    # NUEVO MODULO PRO
+    from .blueprints.inventario_pro import bp as inventario_pro_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp)
@@ -71,9 +72,13 @@ def create_app(config_class=None):
     app.register_blueprint(estadisticas_bp)
     app.register_blueprint(bi_bp)
     app.register_blueprint(caja_bp)
+    
+    # REGISTRO DEL NUEVO MODULO PRO
+    app.register_blueprint(inventario_pro_bp, url_prefix='/inventario-pro')
 
     # Excluir la API del CSRF (usa autenticación por SYNC_KEY, no por sesión)
     csrf.exempt(api_bp)
+    csrf.exempt(inventario_pro_bp) # <--- ESTA ES LA LÍNEA QUE ARREGLA EL ERROR DE RED
 
     app.register_blueprint(configuracion_bp) 
 
@@ -87,7 +92,6 @@ def create_app(config_class=None):
     # ============ Filtro de plantilla para hora local ============
     @app.template_filter('fecha_local')
     def fecha_local_filter(dt):
-        """Convierte datetime UTC a hora local Colombia."""
         if not dt:
             return ''
         return (dt - timedelta(hours=5)).strftime('%d/%m/%Y %H:%M')

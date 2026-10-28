@@ -1,0 +1,457 @@
+{% extends 'base.html' %}
+{% block titulo %}Inventario Profesional - El Michín{% endblock %}
+
+{% block estilos_extra %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/tabulator-tables@6.2.1/dist/css/tabulator_bootstrap5.min.css" rel="stylesheet">
+
+<style>
+    body { font-family: 'Outfit', sans-serif; background-color: #f0f4f8; }
+    
+    .top-bar { background: #ffffff; padding: 1rem 2rem; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+    .search-box { position: relative; flex-grow: 1; max-width: 500px; }
+    .search-box input { border-radius: 50px; padding-left: 40px; border: 2px solid #e2e8f0; background: #f8fafc; transition: all 0.3s; }
+    .search-box input:focus { border-color: #3b82f6; background: #ffffff; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .search-box i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.2rem; }
+    
+    .kpi-card { background: white; border-radius: 16px; padding: 1.2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 15px; }
+    .kpi-icon { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+    .kpi-icon.blue { background: #e0f2fe; color: #0284c7; }
+    .kpi-icon.yellow { background: #fef3c7; color: #d97706; }
+    .kpi-icon.red { background: #fee2e2; color: #dc2626; }
+    .kpi-info h6 { margin: 0; color: #64748b; font-size: 0.85rem; font-weight: 600; }
+    .kpi-info h3 { margin: 0; color: #0f172a; font-weight: 700; font-size: 1.5rem; }
+
+    .tabulator { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.03); background-color: #ffffff; }
+    .tabulator .tabulator-header { background-color: #f8fafc !important; border-bottom: 2px solid #e2e8f0; }
+    .tabulator .tabulator-header .tabulator-col { background-color: #f8fafc !important; color: #1e293b !important; font-weight: 600; border-right: 1px solid #e2e8f0 !important; }
+    
+    .tabulator .tabulator-header .tabulator-col-group .tabulator-col-title { background-color: #e0f2fe; color: #0369a1; font-weight: 700; border-bottom: 1px solid #bae6fd; }
+    .tabulator .tabulator-header .tabulator-col-group:nth-child(3) .tabulator-col-title { background-color: #dcfce7; color: #166534; }
+
+    .col-t1 { background-color: #f0f9ff !important; }
+    .col-t2 { background-color: #f0fdf4 !important; }
+
+    .modal-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; border-radius: 16px 16px 0 0; }
+    .modal-content { border-radius: 16px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .modal-body { max-height: 70vh; overflow-y: auto; }
+    .form-control, .form-select { border-radius: 8px; border: 1px solid #cbd5e1; }
+    .form-label { font-weight: 600; color: #475569; font-size: 0.85rem; margin-bottom: 2px; }
+    .section-title { font-size: 1.1rem; font-weight: 700; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; margin-top: 15px; margin-bottom: 15px; }
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div class="container-fluid py-4">
+    
+    <div class="top-bar">
+        <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input type="text" class="form-control form-control-lg" id="buscador" placeholder="Buscar producto, categoría o código...">
+        </div>
+        <button class="btn btn-success btn-lg fw-bold px-4" onclick="abrirModalNuevo()" style="border-radius: 50px;">
+            <i class="bi bi-plus-circle"></i> Nuevo Producto
+        </button>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon blue"><i class="bi bi-box-seam"></i></div>
+                <div class="kpi-info"><h6>Total Productos</h6><h3 id="kpi-total">0</h3></div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon red"><i class="bi bi-exclamation-triangle"></i></div>
+                <div class="kpi-info"><h6>Agotados en Central</h6><h3 id="kpi-sin-stock">0</h3></div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon yellow"><i class="bi bi-tags"></i></div>
+                <div class="kpi-info"><h6>Categorías Diferentes</h6><h3 id="kpi-categorias">0</h3></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+        <div class="card-body p-0">
+            <div id="tabla-inventario"></div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL PARA EDITAR / CREAR -->
+<div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-titulo"><i class="bi bi-pencil-square"></i> Editar Producto</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-id">
+                
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Nombre Producto</label>
+                        <input type="text" class="form-control" id="edit-nombre">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Categoría</label>
+                        <select class="form-select" id="edit-categoria" name="categoria">
+        <option value="">-- Sin categoría --</option>
+        <option value="dulce">Dulce</option>
+        <option value="cigarro">Cigarrillo</option>
+        <option value="bebida">Bebida</option>
+        <option value="snack">Snack / Mecato</option>
+        <option value="aseo">Aseo</option>
+        <option value="licor">Licor</option>
+        <option value="otro">Otro</option>
+        <option value="abarrotes">Abarrotes</option>
+        <option value="panaderia">Panadería</option>
+        <option value="desechables">Desechables</option>
+        <option value="INACTIVO">INACTIVO (Ocultar)</option>
+    </select>
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <label class="form-label">Código de Barras</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="edit-codigo" placeholder="Ej: 770... o déjalo vacío">
+                            <button class="btn btn-outline-primary fw-bold" type="button" onclick="generarCodigoEAN13()" title="Genera un código interno válido para productos sin código">
+                                <i class="bi bi-upc-scan"></i> Generar 200...
+                            </button>
+                        </div>
+                        <small class="text-muted">Si el producto no tiene código de fábrica, haz clic en "Generar".</small>
+                    </div>
+                </div>
+
+                <!-- TIENDA 1 -->
+                <div class="section-title text-primary">🏢 TIENDA 1 (CENTRAL)</div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Stock</label>
+                        <input type="number" class="form-control" id="edit-t1-stock">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Costo</label>
+                        <input type="number" class="form-control" id="edit-t1-costo">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">% Gan</label>
+                        <input type="number" class="form-control" id="edit-t1-gan">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Precio Base</label>
+                        <input type="number" class="form-control" id="edit-t1-base">
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Cant 1</label>
+                        <input type="number" class="form-control" id="edit-t1-c1">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Precio 1</label>
+                        <input type="number" class="form-control" id="edit-t1-p1">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Cant 2</label>
+                        <input type="number" class="form-control" id="edit-t1-c2">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Precio 2</label>
+                        <input type="number" class="form-control" id="edit-t1-p2">
+                    </div>
+                </div>
+
+                <!-- TIENDA 2 -->
+                <div class="section-title text-success">🏪 TIENDA 2 (EL MICHÍN DOS)</div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Stock</label>
+                        <input type="number" class="form-control" id="edit-t2-stock">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Costo</label>
+                        <input type="number" class="form-control" id="edit-t2-costo">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">% Gan</label>
+                        <input type="number" class="form-control" id="edit-t2-gan">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Precio Base</label>
+                        <input type="number" class="form-control" id="edit-t2-base">
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Cant 1</label>
+                        <input type="number" class="form-control" id="edit-t2-c1">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Precio 1</label>
+                        <input type="number" class="form-control" id="edit-t2-p1">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Cant 2</label>
+                        <input type="number" class="form-control" id="edit-t2-c2">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Precio 2</label>
+                        <input type="number" class="form-control" id="edit-t2-p2">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success fw-bold px-4" id="btn-guardar-modal">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/tabulator-tables@6.2.1/dist/js/tabulator.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    var moneyFormatter = function(cell) {
+        var val = cell.getValue();
+        if(val === null || val === undefined || val === "") return "";
+        return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
+    };
+
+    var modalEditar = new bootstrap.Modal(document.getElementById('modalEditar'));
+    var currentEditId = null;
+
+    var table = new Tabulator("#tabla-inventario", {
+        height: "60vh",
+        layout: "fitDataFill",
+        ajaxURL: "/inventario-pro/api/data",
+        ajaxConfig: "GET",
+        placeholder: "Cargando productos...",
+        selectableRows: false,
+        
+        columns: [
+            {title: "ID", field: "id", width: 70, hozAlign: "center", cssClass: "fw-bold text-muted"},
+            {title: "Nombre Producto", field: "nombre", width: 300, cssClass: "fw-semibold text-dark"},
+            {title: "Categoría", field: "categoria", width: 130},
+            {title: "C. Barras", field: "codigo_barras", width: 140},
+            
+            {title: "T1 Stock", field: "t1_stock", width: 90, hozAlign: "center", cssClass: "col-t1"},
+            {title: "T1 P. Base", field: "t1_base", width: 110, hozAlign: "right", formatter: moneyFormatter, cssClass: "text-success fw-bold col-t1"},
+            
+            {title: "T2 Stock", field: "t2_stock", width: 90, hozAlign: "center", cssClass: "col-t2"},
+            {title: "T2 P. Base", field: "t2_base", width: 110, hozAlign: "right", formatter: moneyFormatter, cssClass: "text-success fw-bold col-t2"},
+            
+            {
+                title: "Acción", 
+                width: 100, 
+                hozAlign: "center",
+                formatter: function(cell, formatterParams, onRendered){
+                    return "<button class='btn btn-sm btn-primary'><i class='bi bi-pencil'></i> Editar</button>";
+                },
+                cellClick: function(e, cell){
+                    abrirModalEditar(cell.getRow().getData());
+                }
+            }
+        ]
+    });
+
+    // ⚡ LÓGICA DE PERSISTENCIA DEL BUSCADOR ⚡
+    document.addEventListener("DOMContentLoaded", function() {
+        let inputBuscador = document.getElementById("buscador");
+        let busquedaGuardada = localStorage.getItem("busqueda_inventario_pro");
+        
+        if (busquedaGuardada) {
+            inputBuscador.value = busquedaGuardada;
+            table.on("dataLoaded", function() {
+                let term = busquedaGuardada.toLowerCase();
+                table.setFilter([
+                    [
+                        {field: "nombre", type: "like", value: term},
+                        {field: "categoria", type: "like", value: term},
+                        {field: "codigo_barras", type: "like", value: term}
+                    ]
+                ]);
+            });
+        }
+
+        inputBuscador.addEventListener("keyup", function(e){
+            let term = e.target.value.toLowerCase();
+            localStorage.setItem("busqueda_inventario_pro", e.target.value);
+            table.setFilter([
+                [
+                    {field: "nombre", type: "like", value: term},
+                    {field: "categoria", type: "like", value: term},
+                    {field: "codigo_barras", type: "like", value: term}
+                ]
+            ]);
+        });
+    });
+
+    // Función para limpiar y abrir el modal para CREAR
+    function abrirModalNuevo() {
+        currentEditId = null;
+        document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-plus-circle"></i> Crear Nuevo Producto';
+        document.getElementById('edit-id').value = '';
+        
+        document.getElementById('edit-nombre').value = '';
+        document.getElementById('edit-categoria').value = '';
+        document.getElementById('edit-codigo').value = '';
+        
+        ['t1_stock', 't1_costo', 't1_gan', 't1_base', 't1_c1', 't1_p1', 't1_c2', 't1_p2',
+         't2_stock', 't2_costo', 't2_gan', 't2_base', 't2_c1', 't2_p1', 't2_c2', 't2_p2'].forEach(field => {
+            document.getElementById('edit-' + field.replace('_', '-')).value = '';
+        });
+
+        modalEditar.show();
+    }
+
+    // Función para abrir el modal para EDITAR
+    function abrirModalEditar(data) {
+        currentEditId = data.id;
+        document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-pencil-square"></i> Editar Producto';
+        document.getElementById('edit-id').value = data.id;
+        document.getElementById('edit-nombre').value = data.nombre;
+        
+        var selectCat = document.getElementById('edit-categoria');
+        var catActual = data.categoria ? data.categoria.trim() : "";
+        if (catActual !== "" && !Array.from(selectCat.options).some(opt => opt.value === catActual)) {
+            var newOpt = new Option(catActual, catActual);
+            selectCat.add(newOpt);
+        }
+        selectCat.value = catActual;
+
+        document.getElementById('edit-codigo').value = data.codigo_barras || '';
+        
+        document.getElementById('edit-t1-stock').value = data.t1_stock;
+        document.getElementById('edit-t1-costo').value = data.t1_costo;
+        document.getElementById('edit-t1-gan').value = data.t1_gan;
+        document.getElementById('edit-t1-base').value = data.t1_base;
+        document.getElementById('edit-t1-c1').value = data.t1_c1;
+        document.getElementById('edit-t1-p1').value = data.t1_p1;
+        document.getElementById('edit-t1-c2').value = data.t1_c2;
+        document.getElementById('edit-t1-p2').value = data.t1_p2;
+
+        document.getElementById('edit-t2-stock').value = data.t2_stock;
+        document.getElementById('edit-t2-costo').value = data.t2_costo;
+        document.getElementById('edit-t2-gan').value = data.t2_gan;
+        document.getElementById('edit-t2-base').value = data.t2_base;
+        document.getElementById('edit-t2-c1').value = data.t2_c1;
+        document.getElementById('edit-t2-p1').value = data.t2_p1;
+        document.getElementById('edit-t2-c2').value = data.t2_c2;
+        document.getElementById('edit-t2-p2').value = data.t2_p2;
+
+        modalEditar.show();
+    }
+
+    // 🪄 FUNCIÓN MÁGICA A PRUEBA DE REPETIDOS
+    function generarCodigoEAN13() {
+        // 1. Obtener todos los códigos actuales de la tabla
+        let codigosActuales = table.getData().map(p => p.codigo_barras);
+
+        let codigoFinal = "";
+        let repetido = true;
+
+        // 2. Bucle infinito hasta que encuentre uno que NO exista
+        while (repetido) {
+            let base = "200";
+            for (let i = 0; i < 9; i++) {
+                base += Math.floor(Math.random() * 10);
+            }
+            
+            // Calcular dígito de control EAN-13
+            let suma = 0;
+            for (let i = 0; i < 12; i++) {
+                let digito = parseInt(base[i]);
+                suma += (i % 2 === 0) ? digito : digito * 3;
+            }
+            let checkDigit = (10 - (suma % 10)) % 10;
+            codigoFinal = base + checkDigit;
+
+            // 3. Verificar si ya existe en la tabla actual
+            if (!codigosActuales.includes(codigoFinal)) {
+                repetido = false; // Si no existe, salimos del bucle
+            }
+        }
+
+        // 4. Asignar el código seguro
+        document.getElementById('edit-codigo').value = codigoFinal;
+        
+        let input = document.getElementById('edit-codigo');
+        input.style.backgroundColor = "#d1e7dd";
+        setTimeout(() => { input.style.backgroundColor = ""; }, 800);
+    }
+
+    document.getElementById('btn-guardar-modal').addEventListener('click', function() {
+        var btn = this;
+        btn.innerHTML = 'Guardando...';
+        btn.disabled = true;
+
+        var datos = {
+            id: currentEditId,
+            nombre: document.getElementById('edit-nombre').value,
+            categoria: document.getElementById('edit-categoria').value,
+            codigo_barras: document.getElementById('edit-codigo').value,
+            
+            t1_stock: document.getElementById('edit-t1-stock').value,
+            t1_costo: document.getElementById('edit-t1-costo').value,
+            t1_gan: document.getElementById('edit-t1-gan').value,
+            t1_base: document.getElementById('edit-t1-base').value,
+            t1_c1: document.getElementById('edit-t1-c1').value,
+            t1_p1: document.getElementById('edit-t1-p1').value,
+            t1_c2: document.getElementById('edit-t1-c2').value,
+            t1_p2: document.getElementById('edit-t1-p2').value,
+
+            t2_stock: document.getElementById('edit-t2-stock').value,
+            t2_costo: document.getElementById('edit-t2-costo').value,
+            t2_gan: document.getElementById('edit-t2-gan').value,
+            t2_base: document.getElementById('edit-t2-base').value,
+            t2_c1: document.getElementById('edit-t2-c1').value,
+            t2_p1: document.getElementById('edit-t2-p1').value,
+            t2_c2: document.getElementById('edit-t2-c2').value,
+            t2_p2: document.getElementById('edit-t2-p2').value,
+        };
+
+        fetch("/inventario-pro/api/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify([datos])
+        })
+        .then(res => res.json())
+        .then(resData => {
+            if (resData.status === "success") {
+                modalEditar.hide();
+                Swal.fire('¡Guardado!', 'El producto se guardó correctamente.', 'success').then(() => {
+                    table.replaceData();
+                });
+            } else {
+                Swal.fire('Error', resData.message, 'error');
+            }
+        })
+        .catch(err => {
+            Swal.fire('Error', 'No se pudo conectar.', 'error');
+        })
+        .finally(() => {
+            btn.innerHTML = 'Guardar Cambios';
+            btn.disabled = false;
+        });
+    });
+
+    table.on("dataLoaded", function(data){
+        document.getElementById("kpi-total").innerText = data.length;
+        document.getElementById("kpi-sin-stock").innerText = data.filter(p => p.t1_stock === 0).length;
+        var categorias = new Set(data.map(p => p.categoria).filter(c => c));
+        document.getElementById("kpi-categorias").innerText = categorias.size;
+    });
+</script>
+{% endblock %}

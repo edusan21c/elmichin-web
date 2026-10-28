@@ -87,6 +87,16 @@
             <li class="nav-item mt-3">
                 <small class="text-muted ps-3">ADMINISTRACIÓN</small>
             </li>
+
+            <!-- 👑 AQUÍ ESTÁ EL BOTÓN ARREGLADO (Sin azul, sin negrita) 👑 -->
+            <li class="nav-item">
+                <a class="nav-link {% if request.blueprint == 'inventario_pro' %}active{% endif %}"
+                   href="{{ url_for('inventario_pro.index') }}">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Inventario Pro
+                </a>
+            </li>
+            <!-- 👑 FIN DEL BOTÓN 👑 -->
+
             <li class="nav-item">
                 <a class="nav-link {% if request.endpoint == 'admin.lista_usuarios' %}active{% endif %}"
                    href="{{ url_for('admin.lista_usuarios') }}">

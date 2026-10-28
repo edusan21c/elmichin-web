@@ -21,7 +21,7 @@ def tienda_actual():
 @login_required
 def index():
     tiendas = Tienda.query.filter_by(activa=True).all()
-    total_productos = Producto.query.count()
+    total_productos = Producto.query.filter(Producto.categoria != 'INACTIVO').count()
     total_tiendas = len(tiendas)
     t_actual = tienda_actual()
 

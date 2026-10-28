@@ -1,6 +1,7 @@
 # app/services/sync_service.py
 """Logica de sincronizacion entre tienda y central."""
 import uuid
+import random
 from datetime import datetime, timedelta
 from decimal import Decimal
 from flask import current_app
@@ -562,21 +563,22 @@ def procesar_push(tienda_id, datos):
                 if prod_nombre:
                     prod_real = Producto.query.filter_by(nombre=prod_nombre).first()
                 if not prod_real:
-                    codigo_tmp = f'AUTO-{prod_local_id}' if prod_local_id else None
-                    if codigo_tmp:
-                        prod_real = Producto.query.filter_by(codigo_barras=codigo_tmp).first()
-                    if not prod_real:
-                        try:
-                            prod_real = Producto(
-                                nombre=prod_nombre or f'Producto {prod_local_id}',
-                                codigo_barras=codigo_tmp, categoria=None,
-                            )
-                            db.session.add(prod_real)
-                            db.session.flush()
-                        except Exception as e:
-                            db.session.rollback()
-                            errores.append(f'Detalle: no se pudo crear producto ({e})')
-                            continue
+                    while True:
+                        codigo_tmp = f"200{random.randint(1000000000, 9999999999)}"
+                        if not Producto.query.filter_by(codigo_barras=codigo_tmp).first():
+                            break
+                    
+                    try:
+                        prod_real = Producto(
+                            nombre=prod_nombre or f'Producto {prod_local_id}',
+                            codigo_barras=codigo_tmp, categoria='otro',
+                        )
+                        db.session.add(prod_real)
+                        db.session.flush()
+                    except Exception as e:
+                        db.session.rollback()
+                        errores.append(f'Detalle: no se pudo crear producto ({e})')
+                        continue
 
                 detalle = DetalleFactura(
                     factura_id=factura.id, producto_id=prod_real.id,

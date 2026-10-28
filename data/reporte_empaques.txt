@@ -1,0 +1,1550 @@
+=== ÁRBOL DE EMPAQUES VS UNIDADES ===
+
+CONTENEDOR: C. Panelin X 40U | Codigo: MAN-2147
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bianchi Caramelos Chocolatex100Un | Codigo: 7702993058862
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Big Ben Clasicosx100Un | Codigo: 7702993012994
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bianchi Caramelo Mokax100Un | Codigo: 7702993045404
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bianchi Chocolate Blancox100Un | Codigo: 7702993058855
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bianchi Caramelo Crema de manix100 | Codigo: 7702993058886
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce Duro Bam Bam x300 | Codigo: 7707222053441
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chao Linea Menta (blanca)x24Un | Codigo: 7702993031032
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce de Miel Elite x 100U | Codigo: None
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce Relleno Americandyx100 | Codigo: 60c6aa5fb52f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Halls Barra FruitMixx12 (Cereza, Mora-lyptus) | Codigo: 7622210427014
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chao Linea Fresa (Roja)x24Un | Codigo: 7702993031711
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Corazón Colombianox50 | Codigo: 492cf067601f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chocoleche Minibombon x 100 | Codigo: None
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Xtime Yerbabuenax100 | Codigo: 7702011160829
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chao Pastillas Yerbabuenax16Tub | Codigo: 7702993050774
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chao Pastillas Cerezax16Tub | Codigo: 7702993033357
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Oka Loka Nanos (Mini)x24Un. | Codigo: 7702993049099
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Garoto Grande Bombones 220g | Codigo: 7891000457139
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolate Corona 100gr | Codigo: 28180ff44e97
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Azucar Manuelita Ux200 (Tubipack) | Codigo: 717ff543f9d0
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Millows Cream masmelox50 | Codigo: 7702011167965
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Salchichón | Codigo: 7709990018691
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Nucitax18 | Codigo: 7702011021915
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Maggi Desx36 | Codigo: 7702024110668
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Leche Klim X 16U | Codigo: 7702024196334
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Ricostillax30 Desm. | Codigo: 7702354954086
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Franki, aros, splash x50 gomitas | Codigo: 7702993055168
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Minichips | Codigo: 7702025146178
+   -> TIENE UNIDAD: Un. MiniChips (Cod: 7702025142910)
+
+CONTENEDOR: B. Galleta Oreo Bx12P PX4 | Codigo: 7590011151110
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Halls Barra Moradox12 (BlueBerry) | Codigo: 7622210426994
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Halls Barra Amarillox12 (Limón y miel) | Codigo: 7622201776442
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Oreo PX6U UX6 | Codigo: 7622202846298
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Halls Barra Negrox12 (Strong-lyptus) | Codigo: 7622202015205
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Halls Barra Verdex12 (Yerbabuena) | Codigo: 7702133413940
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Halls Barra Azulx12 (Mentho-lyptus) | Codigo: 7622210426970
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. PinPopx12 Surtido Assorted | Codigo: 7702174082020
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. PinPopx24 Surtido (bolsa azul) | Codigo: 7702174088909
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. PinPopx24 Mango Enchilado | Codigo: 7702174088916
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. PinPopx24 Fresa Chicle surtido | Codigo: 7702174812801
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. PinPopx24 Frunas | Codigo: 7702174871532
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chocorramo x5 Un. | Codigo: 7702914596794
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Masmelos Barriletex50g | Codigo: 7702993046180
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bianchi Choco Galletasx40 gr | Codigo: 7702993046579
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bianchi Cookies and Creamx48gr | Codigo: 7702993048962
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B.Trululux70gr Fresitas | Codigo: 7702993051726
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. TrululuGusanos Acidosx70gr | Codigo: 7702993051733
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. TrululuArosx70g (goma) | Codigo: 7702993051801
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B.Trululu Masmelos x50gr | Codigo: 7702993052297
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululux100gr Maxi con nanos | Codigo: 7702993054581
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululux70gr Franki | Codigo: 7702993055724
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Vocan de Chocolatex54gr | Codigo: 7702993056707
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Unicorniox43g | Codigo: 7702993056745
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Gummies orugasx70 gr (trululux70) BigBom | Codigo: 7707014952051
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Gummies Sandiax70gr (trululux70)BigBom | Codigo: 7707014961701
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Pantene Shampoox12 o acondicionador (restauración) | Codigo: 7500435108294
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Gel Egox15 Attractionx15 | Codigo: 7702006298964
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Xtime Canelax100 | Codigo: 7702011156044
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Xtime Sandia x100 | Codigo: 7702011156051
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Xtime Mentax100 | Codigo: 7702011167217
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Gel Egox15 Vitamin+carex15 | Codigo: 7702191523322
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Gala | Codigo: 7702914597999
+   -> TIENE UNIDAD: Un. Gala (Cod: 1a9af050d277)
+
+CONTENEDOR: C. Tumix Mentol x100 | Codigo: 7703888444647
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Tumix Surtidos x100 | Codigo: 7703888653223
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Trident (Dx18) Yerbabuena (verde) | Codigo: 7622201776565
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Trident (Dx18) Sandia (rosada) | Codigo: 7622201776626
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Trident (Dx18) Menta (Azul) | Codigo: 7622201776657
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Trident (Dx18) Mora Azul (morado) | Codigo: 7622201776688
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Arosx50 | Codigo: 7702993015469
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Trident (Dx18) Menta Fuerte (negro) | Codigo: 7622202385186
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Jet Blanca (Cruji Vainilla) x18 | Codigo: 7702007001846
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolatina Gol x 15 | Codigo: 7702007089714
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Menta Hel.x100 Col | Codigo: 7702011001481
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Super Coco Turron x100 | Codigo: 7702993018668
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu gusanos Acidosx100 | Codigo: 7702993028346
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Nucitax12 Crema+barquillo | Codigo: 7702011021946
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Splot Sandiax50 (caja rosada) | Codigo: 7702011032683
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Menta Surx100 Col. | Codigo: 7702011129369
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Mechas locas Sabores Frutales x6 | Codigo: 7702174073257
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. ManiMotox12 Cronch | Codigo: 7702189058539
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Quipitos | Codigo: 7702354948092
+   -> TIENE UNIDAD: Un. Quipitos (Cod: 7702354930783)
+
+CONTENEDOR: B. Barrita de chocorramo | Codigo: 7702914114608
+   -> TIENE UNIDAD: Un. Barrita de chocorramo (Cod: 06be00878bcf)
+
+CONTENEDOR: B. Gansito x 6 | Codigo: 7702914600859
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Arosx100 | Codigo: 7702993010648
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Jet # 1 DX80U | Codigo: 7702007080520
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Minimillows X 30 U | Codigo: 5bcbd98f853f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Halls Azul x 100 | Codigo: 7702133445101
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Garoto Pequeño Bombones 170g | Codigo: bb91249b3bcb
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Pingüinos Minix 240g | Codigo: 96607a5c30ac
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Burbujet C&C X 12U | Codigo: 7702007061185
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Halls Negro x 100 | Codigo: 7702133445118
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Buzzy Chicle Tattoo X 100U | Codigo: d47b55ee6a4e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bianchi Choco Bombonesx30 (Blanca) | Codigo: 7e24006f172e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bianchi Choco Bombonesx30 (Negro) | Codigo: 749b86b9bfcd
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Golpe Rancherox8 | Codigo: e5e5798d88e9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Snacky Caramelo 50g | Codigo: 103909d09394
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Snacky Caramelo 10g X 12U | Codigo: 7f264db94f8f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Tostiarepasx12 | Codigo: 0d40ca2f17b1
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Tostinachosx12 | Codigo: a65b367ac6d3
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Papa Yupi BBQx12 | Codigo: 37d894dcd3c7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Papa Yupi Pollox12 | Codigo: c66371484cea
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Papa Frits Boyx12 | Codigo: 5ba784bc3679
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Mani Sal X libra | Codigo: c27c79ffac27
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Mani Sal X 1/2 Lib. | Codigo: f375e962850f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Mani Dulce X Libra | Codigo: c8d3c09162a9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Uvas pasas 1/2 Lib. | Codigo: e0f9e63f44d2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Mani Dulce 1/2 Lib. | Codigo: fbf0d6411abb
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Haba 1/2 Lib. | Codigo: b709874af48b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Mistura Tocineta 250g | Codigo: 685725555eef
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Yoguetax24 | Codigo: 4cc3af0588f6
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Halls Morado x 100 | Codigo: 7702133445125
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Big Ben | Codigo: 31d9806df57f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cremoritas CX10 BX100U | Codigo: 5ca0b038412b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Max Cocox10 | Codigo: 2ab12fac9e81
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cocosette Sandwich X 4 X 12U | Codigo: 6e7b3612841b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Brinkyx12 x 4 | Codigo: b9b64a17a5c2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Brinkyx10 limón 6U | Codigo: 766084a2e3e3
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Brinkyx10 Chocolate 6U | Codigo: 70f5110c60c0
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Brinkyx10 Fresa 6U | Codigo: 984b53fd7c50
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Delechitas x 18U | Codigo: dc6208a12905
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Golozetas X 12U | Codigo: 00600b9932cf
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Byns X 12U | Codigo: ec06acda14ce
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce de Miel X 100U | Codigo: 99b1799d5292
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Rollitos Arequipe X 50U | Codigo: 772cc645234a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Vaso Copa X 30U | Codigo: 0a7c88c0c2e2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Vaso Galleta X 12U | Codigo: 371ba2d6669f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chirrico Pequeño X 12U | Codigo: 95c13d9e3944
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. BBB Caramelo Masticable CX16B BX45U | Codigo: d79783dae691
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Mordisqueta X 24U | Codigo: 9cd0ed9de266
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Lonchera Chefrito X 18U | Codigo: c6593a005d44
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Masmelo Angelito Jumbo X 100U | Codigo: 6e6aadff0fb5
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Masmelo Angelito Bolsón X 50U 250g | Codigo: d67c1e2d359c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Masmelo Crismallow X 75g | Codigo: 0c5871839fb4
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Masmelo Crismallow X 300g | Codigo: 5d6a3725cea2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fruna Aros x 100gr (Trululux100) | Codigo: 7702174896191
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Tortillas Bimbo | Codigo: f26f011dcc24
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Tostadas 150g Bimbo | Codigo: bce478d41904
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Tostadas 115g Guadalupe | Codigo: 4e007a69fd17
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Minichocorramo X 20u | Codigo: e773d4944f0b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chocorramo Brownie X 6U | Codigo: e4db1450638e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Bianchi Línea | Codigo: 008e070b21ee
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B.Oka loka Unicornio | Codigo: 3f955537e89b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Burbuja Jet C&C x 10 | Codigo: 7702007088397
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. BBB Tajin RX12U | Codigo: 7702011165596
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Sparkies | Codigo: 7702133462276
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bombazo | Codigo: 7702993018606
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B.Chocoball | Codigo: 7702011006622
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Maxi Mutantesx100g | Codigo: 7702993054123
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Love Edicion Especialx100g | Codigo: 7702993055793
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Pan Tajado M/quilla 550g | Codigo: 7705326020505
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Tostadas 280g Guadalupe | Codigo: 7705326079336
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chao Lineas Surtidasx24 | Codigo: 7702993057513
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Goma Folala X 30U | Codigo: 365e37879b0e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chilindrinas Grandes X 10U | Codigo: 6b2d65d458a3
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chilindrinas Pequeña X 20U | Codigo: 2f41f7a29dc0
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Herpos X 26U Kaiser | Codigo: 050ba10aa36a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Herpos X 26U Guayabetal | Codigo: b005a6fdfc76
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Herpos X 26U Ricaurte | Codigo: 3ada72e8b6fc
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Manjar Guayabetal X 12U | Codigo: 6b24adc3537a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Panelita Guayabetal X 8U | Codigo: 9f4ee7e431df
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Tumes X 10U | Codigo: 69d93e148a28
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Poker botellax30 | Codigo: 207e13892ffb
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Aguila botellax30 | Codigo: 1935025db88e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Aguila Light botellax30 | Codigo: d95a2f7677f6
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Costeña Bacanax30 | Codigo: 8f73e024eeac
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Completísimox36 Desm. | Codigo: 01fbe869c5e8
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Ricostillax60 Desm. | Codigo: bbc15bdac4ce
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Ricostillax60 Cubos | Codigo: a76d2886b78d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Gel Egox15 | Codigo: 618520cf0290
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Gel Egox10 | Codigo: cdfa240d6de7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Xtime Chicle X 200U | Codigo: b2abd6cda0a3
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Ricato X 50u | Codigo: 7702993046586
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Mix Acidasx100g | Codigo: 7702993053140
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Space Mixx100g | Codigo: 7702993056592
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Gummies Tiburonesx70g | Codigo: 7707014983246
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Veleño Guavateño X 18U | Codigo: 7709456025461
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chilindrinas Mediana X 10U | Codigo: 83f194f748aa
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B.Chupetasx50 | Codigo: 9562a6a299df
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Goma trolly Oingx100 | Codigo: 230297deb527
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Goma trolly ninjax100 | Codigo: c405056e60ee
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Trolly Ratonesx50 | Codigo: 109fdd6f685f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Trolly Mordiscosx50 | Codigo: c4ed2cabcb05
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Trolly Moneriasx50 | Codigo: 90f6f47006f9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trolly Musarañasx50 | Codigo: b1751bb60c7d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Goma Trolly emox100 | Codigo: a41fd37b2fd0
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Choco Barrilete BX24U | Codigo: 72fa3a519338
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Barrilete Gamers Bx40 | Codigo: 2f0d75c0cf52
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B.Barrilete Music x50 | Codigo: 218b21e625bd
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Nucitax12 | Codigo: 88fc34db70af
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Nucita Chocolatina DX12U | Codigo: 862eace6dc67
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Nucita Nuggets X 20U | Codigo: 4280f1f9ad7b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Nucita Caramelo | Codigo: b35f7f2f5b96
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Quimbaya x 18U | Codigo: f15528079da6
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Choco Baby BX24U 180g | Codigo: 3c52e733e4f2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Leche Polvo Proleche 104g | Codigo: 769ca8376f0a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Trululu Osos Piramidalx50 | Codigo: 1aac74f1a16a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B.Barriletex40 | Codigo: 7702993051375
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B.Mangoosx48 | Codigo: 7702174085304
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B.Barrilete Revolcónx40 | Codigo: 7702993059715
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Burbuja jet dorada x 12 | Codigo: 7702007088410
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. ChocoStopx50 | Codigo: 7702386031366
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. La Lecherax26 | Codigo: 62b52c894556
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Chokis Chocobasex6Un | Codigo: 7702189056252
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. ChocoStop Barra X 12U | Codigo: cf2bee251284
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: b. ChocoStop Arequipe BX12U | Codigo: 6f00723cc29a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Clin Clan x50 | Codigo: 15dc6340f0eb
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Splot Tattoo | Codigo: b08f2bc528bd
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Menta Leche Italo | Codigo: 107cce2f050d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fruticas Love | Codigo: 648a695f97f5
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Maizena de saboresx(Dx18) | Codigo: 4bee03c177d0
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Maggix8 (Mini) | Codigo: 5c7c1f1e1821
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Maggix54 (Fam.) | Codigo: 44d22fce6ae7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Jet Mini X 24U | Codigo: 6719c3744335
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Jet Balones X 100U | Codigo: f99c3f39d170
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Sedal Shampoo y CP X 20U | Codigo: 56f046f54710
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Splot Mango Biche, Fresa o Sandiax50 | Codigo: None
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Splot Espanta Ojosx60 | Codigo: 7707282388156
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Halls Barra Rojox12 (Mentol-cereza) | Codigo: 7622210426963
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Oka Loka Fusión DX12 | Codigo: 7702993049013
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Trululu ChocoColores surtido | Codigo: 7702993052990
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Sedal CP Rizos D RX12U | Codigo: 7791c39ba1e8
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Savital shampoo | Codigo: 5de377c75d48
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa Tomate San Jorge 85g DX12U | Codigo: 9964cd6b5378
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa BBQ San Jorge 85g DX12U | Codigo: 0ddf4927f8a3
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa de Mayonesa San Jorge 85g DX12U | Codigo: ee6390b273be
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa de Tomate y Mayonesa Bary 80g | Codigo: 3b21c97dd336
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa BBQ Bary 110g | Codigo: fb4986d13685
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa de Tomate Bary 110g | Codigo: 27fce55461bc
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa de Mayonesa Bary 110g | Codigo: 511bddb1800f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa de Tomate Fruco | Codigo: a5572f4ead84
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa de Mayonesa Fruco | Codigo: 42a6aa95f830
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa BBQ Fruco | Codigo: ac358fa139da
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Salsa Rosada Fruco | Codigo: 118c74b5eb9a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Sonetto (Rosadox100) | Codigo: 127339de19af
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Sonetto (Blancox100) | Codigo: baa12d02c75b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Sonetto (Azulx100) | Codigo: 999dbf194602
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Acetaminofen Genfar | Codigo: f3f50b4c9f81
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Acetaminofen AGx100t | Codigo: 3598450207ac
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Acetaminofen Memphisx100t | Codigo: 0b33d3143965
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Ibuprofeno MK X 30t | Codigo: 52b8bcd076f3
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Ibuprofeno MK 400 Mg X 100t | Codigo: 73a5a501325e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Ibuprofeno Genfar X 100t | Codigo: 81dea9d95673
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Big Bom Ball Azul x 50U | Codigo: 1120b71e850f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Big Bom Ball Canela B x 120U | Codigo: 3f79e06c6247
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Big Bom Candy Relleno Bx100U | Codigo: 864bad8b0a0b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chocobreakx30 BB | Codigo: df74f4b7d52b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chocobreakx30 Blanco | Codigo: 56eac94ae8e2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chocobreakx30 trad. | Codigo: d2cb4ed65001
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Miniboomx100 | Codigo: 7702011160775
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chocobreakx50 trad. | Codigo: 7702011002181
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocobreakx70 trad. | Codigo: 7702011002488
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocobreakx70 Blanco | Codigo: 7702011004109
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chocobreak Mega Ball X 12U | Codigo: 1dbec6f589d4
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chocobreak Huevito X 30U | Codigo: 30db636ea405
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. GelatinaPatax48 | Codigo: e815a888f441
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Club Social Orig o Int. | Codigo: 4004abc7b6a7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Fruna Zombie DX50U | Codigo: cd664ac6abe6
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Masmelo Cono 250g X 50U | Codigo: b29791cbedc6
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fruna Rellena X 50U | Codigo: 5ffa8cbd42c4
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fruna Doble Color X 100U | Codigo: 333015bd20e4
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Oka Loka Chicle en Polvo | Codigo: 87abadcdb00f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Oka Loka Agua Chiclex12 | Codigo: acac182ce7c7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Lokiño Minis Dx12U | Codigo: 79d61e7df060
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Trululu Chococolores Rdo | Codigo: ab74533c7cce
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Trululu Chococolores Bco | Codigo: 224a25a0b6eb
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Trululu Chocodona DX24U | Codigo: d3975d5a3d25
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Splot acido Línea | Codigo: f2295726c4b9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Revolcon DX12Un | Codigo: fc779a60c6ea
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Oka Loka Rev Chicle | Codigo: a4a07b6e89f9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Rev Atomos D X 48U | Codigo: 654665acde25
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Rev Chicle Pops D X 12U | Codigo: 8f8d0cffd015
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Rev Gel Hiper Ácido DX12U | Codigo: c6a9fd7601c8
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Pirulito Surtido Col | Codigo: 974b731f8672
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chicle bola Confiteca | Codigo: 6f7902018304
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Menta Chao Frush DX12U | Codigo: 00d0badb256e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Revolcon Caramelo Valientex50Un | Codigo: 7702993032732
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chao Pastillas Frush (Tubo) X 12U | Codigo: fcf1ce480e61
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Andina lightx30 | Codigo: 358f2f12ab36
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Andina botellax30 | Codigo: b6873125ad7f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Trululu Sirenasx25 | Codigo: 1270b7d6922b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fiesta Mix x 1,5Kg CX6B | Codigo: 781bb29bc080
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fiesta Mix x 3Kg CX6B | Codigo: 8b75da8993f7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Piñata Masticable Cx12U Ux500g Super | Codigo: 01cb0f0bbab8
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululux70gr Osos | Codigo: 7702993051771
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Bianchi Línea surtidos x24 | Codigo: 7702993057698
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chao Pastillas Sandiax16Tub | Codigo: 7702993041949
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Piñata Halloween Cx8U Ux1000g Super | Codigo: de53b87b25e2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Piñata Halloween Cx14B Bx60x250g Super | Codigo: a58f6e3aa0ca
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Surtido (Piñata) Halloween Cx12U Ux380g | Codigo: a40828657fd1
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Surtido (Piñata) Halloween Cx18B Ux750g Colombina | Codigo: 2916d0e1909d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Gomitas Halloween x50 | Codigo: f735e201c71c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu Gomitas Halloween x65 | Codigo: ec8a3b6a391c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Max Combíx100 frutas ácidas | Codigo: 67484456f1a9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fruticas Crujix100 | Codigo: 0e006f4e6d67
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Lokiñox100 | Codigo: 7702993030073
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Grissly Splashx100 | Codigo: fdd6edfe9d0c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Grissly Splashx100 Bom | Codigo: 355e8c976c5a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Grissly Ferias x 45U | Codigo: a87890261759
+   -> TIENE UNIDAD: P. Grissly Ferias X 45U (Cod: d52ac58ef45e)
+
+CONTENEDOR: D. Grissly SplashAnillosx100 | Codigo: bbe3102c70b5
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Deditos Nestlé X 24U | Codigo: 0aab43aa59aa
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Besos de Amor Nestlé X 28U | Codigo: 2f1918f2444b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Morenitas Nestlé X 24U | Codigo: f543606c1fb8
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Kit Kat 4 Dedos DX24U | Codigo: 627cbb523aad
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fruna Tubox50 | Codigo: 6d9ce134a4ea
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Konzil Verdex18 (Crema) | Codigo: 6f0b6749e452
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Konzil Doradox18 (Sh) | Codigo: 670b75450395
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Konzil Moradox18 (Sh) | Codigo: a06dc15ff247
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Konzil Azulx18 (Sh) | Codigo: 72e93826c5ba
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Konzil Rosadox18 (Sh) | Codigo: 08fb4173b56e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Konzil Rojox18 (Sh) | Codigo: c32ca8b53573
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolatina Muux24 | Codigo: 4de05ae7608b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Crema Muux12 | Codigo: 1589d4ded58b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Yogger Caramelo BX100U | Codigo: 9ccb849ec7b2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Lokiño Chicle X 100 | Codigo: 541a899ce8bc
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Menta Snow Mintx100 | Codigo: 408f51ef5932
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Tipitin Corazón X 25U | Codigo: 6ba3343bcf89
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fresillas Minibombom x 100 | Codigo: dd5b8cc1e39c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Chamoy Sandia BX40U | Codigo: 955a060f22e3
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Paint Pop BX50U | Codigo: 9ea12ec7db47
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Sugar Lips BX40U | Codigo: a96ea18f4e9b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Mango Tango BX40U | Codigo: 4a917c2abed2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Mi Media Sandía BX40U | Codigo: 79d6997e4b1d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Pink Heartsx50 | Codigo: 35b746493500
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Xtime krash x 12 | Codigo: 8c3107c5011d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Xtime Menta Extrax100 | Codigo: 2b604b3adfd2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Leche x 50 | Codigo: 865547ce2b3f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Frutas x 50 | Codigo: d1fc4f7fefb4
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Labios Rojos BX40U | Codigo: 7503018214023
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Bonkiss Cx24 | Codigo: f3d3cc39988a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bonkiss Classic Bx18 | Codigo: 52be604fec4c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Pastillas Docilex100 | Codigo: 5515f70eac6c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Golo Chipsx24 (20 g) | Codigo: c429f7af5ae2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Papa Pensilvania Sur.x 12 Grande | Codigo: 7970735335fc
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolatina Kick Maní  DX12U | Codigo: e2c2af05a1d0
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Bianchi Bar de caramelox12 | Codigo: b900649bb3e4
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Bianchi Bar XL x12 | Codigo: 6fad4831fb71
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Bianchi Choco Pops DX16U | Codigo: 7c29bf1bf519
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Aromatica Mas Aroma Dx25U | Codigo: f6c79133266b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Aromatica Coffee Aroma Dx24U | Codigo: a35d6813dfd2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolate Solx40 Pastillado | Codigo: c1952d503095
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolate Sol 125gr | Codigo: 045f3069e83f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolate Sol 500gr | Codigo: b36c297ddbee
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolate La Especialx40 Pastillado | Codigo: e12bfb29dc2f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolate Corona 500gr | Codigo: d5f4c17f54e5
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolate Corona 250gr | Codigo: da70c5279322
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolate La Especial 400gr | Codigo: aac12d936089
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolate La Especial 200gr | Codigo: 3a14efbcd9ee
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululu gusanos repuestox100 | Codigo: 54b333ea9293
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Coffee Starx100 | Codigo: cbc66fff4d43
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Piazza Blancax24 | Codigo: a3f4b1d29719
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Piazza Azulx24 | Codigo: d591b2657d9c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Piazza Chocolatex24 | Codigo: ac50c0b2d9ee
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Piazza Crema Nucitax12 | Codigo: 6abd492e70bf
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Nucita Barquillox12 | Codigo: f2c3dbf3a3d0
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. SHA Barra Sandiax70 | Codigo: 46e2e95f82c6
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. SHA Chicle Dx70u | Codigo: ae01f2e3b308
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. SHA Chicle Bx100u | Codigo: ffc2baf78f88
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. SHA Polvo Ácido Dx80u | Codigo: c98cf4670c29
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. SHA Caramelo Acido Liquido DX50U | Codigo: 35620a9a7a74
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. SHA Acidometro x 15U | Codigo: 5db083880975
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Agogo Centro Liquido X 40U | Codigo: 692ef3047ede
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Agogo Chicle Pequeñox500u | Codigo: 4e186005ae34
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Agogo Atomicox60 | Codigo: 68d9ebbff7c2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Agogo chicle Tutti Frutti | Codigo: 7700861c01a8
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Tostao Selecto (amarillo) 110g | Codigo: 1967a5410ff1
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Tostao Intenso (rojo) 110g | Codigo: 8045b4bc7d55
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Aroma Papx10 50g | Codigo: 39e6178904a1
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Aromax100 gr | Codigo: 517b9ac213dc
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Aromax400 gr | Codigo: 7dd362c231b7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Baryx300 gr | Codigo: 97cf15143bda
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Bary Papx10 50g | Codigo: 821a1074ab32
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Sello Rojox212 gr | Codigo: 35c475c19d70
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Sello Rojox425 gr | Codigo: 319e43f8ec7f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Cafe Juan Valdez pequeñox30 Un. | Codigo: 2b74bc8dc862
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Cafe Tostao Selecto X 8un. | Codigo: b4398a96864a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe La Bastilla Papx10 50g | Codigo: cb305834259d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe La Bastillax125 gr | Codigo: 9c8de559441a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe La Bastillax250 gr | Codigo: 95c153cf2fdb
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe La Bastillax390 gr | Codigo: c98fa081e8fc
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe La Bastillax450 gr | Codigo: 0423ca5e3368
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Cafe Colcafe pequeñox48 Un. | Codigo: 61285fc9a021
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Azucar Corriente Ux200 (Tubipack) | Codigo: 9d9fda4aa589
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Azucar Mayagüez Ux195 (Tubipack) | Codigo: c9a667228cc7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Azucar Mayagüez Blanca y Morena 500g | Codigo: 7bc33750923e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Azucar Riopaila 500g | Codigo: 6142e5cbc11c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Azucar Riopaila Ux195 (Tubipack) | Codigo: c5fbdc283d1a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Azucar Incauca Ux200 (Tubipack) | Codigo: 1f1259882a10
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Azucar Incauca Blanca 500g | Codigo: 4f871a2da80c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Azucar Incauca Morena 500g | Codigo: a63177cf640a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Azucar Providencia Blanca 500g | Codigo: c82615cf4b7a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Sello Rojo Papx10 | Codigo: 7702032120406
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Agogo Chicle Bolax100u | Codigo: bf13526f1dd2
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Sello Rojox110 gr | Codigo: bb6e2706d938
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Aguila Rojax200 gr | Codigo: 7702040759315
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Aguila Rojax250 gr | Codigo: 7702040027001
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Aguila Rojax400 gr | Codigo: 05315b9a2c4b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Aguila Rojax500 gr | Codigo: 7702040047009
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Oka Loka Nanos (grande)x12 | Codigo: 7702993049044
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Burbuja Jet arequipe x12 | Codigo: f8243864f0bc
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Big Bom XXL (W) (S) | Codigo: 7bc242db1525
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Aguila Roja Papx10 50g | Codigo: 47702040000514
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Cafe Aguila Rojax125 gr | Codigo: 7702040007003
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Big Bom Baby Musical X 48U CX16B | Codigo: 7707014908645
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Jumbo Mani minisx24Un | Codigo: 7702007080346
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Jumbo Manix24 Un. (mediana) | Codigo: 7702007080391
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Ferrero X 4U | Codigo: 95a02e9cfcf5
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Jumbo Manix12 Un. (grande) | Codigo: 7702007080445
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Ferrero X 3U | Codigo: 824b4fea9279
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Cereal Chocorramo Kelloggs X 6 U 32g | Codigo: f6a2b4e4c7b8
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Tutti Frutti Surx16 | Codigo: b59121bae788
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. PinPopx24Gig. | Codigo: d15c6f3cfd6d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululux70Goma | Codigo: add4ad09121a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Trululux100gGoma y Chocopostres Maxi | Codigo: 3a8aeb3b845c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Super coco Tirudito | Codigo: 36390c827a61
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Super coco chocobarra X 12U | Codigo: be37369e9569
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolate Corona x 40 Pastillado | Codigo: a5424bef39d8
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Galleta Caravana noel (Amarilla) 200 gr | Codigo: 63782acb9d0e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Navidad Mi Dia 200g Bolsa | Codigo: 269d89f60e1d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Navidad Vareni 160g Bolsa | Codigo: 2f65bd50bae5
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Galleta Navideña (Azul) Col. 200gr | Codigo: 5deb84916207
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Oreo Mini X 6u | Codigo: 28fcbdca3330
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Ritz Queso X BX6U | Codigo: 65663c1e36c9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Ritz Taco X 58,6g | Codigo: 24643a7656f5
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Pirulito neon o Hielo | Codigo: 533f3c033384
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C.Polvorosas CX70U | Codigo: fb799c3b2363
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B.Mallas | Codigo: 04b17e142387
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupeta Vale Pintalenguas X 30U | Codigo: 171b5d6805eb
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bastones y Chupetas Navideños X 24U | Codigo: 6cd102435e8c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Pitillo Manilla, Anillo X 24U | Codigo: 3582815f0ff9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Colombina Pinta Rojo, Azul y Bomba X 30U | Codigo: b5e115384b26
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bola Maní X 100U | Codigo: 3762be7d732a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. BBB x24 Surtido Tropical | Codigo: 7702011076557
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. BBB x24 Surtido Assorted | Codigo: 7702011242570
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Halls Verde x 100 | Codigo: 7622210626714
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Halls Rojo x 100 | Codigo: 7702133445095
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. PinPop Polvo acido X 12U | Codigo: 7702174083966
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. BBB super coco | Codigo: 7702993031957
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. PinPopx24 Regular 19g | Codigo: ff46c1b49deb
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chupos X 40U | Codigo: 236037c3a28e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Aluminio LÁ19 x 100 un. | Codigo: 50d102ea57ee
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Aluminio LÁ17 x 100 un. | Codigo: be2aa0144f82
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Huevitos Globoomx60 | Codigo: 6b17ccf2d9b6
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chicle Fruwix50 | Codigo: 65781fea5f0f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fruwi Crunchy x 2 x100 U | Codigo: fdb84f391af9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Fruwi Masticablex100 | Codigo: 753badf67a4e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Dove Oferta SHÉACÉCP | Codigo: 676d1ca7608a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Dove Acondicionadorx20 | Codigo: 8b681d1a306e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Dove Shampoox20 | Codigo: 875ea9b83c3b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Dove Jabon Mix X 4 un. | Codigo: c7e1f7dd1a80
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Rexona Clinical (W or M)x20 | Codigo: 5790614f1bbb
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocmelo Individual (Dx80) | Codigo: 43e66649c94b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Trululu Saboresx12 | Codigo: fa86a37edff7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Trululu Sabores Crunchyx12 | Codigo: 061d08ba2c59
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Color Rey x 25 Un. | Codigo: 86bc7c8ebda1
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Salsina Rey x 25 Un. | Codigo: 3c0550939ae1
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. GelaPlayx20 800g | Codigo: da85cafc7f57
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Bola Ojos Chicles Ácidos X 100U | Codigo: bbbe4405a87a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Jelly Drink Gelatina X 20U | Codigo: dc9d23023b02
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Jelly Drink Gelatina (ASSORTED) X 45U | Codigo: daabe04ae946
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Gelatina Yolis Estrella Gela Play X 20U | Codigo: 1127e5ef5b00
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Jelly Drinks Gelatina Adro X 25U | Codigo: 5ba7bbc203e5
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chupigool Cx24 Dx30 | Codigo: e1faf73a158d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chupigool Hearts Cx50B BX50 | Codigo: 0d980bdba4da
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: C. Estuche cerveza Erdinger y Hofbraw | Codigo: b17419717772
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Menta Click x 24 | Codigo: 9f7c9d06b8b0
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Bokax12U | Codigo: 99cb95cab231
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Instacreamx36U | Codigo: 73825c4ad523
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Almendra 125 gr | Codigo: bf79b13d1a1b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Almendra natural X (1/2 Lb.) | Codigo: 56e809899457
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chicharrin (1/2 Lb) | Codigo: b011ee72e53f
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Arandano X (1/4 Lb) (125g) | Codigo: d1ca2489434e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Nuez natural X (1/2 Lb) | Codigo: 7f79adf6ed89
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Burbujet Crujivainilla X 6U | Codigo: 1ffef0b28b22
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Burbujet Dracula X 6U | Codigo: 42c338d07bbe
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Burbujet Areq/Coco X 4U | Codigo: 6e4e3ca08b46
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Chocolatina Dracula Ataudes B X 20U | Codigo: 0d96c8ffe8f8
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Chocolatina Jet C&C X 6U 50gC/U | Codigo: cae3143fe645
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Kinder Bueno CX11D | Codigo: 61e19148631a
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Frutiñox20U | Codigo: aabfd487aae7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Tic Tac DX12U | Codigo: dff2d8f3d1ab
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Ferrero Estuche X 8U | Codigo: 688d02402602
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Ferrero Coleccion X 12U | Codigo: a4c3e90a609b
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Ferrero Corazón X 8U | Codigo: f465403b3694
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Ferrero Diamantado X 24U | Codigo: bc8aa2643108
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Rafaello Estuche X 6U | Codigo: 53258aaae2e0
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Rafaello X 3U | Codigo: 454a5d200e38
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Hanuta Dx12 | Codigo: 4212714cb94e
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce Relleno Clásico Americandyx100 | Codigo: 7a5a5c69779d
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce Relleno Americandyx300 | Codigo: a375b035c7c8
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Krokanzitos x100 | Codigo: 9ff527031e98
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce Relleno Bam Bam x100 | Codigo: a750bc2892a9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce Relleno Bam Bam x300 1000g | Codigo: d8b7827f35f7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce Duro Bam Bam x100 | Codigo: 4405798e22bc
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce Duro Colombina (Halloween) x100 | Codigo: aa14a9b35fc6
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce Duro Colombina (Halloween) x300 | Codigo: 3770ec9791c7
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce fruti Candyx100 | Codigo: 7b5a62d85ef1
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce fruti Candyx500 | Codigo: 76cd7bcca3e3
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Dulce Rousalx300 | Codigo: fe857d5d78d0
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Menta Cristal Americandy x100 | Codigo: 1bf10e11c1ab
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Menta Cristal Super x100 | Codigo: d4f40ea75e31
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Tosti Empanada | Codigo: 156a48024215
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Galleta Navideña Colombina Pl. 200 gr | Codigo: c286267c3005
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Galleta Caravana noel Bolsa 150 gr | Codigo: ec3074a0cdb1
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Garoto Pequeño Bombones 128g | Codigo: 7891008156973
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Galleta Navideña Campanita 160gr | Codigo: 06e006d85954
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Galleta Navideña Cascanueces 160gr | Codigo: 830119a5ec5c
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Navideña Pierrot 175gr | Codigo: 2da93752bc33
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Galleta Navideña Noel 200gr (Roja) | Codigo: fa56ab043b94
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Dulce Navidad (Bolsa roja) 180g | Codigo: 17b903fdfa38
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Gomitas Trolly Tortu Splash CX8B Bx100 | Codigo: b570bc57aaa1
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Gomitas Trolly emociones x100 (bolsa morada) | Codigo: f7b473235b75
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Gomitas Trolly Anayconda x100 | Codigo: 500bcd828417
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Esferos X 12U | Codigo: 083e91317831
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: R. Goma Jolalax30U | Codigo: 2f6b44c08021
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: D. Super Hiper Mango Bichex80 | Codigo: 487a953a81d9
+   -> ⚠️ NO TIENE UNIDAD CREADA
+
+CONTENEDOR: B. Galleta Chokis Clasicax6Un. | Codigo: 7702189056221
+   -> ⚠️ NO TIENE UNIDAD CREADA
+

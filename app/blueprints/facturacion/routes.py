@@ -79,16 +79,20 @@ def api_productos():
     q_lower = q.lower()
     empieza_con_numero = q[0].isdigit() if q else False
 
+    # FILTRO DE INACTIVOS APLICADO EN TODAS LAS BUSQUEDAS
     if empieza_con_numero:
         productos = (Producto.query
+                     .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
                      .filter(Producto.codigo_barras.ilike(f'%{q}%'))
                      .order_by(Producto.nombre).limit(20).all())
         if not productos:
             productos = (Producto.query
+                         .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
                          .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
                          .order_by(Producto.nombre).limit(20).all())
     else:
         productos = (Producto.query
+                     .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
                      .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
                      .limit(50).all())
 
@@ -102,6 +106,7 @@ def api_productos():
             productos = sorted(productos, key=prioridad)[:20]
         else:
             productos = (Producto.query
+                         .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
                          .filter(Producto.codigo_barras.ilike(f'%{q}%'))
                          .order_by(Producto.nombre).limit(20).all())
 
@@ -115,7 +120,7 @@ def api_productos():
             'nombre': p.nombre, 
             'codigo': p.codigo_barras or '',
             'categoria': p.categoria or '', 
-            'imagen': p.imagen or '',  # <--- EL CAMPO IMAGEN
+            'imagen': p.imagen or '',
             'stock': pres.cantidad,
             'precio': float(pres.precio_venta or 0),
             'condicion1': pres.condicion1 or '', 'precio1': float(pres.precio_venta1 or 0),

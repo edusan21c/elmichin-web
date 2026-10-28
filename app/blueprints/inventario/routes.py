@@ -56,7 +56,9 @@ def lista():
     tienda_id = tienda_actual()
     per_page = 20
 
-    query = Producto.query
+    # FILTRO DE INACTIVOS APLICADO AQUI
+    query = Producto.query.filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
+    
     if busqueda:
         query = query.filter(or_(
             Producto.nombre.ilike(f'%{busqueda}%'),
@@ -95,9 +97,14 @@ def lista():
 
     contadores = {'total': 0, 'sin_stock': 0, 'bajo': 0}
     if tienda_id:
-        contadores['total'] = ProductoTienda.query.filter_by(tienda_id=tienda_id).count()
-        contadores['sin_stock'] = ProductoTienda.query.filter_by(tienda_id=tienda_id).filter(ProductoTienda.cantidad <= 0).count()
-        contadores['bajo'] = ProductoTienda.query.filter_by(tienda_id=tienda_id).filter(ProductoTienda.cantidad.between(1, 5)).count()
+        # CONTADORES TAMBIEN FILTRADOS
+        base_count = db.session.query(ProductoTienda).join(Producto).filter(
+            ProductoTienda.tienda_id == tienda_id,
+            func.coalesce(Producto.categoria, '') != 'INACTIVO'
+        )
+        contadores['total'] = base_count.count()
+        contadores['sin_stock'] = base_count.filter(ProductoTienda.cantidad <= 0).count()
+        contadores['bajo'] = base_count.filter(ProductoTienda.cantidad.between(1, 5)).count()
 
     return render_template(
         'inventario/lista.html',
@@ -190,14 +197,14 @@ def editar(producto_id):
     form = ProductoForm(obj=producto)
 
     if form.validate_on_submit():
-        existe_otro = Producto.query.filter(Producto.nombre == form.nombre.data.strip(), Producto.id != producto.id).first()
+        existe_otro = Producto.query.filter(Producto.categoria != 'INACTIVO').filter(Producto.nombre == form.nombre.data.strip(), Producto.id != producto.id).first()
         if existe_otro:
             flash('Ya existe otro producto con ese nombre.', 'danger')
             return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
 
         codigo_nuevo = form.codigo_barras.data.strip() if form.codigo_barras.data else None
         if codigo_nuevo:
-            existe_codigo = Producto.query.filter(Producto.codigo_barras == codigo_nuevo, Producto.id != producto.id).first()
+            existe_codigo = Producto.query.filter(Producto.categoria != 'INACTIVO').filter(Producto.codigo_barras == codigo_nuevo, Producto.id != producto.id).first()
             if existe_codigo:
                 flash(f'Ya existe otro producto con el codigo "{codigo_nuevo}": {existe_codigo.nombre}', 'danger')
                 return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
@@ -356,7 +363,11 @@ def stock_masivo():
     filtro = request.args.get('filtro', '', type=str).strip()
     page = request.args.get('page', 1, type=int)
 
-    q = db.session.query(Producto, ProductoTienda).join(ProductoTienda, Producto.id == ProductoTienda.producto_id).filter(ProductoTienda.tienda_id == tienda_id)
+    # FILTRO DE INACTIVOS APLICADO AQUI TAMBIEN
+    q = db.session.query(Producto, ProductoTienda).join(ProductoTienda, Producto.id == ProductoTienda.producto_id).filter(
+        ProductoTienda.tienda_id == tienda_id,
+        func.coalesce(Producto.categoria, '') != 'INACTIVO'
+    )
 
     if busqueda:
         q = q.filter(or_(Producto.nombre.ilike(f'%{busqueda}%'), Producto.codigo_barras.ilike(f'%{busqueda}%')))
@@ -381,7 +392,7 @@ def api_buscar():
         return jsonify([])
 
     tienda_id = tienda_actual()
-    productos = Producto.query.filter(or_(Producto.nombre.ilike(f'%{q}%'), Producto.codigo_barras.ilike(f'%{q}%'))).limit(20).all()
+    productos = Producto.query.filter(func.coalesce(Producto.categoria, '') != 'INACTIVO').filter(or_(Producto.nombre.ilike(f'%{q}%'), Producto.codigo_barras.ilike(f'%{q}%'))).limit(20).all()
 
     resultados = []
     for p in productos:
