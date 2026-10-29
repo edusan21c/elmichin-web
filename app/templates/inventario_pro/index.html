@@ -11,9 +11,10 @@
     
     .top-bar { background: #ffffff; padding: 1rem 2rem; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
     .search-box { position: relative; flex-grow: 1; max-width: 500px; }
-    .search-box input { border-radius: 50px; padding-left: 40px; border: 2px solid #e2e8f0; background: #f8fafc; transition: all 0.3s; }
+    .search-box input { border-radius: 50px; padding-left: 40px; padding-right: 40px; border: 2px solid #e2e8f0; background: #f8fafc; transition: all 0.3s; }
     .search-box input:focus { border-color: #3b82f6; background: #ffffff; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
-    .search-box i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.2rem; }
+    .search-box .search-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.2rem; }
+    .search-box .clear-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8; cursor: pointer; display: none; font-size: 1.2rem; }
     
     .kpi-card { background: white; border-radius: 16px; padding: 1.2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 15px; }
     .kpi-icon { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
@@ -47,8 +48,9 @@
     
     <div class="top-bar">
         <div class="search-box">
-            <i class="bi bi-search"></i>
-            <input type="text" class="form-control form-control-lg" id="buscador" placeholder="Buscar producto, categoría o código...">
+            <i class="bi bi-search search-icon"></i>
+            <input type="text" class="form-control form-control-lg" id="buscador" placeholder="Buscar producto, categoría o código..." autocomplete="off">
+            <i class="bi bi-x-circle-fill clear-icon" id="btn-limpiar-busqueda" title="Limpiar búsqueda"></i>
         </div>
         <button class="btn btn-success btn-lg fw-bold px-4" onclick="abrirModalNuevo()" style="border-radius: 50px;">
             <i class="bi bi-plus-circle"></i> Nuevo Producto
@@ -131,14 +133,13 @@
                     </div>
                 </div>
 
-                <!-- NUEVA ZONA DE FOTO -->
+                <!-- ZONA DE FOTO -->
                 <div class="row mb-4">
                     <div class="col-12">
                         <label class="form-label">Foto del Producto</label>
                         <div id="drop-zone" class="border border-2 border-dashed rounded p-3 text-center" style="cursor: pointer; background-color: #f8fafc; transition: all 0.2s;">
-                            <!-- Aquí mostraremos la foto actual si tiene -->
                             <div id="foto-actual" style="display: none; margin-bottom: 10px;">
-                                <img id="img-actual" src="" style="max-height: 100px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <img id="img-actual" src="" onerror="this.style.display='none'" style="max-height: 100px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                                 <p class="text-muted small mt-1 mb-0">Foto actual</p>
                             </div>
 
@@ -262,7 +263,6 @@
         columns: [
             {title: "ID", field: "id", width: 60, hozAlign: "center", cssClass: "fw-bold text-muted"},
             
-            // NUEVA COLUMNA DE FOTO EN LA TABLA
             {
                 title: "Foto", 
                 field: "imagen", 
@@ -271,7 +271,8 @@
                 formatter: function(cell, formatterParams, onRendered){
                     var imgName = cell.getValue();
                     if (imgName) {
-                        return `<img src="/static/img/productos/${imgName}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 5px; border: 1px solid #ddd;">`;
+                        // onerror oculta la imagen rota y pone un fondo gris
+                        return `<img src="/static/img/productos/${imgName}" onerror="this.style.display='none'" style="width: 40px; height: 40px; object-fit: cover; border-radius: 5px; border: 1px solid #ddd;">`;
                     } else {
                         return `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #ccc;"><i class="bi bi-image"></i></div>`;
                     }
@@ -302,27 +303,19 @@
         ]
     });
 
-    document.addEventListener("DOMContentLoaded", function() {
-        let inputBuscador = document.getElementById("buscador");
-        let busquedaGuardada = localStorage.getItem("busqueda_inventario_pro");
-        
-        if (busquedaGuardada) {
-            inputBuscador.value = busquedaGuardada;
-            table.on("dataLoaded", function() {
-                let term = busquedaGuardada.toLowerCase();
-                table.setFilter([
-                    [
-                        {field: "nombre", type: "like", value: term},
-                        {field: "categoria", type: "like", value: term},
-                        {field: "codigo_barras", type: "like", value: term}
-                    ]
-                ]);
-            });
-        }
+    // ⚡ LÓGICA DE BÚSQUEDA Y FILTRO PERFECTO ⚡
+    const inputBuscador = document.getElementById("buscador");
+    const btnLimpiarBusqueda = document.getElementById("btn-limpiar-busqueda");
 
-        inputBuscador.addEventListener("keyup", function(e){
-            let term = e.target.value.toLowerCase();
-            localStorage.setItem("busqueda_inventario_pro", e.target.value);
+    function aplicarFiltro() {
+        let term = inputBuscador.value.toLowerCase().trim();
+        
+        // Mostrar u ocultar el botón de limpiar
+        btnLimpiarBusqueda.style.display = term !== "" ? "block" : "none";
+        
+        if (term === '') {
+            table.clearFilter();
+        } else {
             table.setFilter([
                 [
                     {field: "nombre", type: "like", value: term},
@@ -330,7 +323,36 @@
                     {field: "codigo_barras", type: "like", value: term}
                 ]
             ]);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        let busquedaGuardada = localStorage.getItem("busqueda_inventario_pro");
+        if (busquedaGuardada) {
+            inputBuscador.value = busquedaGuardada;
+        }
+
+        inputBuscador.addEventListener("keyup", function(e){
+            localStorage.setItem("busqueda_inventario_pro", e.target.value);
+            aplicarFiltro();
         });
+
+        btnLimpiarBusqueda.addEventListener("click", function() {
+            inputBuscador.value = '';
+            localStorage.setItem("busqueda_inventario_pro", '');
+            aplicarFiltro();
+            inputBuscador.focus();
+        });
+    });
+
+    // LA MAGIA: Cada vez que la tabla recarga datos (al guardar o cargar), aplica el filtro y actualiza KPIs
+    table.on("dataLoaded", function(data){
+        aplicarFiltro();
+        
+        document.getElementById("kpi-total").innerText = data.length;
+        document.getElementById("kpi-sin-stock").innerText = data.filter(p => p.t1_stock === 0).length;
+        var categorias = new Set(data.map(p => p.categoria).filter(c => c));
+        document.getElementById("kpi-categorias").innerText = categorias.size;
     });
 
     function limpiarZonaFoto() {
@@ -395,10 +417,10 @@
 
         limpiarZonaFoto();
 
-        // NUEVA LÓGICA: Mostrar la foto actual en el modal si existe
         if (data.imagen) {
             document.getElementById('foto-actual').style.display = 'block';
-            document.getElementById('img-actual').src = `/static/img/productos/${data.imagen}`;
+            // Se asegura de mostrar la foto actual con su timestamp
+            document.getElementById('img-actual').src = `/static/img/productos/${data.imagen}?t=${new Date().getTime()}`;
         }
 
         modalEditar.show();
@@ -474,7 +496,7 @@
             if (resData.status === "success") {
                 modalEditar.hide();
                 Swal.fire('¡Guardado!', 'El producto se guardó correctamente.', 'success').then(() => {
-                    table.replaceData();
+                    table.replaceData(); // Esto recarga la tabla y el filtro se mantiene
                 });
             } else {
                 Swal.fire('Error', resData.message, 'error');
@@ -487,13 +509,6 @@
             btn.innerHTML = 'Guardar Cambios';
             btn.disabled = false;
         });
-    });
-
-    table.on("dataLoaded", function(data){
-        document.getElementById("kpi-total").innerText = data.length;
-        document.getElementById("kpi-sin-stock").innerText = data.filter(p => p.t1_stock === 0).length;
-        var categorias = new Set(data.map(p => p.categoria).filter(c => c));
-        document.getElementById("kpi-categorias").innerText = categorias.size;
     });
 
     // ==================== LÓGICA DE SUBIR FOTO ====================
@@ -553,6 +568,7 @@
                 if (data.status === 'ok') {
                     preview.className = 'mt-2 text-success fw-bold';
                     preview.innerHTML = '<i class="bi bi-check-circle-fill"></i> ¡Foto actualizada y optimizada!';
+                    // Recargamos la tabla para que se vea el nuevo nombre de la foto
                     setTimeout(() => { table.replaceData(); }, 1500);
                 } else {
                     preview.className = 'mt-2 text-danger fw-bold';
