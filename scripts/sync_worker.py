@@ -373,13 +373,28 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 if not productos:
                     break
 
-                resultado = sync_service.aplicar_cambios_pull({'productos': productos})
-                aplicados = resultado.get('actualizados', 0)
-                ids_lote = resultado.get('ids_aplicados', [])
+                # 🛡️ BLINDAJE: Si un producto falla, el robot no se cae
+                try:
+                    resultado = sync_service.aplicar_cambios_pull({'productos': productos})
+                    aplicados = resultado.get('actualizados', 0)
+                    ids_lote = resultado.get('ids_aplicados', [])
+                except Exception as e:
+                    log(f'  [ALERTA] Error aplicando lote {i+1}. Omitiendo productos dañados.')
+                    log(f'  Detalle: {e}')
+                    db.session.rollback() # Deshacemos el error y seguimos
+                    aplicados = 0
+                    ids_lote = []
+                    
+                    # Guardamos el error en un archivo de texto para no perder el rastro
+                    try:
+                        with open(os.path.join(RAIZ, 'logs', 'errores_productos.txt'), 'a') as f_err:
+                            f_err.write(f'[{datetime.now()}] Error en lote {i+1}: {e}\n')
+                    except:
+                        pass
 
                 total_productos += aplicados
                 ids_pendientes_ack.extend(ids_lote)
-                desde_id = ultimo_id # NUEVO: actualizar para el siguiente lote
+                desde_id = ultimo_id # NUEVO: actualizar para el siguiente lote SIEMPRE
 
                 log(f'  PULL productos lote {i+1}: {aplicados} actualizados (hay_mas={hay_mas})')
 

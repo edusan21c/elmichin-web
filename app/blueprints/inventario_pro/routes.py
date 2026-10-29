@@ -90,20 +90,27 @@ def save_data():
     try:
         for fila in cambios:
             prod_id = fila.get('id')
+            nuevo_nombre = fila.get('nombre')
+            nuevo_codigo = fila.get('codigo_barras') or None
             
+            # BLINDAJE 1: Evitar nombres duplicados
+            existe_otro = Producto.query.filter(Producto.nombre == nuevo_nombre, Producto.id != prod_id).first()
+            if existe_otro:
+                return jsonify({"status": "error", "message": f"¡ALTO! Ya existe un producto llamado '{nuevo_nombre}'. No se puede repetir."}), 400
+
             if prod_id and str(prod_id).strip() != '':
                 prod = Producto.query.get(int(prod_id))
             else:
-                codigo_ingresado = fila.get('codigo_barras')
+                codigo_ingresado = nuevo_codigo
                 if not codigo_ingresado:
                     while True:
-                        nuevo_codigo = "200" + str(random.randint(100000000, 999999999))
-                        if not Producto.query.filter_by(codigo_barras=nuevo_codigo).first():
-                            codigo_ingresado = nuevo_codigo
+                        nuevo_codigo_gen = "200" + str(random.randint(100000000, 999999999))
+                        if not Producto.query.filter_by(codigo_barras=nuevo_codigo_gen).first():
+                            codigo_ingresado = nuevo_codigo_gen
                             break
                             
                 prod = Producto(
-                    nombre=fila.get('nombre'),
+                    nombre=nuevo_nombre,
                     categoria=fila.get('categoria'),
                     codigo_barras=codigo_ingresado,
                     codigo_global=str(uuid.uuid4())
@@ -113,9 +120,25 @@ def save_data():
 
             if not prod: continue
             
-            prod.nombre = fila.get('nombre')
+            # BLINDAJE 2: Renombrar foto automáticamente si cambia el código
+            codigo_viejo = prod.codigo_barras
+            if codigo_viejo and nuevo_codigo and codigo_viejo != nuevo_codigo:
+                BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+                img_dir = os.path.join(BASE_DIR, 'app', 'static', 'img', 'productos')
+                
+                for ext in ['.webp', '.jpg', '.jpeg', '.png']:
+                    viejo = os.path.join(img_dir, f"{codigo_viejo}{ext}")
+                    nuevo = os.path.join(img_dir, f"{nuevo_codigo}{ext}")
+                    if os.path.exists(viejo):
+                        if os.path.exists(nuevo): os.remove(nuevo)
+                        os.rename(viejo, nuevo)
+                        # Actualizamos el nombre de la foto en la base de datos
+                        if prod.imagen and codigo_viejo in prod.imagen:
+                            prod.imagen = prod.imagen.replace(codigo_viejo, nuevo_codigo)
+            
+            prod.nombre = nuevo_nombre
             prod.categoria = fila.get('categoria')
-            prod.codigo_barras = fila.get('codigo_barras') or None
+            prod.codigo_barras = nuevo_codigo
             
             for t_id, prefix in [(1, 't1'), (2, 't2')]:
                 pres = ProductoTienda.query.filter_by(producto_id=prod.id, tienda_id=t_id).first()
@@ -134,7 +157,7 @@ def save_data():
                 pres.sync_estado = 'pendiente'
                 
         db.session.commit()
-        return jsonify({"status": "success", "message": "Datos guardados correctamente"})
+        return jsonify({"status": "success", "message": "Datos guardados y foto renombrada si fue necesario."})
     except Exception as e:
         db.session.rollback()
         print(f"ERROR: {e}")
