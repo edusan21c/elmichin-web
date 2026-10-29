@@ -224,8 +224,10 @@
 - Un. Jumbo Manix90 gramos (grande) |Codigo: 7702007080742
 - D. Jumbo Manix12 Un. (grande) |Codigo: 7702007080445
 - B. Galleta Chokis Chocobasex6Un. (roja) |Codigo: 7702189056252
+- Un. Galleta Chokis Chobase (roja) |Codigo: 7702189056245
 - B. Galleta Chokis Clasicax6Un. (Azul) |Codigo: 7702189056221
-- B. BigBen Clasicosx100Un. |Codigo: 7702993012994
+- Un. Galleta Chokis Clasica (Azul) |Codigo: 7702189056214
+- B. Big Ben Clasicosx100Un. |Codigo: 7702993012994
 - B. Lokiño Caramelosx100Un. |Codigo: 7702993030073
 - B. Bianchi Caramelos Chocolatex100Un. (azul) |Codigo: 7702993058862
 - B. Bianchi Chocolate Blancox100Un. (blanco) |Codigo: 7702993058855

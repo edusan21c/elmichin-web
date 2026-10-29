@@ -186,8 +186,6 @@ def nuevo():
 @admin_requerido
 def editar(producto_id):
     producto = Producto.query.get_or_404(producto_id)
-    
-    # AQUÍ ESTÁ EL ARREGLO: Identificar siempre la tienda actual
     tienda_id = tienda_actual() or 1
     tienda_actual_obj = Tienda.query.get(tienda_id)
 
@@ -200,59 +198,67 @@ def editar(producto_id):
     form = ProductoForm(obj=producto)
 
     if form.validate_on_submit():
-        existe_otro = Producto.query.filter(Producto.categoria != 'INACTIVO').filter(Producto.nombre == form.nombre.data.strip(), Producto.id != producto.id).first()
+        nombre_nuevo = form.nombre.data.strip()
+        codigo_nuevo = form.codigo_barras.data.strip() if form.codigo_barras.data else None
+
+        # 1. Validación estricta de Nombre Duplicado (Sin importar la categoría)
+        existe_otro = Producto.query.filter(Producto.nombre == nombre_nuevo, Producto.id != producto.id).first()
         if existe_otro:
-            flash('Ya existe otro producto con ese nombre.', 'danger')
+            flash(f'⚠️ No se puede guardar: Ya existe el producto "{existe_otro.nombre}" (ID {existe_otro.id}) con ese mismo nombre.', 'danger')
             return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
 
-        codigo_nuevo = form.codigo_barras.data.strip() if form.codigo_barras.data else None
+        # 2. Validación estricta de Código de Barras
         if codigo_nuevo:
-            existe_codigo = Producto.query.filter(Producto.categoria != 'INACTIVO').filter(Producto.codigo_barras == codigo_nuevo, Producto.id != producto.id).first()
+            existe_codigo = Producto.query.filter(Producto.codigo_barras == codigo_nuevo, Producto.id != producto.id).first()
             if existe_codigo:
-                flash(f'Ya existe otro producto con el codigo "{codigo_nuevo}": {existe_codigo.nombre}', 'danger')
+                flash(f'⚠️ No se puede guardar: Ya existe el producto "{existe_codigo.nombre}" con el código "{codigo_nuevo}".', 'danger')
                 return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
 
-        viejo_nombre = producto.nombre
-        producto.nombre = form.nombre.data.strip()
-        producto.codigo_barras = form.codigo_barras.data.strip() if form.codigo_barras.data else None
-        producto.categoria = form.categoria.data or None
-        producto.modificado_por_nombre = current_user.nombre
-        producto.modificado_en = datetime.utcnow()
+        try:
+            viejo_nombre = producto.nombre
+            producto.nombre = nombre_nuevo
+            producto.codigo_barras = codigo_nuevo
+            producto.categoria = form.categoria.data or None
+            producto.modificado_por_nombre = current_user.nombre
+            producto.modificado_en = datetime.utcnow()
 
-        # Si el nombre cambia, actualizar históricos
-        if viejo_nombre != producto.nombre:
-            DetalleFactura.query.filter_by(producto_id=producto.id, producto_nombre=viejo_nombre).update({'producto_nombre': producto.nombre}, synchronize_session=False)
+            # Si el nombre cambia, actualizar históricos de facturas
+            if viejo_nombre != producto.nombre:
+                DetalleFactura.query.filter_by(producto_id=producto.id, producto_nombre=viejo_nombre).update({'producto_nombre': producto.nombre}, synchronize_session=False)
 
-        # Actualizar SOLO los datos de la tienda seleccionada
-        pres.precio_proveedor = form.precio_proveedor.data or 0
-        pres.precio_proveedor2 = form.precio_proveedor2.data or 0
-        pres.precio_proveedor3 = form.precio_proveedor3.data or 0
-        pres.porcentaje = form.porcentaje.data or 0
-        pres.precio_venta = form.precio_venta.data or 0
-        pres.condicion1 = form.condicion1.data or ''
-        pres.precio_venta1 = form.precio_venta1.data or 0
-        pres.condicion2 = form.condicion2.data or ''
-        pres.precio_venta2 = form.precio_venta2.data or 0
-        pres.condicion3 = form.condicion3.data or ''
-        pres.precio_venta3 = form.precio_venta3.data or 0
-        
-        # Marcar la tienda actual para sincronizar
-        pres.sync_estado = 'pendiente'
-        pres.sync_fecha = datetime.utcnow()
+            # Actualizar precios de la tienda
+            pres.precio_proveedor = form.precio_proveedor.data or 0
+            pres.precio_proveedor2 = form.precio_proveedor2.data or 0
+            pres.precio_proveedor3 = form.precio_proveedor3.data or 0
+            pres.porcentaje = form.porcentaje.data or 0
+            pres.precio_venta = form.precio_venta.data or 0
+            pres.condicion1 = form.condicion1.data or ''
+            pres.precio_venta1 = form.precio_venta1.data or 0
+            pres.condicion2 = form.condicion2.data or ''
+            pres.precio_venta2 = form.precio_venta2.data or 0
+            pres.condicion3 = form.condicion3.data or ''
+            pres.precio_venta3 = form.precio_venta3.data or 0
 
-        # Si el nombre o código cambiaron, avisar a todas las tiendas
-        if viejo_nombre != producto.nombre:
-            for t in Tienda.query.filter_by(activa=True).all():
-                p_t = ProductoTienda.query.filter_by(producto_id=producto.id, tienda_id=t.id).first()
-                if p_t:
-                    p_t.sync_estado = 'pendiente'
-                    p_t.sync_fecha = datetime.utcnow()
+            pres.sync_estado = 'pendiente'
+            pres.sync_fecha = datetime.utcnow()
 
-        db.session.commit()
+            # Sincronizar otras tiendas
+            if viejo_nombre != producto.nombre:
+                for t in Tienda.query.filter_by(activa=True).all():
+                    p_t = ProductoTienda.query.filter_by(producto_id=producto.id, tienda_id=t.id).first()
+                    if p_t:
+                        p_t.sync_estado = 'pendiente'
+                        p_t.sync_fecha = datetime.utcnow()
 
-        _audit('producto_editar', f'{producto.nombre} (ID {producto.id}, tienda {tienda_id})', tienda_id=tienda_id)
-        flash(f'Producto "{producto.nombre}" actualizado para {tienda_actual_obj.nombre}.', 'success')
-        return redirect(url_for('inventario.lista', tienda=tienda_id))
+            db.session.commit()
+            _audit('producto_editar', f'{producto.nombre} (ID {producto.id}, tienda {tienda_id})', tienda_id=tienda_id)
+            flash(f'Producto "{producto.nombre}" actualizado correctamente.', 'success')
+            return redirect(url_for('inventario.lista', tienda=tienda_id))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al guardar: Es posible que el nombre o código ya existan en la base de datos. Detalle: {str(e)}', 'danger')
+            return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
 
     if request.method == 'GET':
         form.precio_proveedor.data = float(pres.precio_proveedor) if pres.precio_proveedor else 0
@@ -270,7 +276,7 @@ def editar(producto_id):
     return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
 
 
-# ==================== ELIMINAR ====================
+# ==================== ELIMINAR ====================# ==================== ELIMINAR ====================# ==================== ELIMINAR ====================
 @bp.route('/<int:producto_id>/eliminar', methods=['POST'])
 @login_required
 @programador_requerido
