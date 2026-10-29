@@ -1,11 +1,7 @@
-import re
 import os
+import re
 
-archivos = [
-    r'app\blueprints\inventario\routes.py',
-    r'app\blueprints\facturacion\routes.py',
-    r'app\blueprints\reportes\routes.py'
-]
+base_dir = r'C:\michin_web\app\blueprints'
 
 nueva_funcion = '''def tienda_actual():
     from flask import session, current_app
@@ -26,23 +22,22 @@ nueva_funcion = '''def tienda_actual():
 
     return current_app.config.get('TIENDA_ID')'''
 
-for archivo in archivos:
-    if not os.path.exists(archivo):
-        print(f"No existe: {archivo}")
-        continue
-        
-    with open(archivo, 'r', encoding='utf-8') as f:
-        contenido = f.read()
-    
-    # Busca la función tienda_actual y la reemplaza
-    patron = r"def tienda_actual\(\):.*?(?=def |@bp\.route|$)"
-    
-    if re.search(patron, contenido, flags=re.DOTALL):
-        nuevo_contenido = re.sub(patron, nueva_funcion + "\n\n\n", contenido, flags=re.DOTALL)
-        with open(archivo, 'w', encoding='utf-8') as f:
-            f.write(nuevo_contenido)
-        print(f"OK: Arreglado exitosamente {archivo}")
-    else:
-        print(f"ATENCION: No se encontro la funcion en {archivo}")
+arreglados = 0
 
-print("\n--- PROCESO TERMINADO ---")
+for root, dirs, files in os.walk(base_dir):
+    for file in files:
+        if file == 'routes.py':
+            path = os.path.join(root, file)
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            if 'def tienda_actual():' in content:
+                patron = r"def tienda_actual\(\):.*?(?=def |@bp\.route|$)"
+                if re.search(patron, content, flags=re.DOTALL):
+                    nuevo_contenido = re.sub(patron, nueva_funcion + "\n\n\n", content, flags=re.DOTALL)
+                    with open(path, 'w', encoding='utf-8') as f:
+                        f.write(nuevo_contenido)
+                    print(f"OK: Arreglado -> {path}")
+                    arreglados += 1
+
+print(f"\n--- TERMINADO. Se arreglaron {arreglados} archivos. ---")
