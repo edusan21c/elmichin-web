@@ -26,10 +26,8 @@ def tienda_actual():
         if tid:
             session['tienda_actual_id'] = tid
             return tid
-        if session.get('tienda_actual_id'):
-            return session.get('tienda_actual_id')
-        primera = Tienda.query.filter_by(activa=True).first()
-        return primera.id if primera else None
+        # Si no elige tienda, devolvemos None para sumar TODAS
+        return None
 
     if current_user.tienda_id:
         return current_user.tienda_id
@@ -95,7 +93,7 @@ def api_datos():
         Factura.fecha_hora <= hasta_utc,
     )
     if tienda_id:
-        q = q.filter(Factura.tienda_id == tienda_id, Producto.categoria != 'INACTIVO')
+        q = q.filter((Factura.tienda_id == tienda_id if tienda_id else True), Producto.categoria != 'INACTIVO')
     facturas = q.all()
     ids_facturas = [f.id for f in facturas]
 
@@ -270,7 +268,7 @@ def api_categoria_productos():
         Factura.fecha_hora <= hasta_utc,
     )
     if tienda_id:
-        q = q.filter(Factura.tienda_id == tienda_id, Producto.categoria != 'INACTIVO')
+        q = q.filter((Factura.tienda_id == tienda_id if tienda_id else True), Producto.categoria != 'INACTIVO')
     facturas = q.all()
 
     productos = {}
@@ -370,7 +368,7 @@ def api_buscar_productos():
         Factura.fecha_hora <= hasta_utc,
     )
     if tienda_id:
-        qf = qf.filter(Factura.tienda_id == tienda_id, Producto.categoria != 'INACTIVO')
+        qf = qf.filter((Factura.tienda_id == tienda_id if tienda_id else True), Producto.categoria != 'INACTIVO')
     facturas = qf.all()
 
     ventas_por_nombre = {}
