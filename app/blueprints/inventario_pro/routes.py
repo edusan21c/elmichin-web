@@ -5,6 +5,7 @@ from app.extensions import db
 from app.models.producto import Producto, ProductoTienda
 from decimal import Decimal
 import os
+import time
 from PIL import Image
 import uuid
 import random
@@ -38,7 +39,7 @@ def index():
     # Si estamos en una tienda (T1 o T2), bloqueamos el acceso
     if not verificar_central():
         flash('El Inventario Pro solo está disponible desde la Central.', 'warning')
-        return redirect(url_for('dashboard.index')) # Redirige al inicio
+        return redirect(url_for('dashboard.index'))
         
     return render_template('inventario_pro/index.html')
 
@@ -120,21 +121,24 @@ def save_data():
 
             if not prod: continue
             
-            # BLINDAJE 2: Renombrar foto automáticamente si cambia el código
+            # BLINDAJE 2: Renombrar la foto (respetando el sufijo de tiempo) si cambia el código
             codigo_viejo = prod.codigo_barras
             if codigo_viejo and nuevo_codigo and codigo_viejo != nuevo_codigo:
                 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
                 img_dir = os.path.join(BASE_DIR, 'app', 'static', 'img', 'productos')
                 
-                for ext in ['.webp', '.jpg', '.jpeg', '.png']:
-                    viejo = os.path.join(img_dir, f"{codigo_viejo}{ext}")
-                    nuevo = os.path.join(img_dir, f"{nuevo_codigo}{ext}")
-                    if os.path.exists(viejo):
-                        if os.path.exists(nuevo): os.remove(nuevo)
-                        os.rename(viejo, nuevo)
-                        # Actualizamos el nombre de la foto en la base de datos
-                        if prod.imagen and codigo_viejo in prod.imagen:
-                            prod.imagen = prod.imagen.replace(codigo_viejo, nuevo_codigo)
+                if prod.imagen and codigo_viejo in prod.imagen:
+                    nombre_viejo_img = prod.imagen
+                    nombre_nuevo_img = prod.imagen.replace(codigo_viejo, nuevo_codigo)
+                    
+                    ruta_vieja = os.path.join(img_dir, nombre_viejo_img)
+                    ruta_nueva = os.path.join(img_dir, nombre_nuevo_img)
+                    
+                    if os.path.exists(ruta_vieja):
+                        if os.path.exists(ruta_nueva):
+                            os.remove(ruta_nueva)
+                        os.rename(ruta_vieja, ruta_nueva)
+                        prod.imagen = nombre_nuevo_img
             
             prod.nombre = nuevo_nombre
             prod.categoria = fila.get('categoria')
@@ -157,7 +161,7 @@ def save_data():
                 pres.sync_estado = 'pendiente'
                 
         db.session.commit()
-        return jsonify({"status": "success", "message": "Datos guardados y foto renombrada si fue necesario."})
+        return jsonify({"status": "success", "message": "Datos guardados y foto sincronizada correctamente."})
     except Exception as e:
         db.session.rollback()
         print(f"ERROR: {e}")
@@ -194,15 +198,30 @@ def upload_foto():
     file.save(ruta_original)
 
     try:
-        ruta_destino = os.path.join(DESTINO, f"{codigo}.webp")
+        # EL TRUCO MÁGICO: Agregar un sufijo de tiempo (timestamp) al nombre del archivo
+        # Así el navegador siempre verá un archivo nuevo y descargará la imagen real.
+        timestamp = int(time.time())
+        nombre_webp = f"{codigo}_v{timestamp}.webp"
+        ruta_destino = os.path.join(DESTINO, nombre_webp)
+        
         img = Image.open(ruta_original).convert("RGB")
         img.thumbnail((150, 150))
         img.save(ruta_destino, "WEBP", quality=80)
 
-        prod.imagen = f"{codigo}.webp"
+        # Eliminamos la foto anterior para no llenar el disco duro de basura
+        if prod.imagen and prod.imagen != nombre_webp:
+            ruta_foto_vieja = os.path.join(DESTINO, prod.imagen)
+            if os.path.exists(ruta_foto_vieja):
+                try:
+                    os.remove(ruta_foto_vieja)
+                except Exception:
+                    pass
+
+        # Actualizamos la base de datos con el nombre nuevo que incluye la versión
+        prod.imagen = nombre_webp
         ProductoTienda.query.filter_by(producto_id=prod.id).update({'sync_estado': 'pendiente'})
         db.session.commit()
 
-        return jsonify({"status": "ok", "message": "Foto guardada y optimizada"})
+        return jsonify({"status": "ok", "message": "Foto guardada con nueva versión"})
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error al procesar la foto: {str(e)}"}), 500
