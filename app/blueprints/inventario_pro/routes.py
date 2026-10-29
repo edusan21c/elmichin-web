@@ -4,6 +4,8 @@ from . import bp
 from app.extensions import db
 from app.models.producto import Producto, ProductoTienda
 from decimal import Decimal
+import os
+from PIL import Image
 import uuid
 import random
 
@@ -42,6 +44,7 @@ def get_data():
             'nombre': p.nombre,
             'categoria': p.categoria or '',
             'codigo_barras': p.codigo_barras or '',
+            'imagen': p.imagen or '',  # <--- AQUÍ ENVIAMOS LA FOTO
             't1_stock': t1.cantidad if t1 else 0,
             't1_costo': float(t1.precio_proveedor) if t1 else 0,
             't1_gan': float(t1.porcentaje) if t1 else 0,
@@ -73,7 +76,6 @@ def save_data():
         for fila in cambios:
             prod_id = fila.get('id')
             
-            # FORZAMOS A ENTERO PARA QUE ACTUALICE BIEN
             if prod_id and str(prod_id).strip() != '':
                 prod = Producto.query.get(int(prod_id))
             else:
@@ -96,7 +98,6 @@ def save_data():
 
             if not prod: continue
             
-            # ACTUALIZAMOS EL NOMBRE Y DEMAS CAMPOS
             prod.nombre = fila.get('nombre')
             prod.categoria = fila.get('categoria')
             prod.codigo_barras = fila.get('codigo_barras') or None
@@ -123,3 +124,47 @@ def save_data():
         db.session.rollback()
         print(f"ERROR: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@bp.route('/api/upload-foto', methods=['POST'])
+@login_required
+def upload_foto():
+    if not current_user.es_programador():
+        return jsonify({"status": "error", "message": "No tienes permiso."}), 403
+
+    prod_id = request.form.get('producto_id')
+    file = request.files.get('foto')
+
+    if not prod_id or not file:
+        return jsonify({"status": "error", "message": "Faltan datos o archivo"}), 400
+
+    prod = Producto.query.get(int(prod_id))
+    if not prod:
+        return jsonify({"status": "error", "message": "Producto no encontrado"}), 404
+
+    codigo = prod.codigo_barras or f"PROD-{prod.id}"
+    
+    BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    ORIGEN = os.path.join(BASE_DIR, 'data', 'imagenes')
+    DESTINO = os.path.join(BASE_DIR, 'app', 'static', 'img', 'productos')
+
+    if not os.path.exists(ORIGEN):
+        os.makedirs(ORIGEN)
+    if not os.path.exists(DESTINO):
+        os.makedirs(DESTINO)
+
+    ruta_original = os.path.join(ORIGEN, f"{codigo}.jpeg")
+    file.save(ruta_original)
+
+    try:
+        ruta_destino = os.path.join(DESTINO, f"{codigo}.webp")
+        img = Image.open(ruta_original).convert("RGB")
+        img.thumbnail((150, 150))
+        img.save(ruta_destino, "WEBP", quality=80)
+
+        prod.imagen = f"{codigo}.webp"
+        ProductoTienda.query.filter_by(producto_id=prod.id).update({'sync_estado': 'pendiente'})
+        db.session.commit()
+
+        return jsonify({"status": "ok", "message": "Foto guardada y optimizada"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error al procesar la foto: {str(e)}"}), 500
