@@ -32,7 +32,6 @@ def tienda_actual():
     return current_user.tienda_id
 
 
-
 def redondear(v):
     return Decimal(str(v or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
@@ -202,7 +201,6 @@ def registrar_abono():
 
     monto_base = redondear(monto)
 
-    # Calcular recargo digital
     recargo = Decimal('0')
     if metodo in ('nequi', 'daviplata') and aplicar_recargo:
         conf = Configuracion.query.filter(
@@ -212,7 +210,6 @@ def registrar_abono():
         porcentaje = Decimal(conf.valor) if conf else Decimal('0.4')
         recargo = redondear(monto_base * (porcentaje / Decimal('100')))
 
-    # El pago total incluye el recargo
     monto_total_pagado = monto_base + recargo
 
     pago = Pago(
@@ -223,21 +220,18 @@ def registrar_abono():
     )
     db.session.add(pago)
 
-    # Actualizar saldo (solo se abona el monto base, no el recargo)
     nuevo_saldo = redondear(Decimal(str(saldo_actual)) - monto_base)
     factura.saldo_pendiente = nuevo_saldo
     if nuevo_saldo <= 0.5:
         factura.estado_credito = 'pagado'
         factura.saldo_pendiente = Decimal('0')
 
-    # ACTUALIZAR TOTALES DE LA FACTURA CON EL RECARGO
     if recargo > 0:
         factura.total = (factura.total or 0) + recargo
         factura.recargo_nequi = (factura.recargo_nequi or 0) + recargo
 
     factura.valor_pagado = (factura.valor_pagado or 0) + monto_total_pagado
 
-    # Actualizar cliente
     cliente = factura.cliente
     nuevo_saldo_cli = redondear(Decimal(str(cliente.saldo_actual or 0)) - monto_base)
     if nuevo_saldo_cli <= Decimal('0.50'):
@@ -295,7 +289,6 @@ def clientes():
 @bp.route('/api/clientes-stats')
 @login_required
 def api_clientes_stats():
-    """Devuelve las estadísticas de clientes en formato JSON."""
     tienda_id = tienda_actual()
     desde_str = request.args.get('desde', '', type=str).strip()
     hasta_str = request.args.get('hasta', '', type=str).strip()
@@ -313,7 +306,6 @@ def api_clientes_stats():
         desde = datetime.combine(hoy - timedelta(days=365), datetime.min.time()) + timedelta(hours=5)
         hasta = datetime.combine(hoy, datetime.min.time()) + timedelta(days=1, hours=5)
 
-    # ============ TOP 10 QUE MÁS COMPRAN ============
     top_compradores = (db.session.query(
             Cliente.id,
             Cliente.nombre,
@@ -333,7 +325,6 @@ def api_clientes_stats():
         .all()
     )
 
-    # ============ TOP 10 MOROSOS ============
     top_morosos = (Cliente.query
         .filter(
             Cliente.tienda_id == tienda_id,
@@ -368,7 +359,6 @@ def api_clientes_stats():
             'dias': dias,
         })
 
-    # ============ TOP 10 QUE MÁS PIDEN CRÉDITO ============
     top_credito = (db.session.query(
             Cliente.id,
             Cliente.nombre,
@@ -389,7 +379,6 @@ def api_clientes_stats():
         .all()
     )
 
-    # ============ RESUMEN GENERAL ============
     total_clientes = Cliente.query.filter_by(tienda_id=tienda_id).count()
     clientes_con_deuda = Cliente.query.filter(
         Cliente.tienda_id == tienda_id,
@@ -423,3 +412,59 @@ def api_clientes_stats():
             'total_credito': float(r.total_credito),
         } for r in top_credito],
     })
+
+
+# ==================== VENTAS POR PRODUCTO ====================
+@bp.route('/ventas-producto')
+@login_required
+def ventas_producto():
+    tienda_id = tienda_actual()
+    tiendas = Tienda.query.filter_by(activa=True).all()
+
+    desde_str = request.args.get('desde', '', type=str).strip()
+    hasta_str = request.args.get('hasta', '', type=str).strip()
+    q = request.args.get('q', '', type=str).strip()
+
+    hoy = hora_local().date()
+    if not desde_str:
+        desde_str = hoy.replace(day=1).strftime('%Y-%m-%d')
+    if not hasta_str:
+        hasta_str = hoy.strftime('%Y-%m-%d')
+
+    try:
+        desde = datetime.strptime(desde_str, '%Y-%m-%d') + timedelta(hours=5)
+        hasta = datetime.strptime(hasta_str, '%Y-%m-%d') + timedelta(days=1, hours=5)
+    except ValueError:
+        desde = datetime.combine(hoy, datetime.min.time()) + timedelta(hours=5)
+        hasta = desde + timedelta(days=1)
+
+    query = db.session.query(
+        DetalleFactura.producto_nombre,
+        func.sum(DetalleFactura.cantidad).label('total_unidades'),
+        func.sum(DetalleFactura.subtotal).label('total_plata')
+    ).join(
+        Factura, Factura.id == DetalleFactura.factura_id
+    ).filter(
+        Factura.tienda_id == tienda_id,
+        Factura.fecha_hora >= desde,
+        Factura.fecha_hora < hasta
+    )
+
+    if q:
+        query = query.filter(DetalleFactura.producto_nombre.ilike(f'%{q}%'))
+
+    resultados = query.group_by(
+        DetalleFactura.producto_nombre
+    ).order_by(
+        func.sum(DetalleFactura.cantidad).desc()
+    ).all()
+
+    return render_template(
+        'reportes/ventas_producto.html',
+        resultados=resultados,
+        tiendas=tiendas,
+        tienda_id=tienda_id,
+        desde=desde_str,
+        hasta=hasta_str,
+        q=q,
+    )

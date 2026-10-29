@@ -6,6 +6,9 @@
     <h1 class="h3 mb-0">
         <i class="bi bi-graph-up"></i> Reportes de Ventas
     </h1>
+    <a href="{{ url_for('reportes.ventas_producto') }}" class="btn btn-success fw-bold shadow-sm">
+        <i class="bi bi-box-seam"></i> Reporte de Ventas por Producto
+    </a>
 </div>
 
 <!-- Filtros -->
@@ -22,8 +25,7 @@
             </div>
             <div class="col-md-4">
                 <label class="form-label small mb-0">Buscar</label>
-                <input type="text" name="q" class="form-control"
-                       placeholder="N° factura o nombre cliente..." value="{{ q }}">
+                <input type="text" name="q" class="form-control" placeholder="N° factura o nombre cliente..." value="{{ q }}">
             </div>
             <div class="col-md-2">
                 <button type="submit" class="btn btn-primary w-100">
@@ -36,12 +38,10 @@
             <a href="{{ url_for('reportes.ventas') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-calendar-today"></i> Hoy
             </a>
-            <a href="{{ url_for('reportes.ventas', desde=(hoy - timedelta(days=7)).strftime('%Y-%m-%d') if hoy else '', hasta=hoy.strftime('%Y-%m-%d') if hoy else '') }}"
-               class="btn btn-sm btn-outline-secondary">
+            <a href="{{ url_for('reportes.ventas', desde=(hoy - timedelta(days=7)).strftime('%Y-%m-%d') if hoy else '', hasta=hoy.strftime('%Y-%m-%d') if hoy else '') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-calendar-week"></i> Últimos 7 días
             </a>
-            <a href="{{ url_for('reportes.ventas', desde=(hoy - timedelta(days=30)).strftime('%Y-%m-%d') if hoy else '', hasta=hoy.strftime('%Y-%m-%d') if hoy else '') }}"
-               class="btn btn-sm btn-outline-secondary">
+            <a href="{{ url_for('reportes.ventas', desde=(hoy - timedelta(days=30)).strftime('%Y-%m-%d') if hoy else '', hasta=hoy.strftime('%Y-%m-%d') if hoy else '') }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-calendar-month"></i> Últimos 30 días
             </a>
         </div>
@@ -97,14 +97,10 @@
                     <td class="fw-semibold">
                         {{ f.numero_factura }}
                         {% if f.origen == 'remota_recibida' %}
-                            <span class="badge bg-info text-dark ms-1" title="Pedido hecho desde central">
-                                📥 Remota
-                            </span>
+                            <span class="badge bg-info text-dark ms-1" title="Pedido hecho desde central">📥 Remota</span>
                         {% endif %}
                         {% if f.precio_manual %}
-                            <span class="badge bg-warning text-dark ms-1" title="Incluye productos con precio editado">
-                                ✏️ Precio manual
-                            </span>
+                            <span class="badge bg-warning text-dark ms-1" title="Incluye productos con precio editado">✏️ Precio manual</span>
                         {% endif %}
                     </td>
                     <td class="text-muted small">{{ f.fecha_hora | fecha_local }}</td>
@@ -121,8 +117,7 @@
                         {% endif %}
                     </td>
                     <td class="text-end">
-                        <a href="{{ url_for('reportes.detalle', factura_id=f.id) }}"
-                           class="btn btn-sm btn-outline-primary">
+                        <a href="{{ url_for('reportes.detalle', factura_id=f.id) }}" class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-eye"></i> Ver
                         </a>
                     </td>

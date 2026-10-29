@@ -13,6 +13,8 @@ from app.models.producto import Producto, ProductoTienda
 
 ORIGEN = os.path.join(BASE_DIR, 'data', 'imagenes')
 DESTINO = os.path.join(BASE_DIR, 'app', 'static', 'img', 'productos')
+# NUEVA CARPETA: Aquí se guardarán las fotos viejas para no procesarlas dos veces
+DESTINO_PROCESADAS = os.path.join(BASE_DIR, 'data', 'imagenes_procesadas')
 
 app = create_app()
 
@@ -44,6 +46,11 @@ def procesar_todo():
                     ProductoTienda.query.filter_by(producto_id=prod.id).update({'sync_estado': 'pendiente'})
                     db.session.commit()
                     print(f"OK: Foto procesada para {prod.nombre}")
+
+                    # Mover la foto a la carpeta de procesadas para que no se vuelva a procesar
+                    if not os.path.exists(DESTINO_PROCESADAS):
+                        os.makedirs(DESTINO_PROCESADAS)
+                    os.replace(ruta_origen, os.path.join(DESTINO_PROCESADAS, archivo))
 
     # B. Subir a GitHub automaticamente
     print("--- SUBIENDO A GITHUB ---")

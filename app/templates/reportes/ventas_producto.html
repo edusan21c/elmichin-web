@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block titulo %}Ventas por Producto{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0"><i class="bi bi-bar-chart-line"></i> Ventas por Producto</h1>
+    <a href="{{ url_for('reportes.ventas') }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Volver a Reportes
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3 shadow-sm">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('reportes.ventas_producto') }}" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Desde</label>
+                <input type="date" name="desde" class="form-control" value="{{ desde }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Hasta</label>
+                <input type="date" name="hasta" class="form-control" value="{{ hasta }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small mb-1">Buscar Producto (Ej: Rothmans, Cigarrillo...)</label>
+                <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Nombre del producto...">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Filtrar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabla de resultados -->
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Producto</th>
+                    <th class="text-center">Unidades Vendidas</th>
+                    <th class="text-end">Total Recaudado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in resultados %}
+                <tr>
+                    <td class="fw-semibold">{{ r.producto_nombre }}</td>
+                    <td class="text-center">
+                        <span class="badge bg-primary fs-6">{{ r.total_unidades }}</span>
+                    </td>
+                    <td class="text-end text-success fw-bold">${{ "{:,.0f}".format(r.total_plata) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                        No se encontraron ventas en este periodo.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
