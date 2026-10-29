@@ -26,8 +26,10 @@ def tienda_actual():
         if tid:
             session['tienda_actual_id'] = tid
             return tid
-        # Si no elige tienda, devolvemos None para sumar TODAS
-        return None
+        if session.get('tienda_actual_id'):
+            return session.get('tienda_actual_id')
+        primera = Tienda.query.filter_by(activa=True).first()
+        return primera.id if primera else None
 
     if current_user.tienda_id:
         return current_user.tienda_id
