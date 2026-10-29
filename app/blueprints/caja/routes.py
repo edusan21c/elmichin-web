@@ -95,7 +95,7 @@ def api_datos():
         Factura.fecha_hora <= hasta_utc,
     )
     if tienda_id:
-        q = q.filter(Factura.tienda_id == tienda_id)
+        q = q.filter(Factura.tienda_id == tienda_id, Producto.categoria != 'INACTIVO')
     facturas = q.all()
     ids_facturas = [f.id for f in facturas]
 
@@ -268,7 +268,7 @@ def api_categoria_productos():
         Factura.fecha_hora <= hasta_utc,
     )
     if tienda_id:
-        q = q.filter(Factura.tienda_id == tienda_id)
+        q = q.filter(Factura.tienda_id == tienda_id, Producto.categoria != 'INACTIVO')
     facturas = q.all()
 
     productos = {}
@@ -366,7 +366,7 @@ def api_buscar_productos():
         Factura.fecha_hora <= hasta_utc,
     )
     if tienda_id:
-        qf = qf.filter(Factura.tienda_id == tienda_id)
+        qf = qf.filter(Factura.tienda_id == tienda_id, Producto.categoria != 'INACTIVO')
     facturas = qf.all()
 
     ventas_por_nombre = {}
