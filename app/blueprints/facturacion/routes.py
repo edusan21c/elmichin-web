@@ -2,7 +2,7 @@
 from decimal import Decimal
 from flask import (
     render_template, request, jsonify, redirect, url_for,
-    flash, current_app, session
+    flash, current_app, session, send_from_directory
 )
 from flask_login import login_required, current_user
 from sqlalchemy import or_, func
@@ -16,6 +16,7 @@ from app.blueprints.configuracion.routes import get_valor
 from app.services.facturacion_service import (
     crear_factura_completa, obtener_o_crear_cliente
 )
+import os
 
 def es_central():
     return current_app.config.get('MODO', 'tienda_local') == 'central'
@@ -225,3 +226,38 @@ def api_cliente_exacto():
             'saldo': float(c.saldo_actual or 0),
         })
     return jsonify(None)
+
+# ==================== FOTO EN HD ====================
+@bp.route('/imagen-hd/<int:producto_id>')
+@login_required
+def imagen_hd(producto_id):
+    prod = Producto.query.get(producto_id)
+    if not prod:
+        return "Producto no encontrado", 404
+
+    codigo = prod.codigo_barras or f"PROD-{prod.id}"
+    
+    # Ruta absoluta basada en el root_path de la app (100% segura)
+    BASE_DIR = os.path.dirname(current_app.root_path)
+
+    # 1. Buscar el original en data/imagenes (agregamos .webp y mayúsculas)
+    img_dir = os.path.join(BASE_DIR, 'data', 'imagenes')
+    for ext in ['.jpeg', '.jpg', '.png', '.JPG', '.JPEG', '.PNG', '.webp', '.WEBP']:
+        filename = f"{codigo}{ext}"
+        if os.path.exists(os.path.join(img_dir, filename)):
+            return send_from_directory(img_dir, filename)
+
+    # 2. Si ya se procesó, buscar en data/imagenes_procesadas
+    img_dir_proc = os.path.join(BASE_DIR, 'data', 'imagenes_procesadas')
+    for ext in ['.jpeg', '.jpg', '.png', '.JPG', '.JPEG', '.PNG', '.webp', '.WEBP']:
+        filename = f"{codigo}{ext}"
+        if os.path.exists(os.path.join(img_dir_proc, filename)):
+            return send_from_directory(img_dir_proc, filename)
+
+    # 3. Si no hay original, devolver la miniatura webp
+    static_dir = os.path.join(BASE_DIR, 'app', 'static', 'img', 'productos')
+    filename = f"{codigo}.webp"
+    if os.path.exists(os.path.join(static_dir, filename)):
+        return send_from_directory(static_dir, filename)
+
+    return "Imagen no encontrada", 404

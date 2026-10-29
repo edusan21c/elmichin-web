@@ -294,7 +294,7 @@
         }
     }
 
-    function pintarResultados(data) {
+        function pintarResultados(data) {
         resultados.innerHTML = '';
         indiceActivo = -1;
         
@@ -309,7 +309,7 @@
             item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2';
             
             const imgHtml = p.imagen 
-                ? `<img src="/static/img/productos/${p.imagen}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 5px; margin-right: 12px;">` 
+                ? `<img src="/static/img/productos/${p.imagen}" class="foto-clickable" data-img="/facturacion/imagen-hd/${p.id}" data-nombre="${p.nombre}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 5px; margin-right: 12px; cursor: zoom-in;" title="Clic para ampliar foto">` 
                 : `<div style="width: 45px; height: 45px; background: #f0f0f0; border-radius: 5px; margin-right: 12px; display: flex; align-items: center; justify-content: center; color: #ccc;"><i class="bi bi-image"></i></div>`;
 
             item.innerHTML = `
@@ -325,6 +325,29 @@
                     <small class="text-muted">Stock: ${p.stock}</small>
                 </div>
             `;
+
+            const foto = item.querySelector('.foto-clickable');
+            if (foto) {
+                foto.addEventListener('click', function(e) {
+                    e.stopPropagation(); // Evita que se agregue al carrito
+                    
+                    const urlImagen = this.getAttribute('data-img');
+                    const nombreProducto = this.getAttribute('data-nombre');
+                    
+                    // Usamos HTML en lugar de imageUrl para asegurar que se vea
+                    Swal.fire({
+    title: `<span style="font-size: 1.6rem; font-weight: bold; color: #333;">${nombreProducto}</span>`,
+    // El "onerror" dice: si la foto HD falla, carga la miniatura que ya sabemos que funciona.
+    html: `<img src="${urlImagen}" onerror="this.src='/static/img/productos/${p.imagen}'" style="max-width: 100%; max-height: 75vh; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); object-fit: contain;">`,
+    showConfirmButton: false,
+    showCloseButton: true,
+    padding: '1em',
+    width: 'auto',
+    backdrop: `rgba(0,0,0,0.8)`
+});
+                });
+            }
+
             item.addEventListener('click', () => agregarAlCarrito(p));
             resultados.appendChild(item);
         });
