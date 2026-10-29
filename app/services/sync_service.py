@@ -174,7 +174,7 @@ def obtener_cambios_pull(tienda_id, desde=None, desde_id=0, limite=200):
              .filter(
                  ProductoTienda.tienda_id == tienda_id,
                  ProductoTienda.sync_estado == 'pendiente',
-                 ProductoTienda.producto_id > desde_id  # NUEVO: Paginación
+                 ProductoTienda.producto_id > desde_id
              )
              .order_by(ProductoTienda.producto_id)
              .limit(limite + 1))
@@ -187,7 +187,7 @@ def obtener_cambios_pull(tienda_id, desde=None, desde_id=0, limite=200):
         'productos': [],
         'timestamp': datetime.utcnow().isoformat(),
         'hay_mas': hay_mas,
-        'ultimo_id': registros[-1][1].producto_id if registros else desde_id # NUEVO: Devolver el último ID
+        'ultimo_id': registros[-1][1].producto_id if registros else desde_id
     }
 
     for p, pres in registros:
@@ -217,6 +217,7 @@ def obtener_cambios_pull(tienda_id, desde=None, desde_id=0, limite=200):
 
     return resultado
 
+
 def marcar_productos_ack(tienda_id, ids_productos):
     if not ids_productos or not tienda_id:
         return 0
@@ -237,141 +238,132 @@ def marcar_productos_enviados(tienda_id, ids_productos):
     return marcar_productos_ack(tienda_id, ids_productos)
 
 
+# 🛡️ BLINDAJE: Esta es la función que ya no se cae si hay nombres duplicados
 def aplicar_cambios_pull(datos):
-    """Aplica cambios recibidos del central. TODOS los campos bidireccionales."""
+    """Aplica cambios recibidos del central con IA Auto-Fix para evitar caidas."""
     actualizados = 0
     creados = 0
     ids_aplicados = []
+    errores_autofix = 0
 
     for p_data in datos.get('productos', []):
-        producto_id = p_data.get('producto_id')
-        tienda_id = p_data.get('tienda_id')
-        nombre = p_data.get('nombre')
-        codigo = p_data.get('codigo_barras')
+        try:
+            with db.session.begin_nested(): # Savepoint: si este producto falla, no daña el lote
+                producto_id = p_data.get('producto_id')
+                tienda_id = p_data.get('tienda_id')
+                nombre = p_data.get('nombre')
+                codigo = p_data.get('codigo_barras')
 
-        if not tienda_id:
-            continue
+                if not tienda_id:
+                    continue
 
-        codigo_global = p_data.get('codigo_global')
+                codigo_global = p_data.get('codigo_global')
 
-        # v2.54: matchear primero por codigo_global, después barcode, después nombre
-        producto = None
-        if codigo_global:
-            producto = Producto.query.filter_by(codigo_global=codigo_global).first()
-        if not producto and codigo:
-            producto = Producto.query.filter_by(codigo_barras=codigo).first()
-        if not producto and nombre:
-            producto = Producto.query.filter_by(nombre=nombre).first()
+                producto = None
+                if codigo_global:
+                    producto = Producto.query.filter_by(codigo_global=codigo_global).first()
+                if not producto and codigo:
+                    producto = Producto.query.filter_by(codigo_barras=codigo).first()
+                if not producto and nombre:
+                    producto = Producto.query.filter_by(nombre=nombre).first()
 
-        if not producto:
-            try:
-                producto = Producto(
-                    nombre=nombre or f'Producto {producto_id}',
-                    codigo_barras=codigo or None,
-                    categoria=p_data.get('categoria') or None,
-                    codigo_global=codigo_global or str(uuid.uuid4()),
-                    imagen=p_data.get('imagen'),
-                )
-                db.session.add(producto)
-                db.session.flush()
-            except Exception as e:
-                db.session.rollback()
-                print(f'  [pull] No se pudo crear producto {producto_id}: {e}')
-                continue
-        elif codigo_global and producto.codigo_global != codigo_global:
-            # v2.54-fix-alinear-uuid: adoptar UUID de Central
-            uuid_viejo = producto.codigo_global[:8] if producto.codigo_global else "None"
-            print(f'  [pull] UUID alineado: "{producto.nombre}" '
-                  f'({uuid_viejo}... -> {codigo_global[:8]}...)')
-            producto.codigo_global = codigo_global
+                if not producto:
+                    producto = Producto(
+                        nombre=nombre or f'Producto {producto_id}',
+                        codigo_barras=codigo or None,
+                        categoria=p_data.get('categoria') or None,
+                        codigo_global=codigo_global or str(uuid.uuid4()),
+                        imagen=p_data.get('imagen'),
+                    )
+                    db.session.add(producto)
+                    db.session.flush()
+                elif codigo_global and producto.codigo_global != codigo_global:
+                    producto.codigo_global = codigo_global
 
-        # Barcode
-        if producto and codigo and producto.codigo_barras != codigo:
-            codigo_anterior = producto.codigo_barras
-            otro = Producto.query.filter(
-                Producto.codigo_barras == codigo,
-                Producto.id != producto.id,
-            ).first()
-            if otro:
-                print(f'  [pull] Barcode {codigo} ya existe en "{otro.nombre}"')
-            else:
-                producto.codigo_barras = codigo
-                print(f'  [pull] Barcode actualizado: "{producto.nombre}" '
-                      f'{codigo_anterior} -> {codigo}')
+                # Barcode
+                if producto and codigo and producto.codigo_barras != codigo:
+                    otro = Producto.query.filter(
+                        Producto.codigo_barras == codigo,
+                        Producto.id != producto.id,
+                    ).first()
+                    if not otro:
+                        producto.codigo_barras = codigo
 
-        # Categoria
-        if producto and p_data.get('categoria') is not None:
-            cat_nueva = (p_data.get('categoria') or '').strip()
-            if cat_nueva and producto.categoria != cat_nueva:
-                print(f'  [pull] Categoria actualizada: "{producto.nombre}" '
-                      f'-> {cat_nueva}')
-                producto.categoria = cat_nueva
+                # Categoria
+                if producto and p_data.get('categoria') is not None:
+                    cat_nueva = (p_data.get('categoria') or '').strip()
+                    if cat_nueva and producto.categoria != cat_nueva:
+                        producto.categoria = cat_nueva
 
-        # Imagen
-        if producto and p_data.get('imagen') is not None and producto.imagen != p_data.get('imagen'):
-            producto.imagen = p_data.get('imagen')
+                # Imagen
+                if producto and p_data.get('imagen') is not None and producto.imagen != p_data.get('imagen'):
+                    producto.imagen = p_data.get('imagen')
 
-        # Nombre
-        if producto and nombre and producto.nombre != nombre:
-            nombre_anterior = producto.nombre
-            print(f'  [pull] Nombre actualizado: "{nombre_anterior}" -> "{nombre}"')
-            producto.nombre = nombre
+                # 🧠 IA AUTO-FIX: Detecta conflicto de nombre antes de asignar
+                if producto and nombre and producto.nombre != nombre:
+                    existe_mismo_nombre = Producto.query.filter(Producto.nombre == nombre, Producto.id != producto.id).first()
+                    if existe_mismo_nombre:
+                        nuevo_nombre_unico = f"{nombre} (Auto-Fix {producto.id})"
+                        producto.nombre = nuevo_nombre_unico
+                        errores_autofix += 1
+                        print(f'  [IA Auto-Fix] Conflicto evitado: "{nombre}" cambiado a "{nuevo_nombre_unico}"')
+                    else:
+                        producto.nombre = nombre
 
-        # v2.57-sync-modificado: sincronizar marca de modificacion
-        if producto and p_data.get('modificado_por_nombre'):
-            producto.modificado_por_nombre = p_data.get('modificado_por_nombre')
-            mod_en = p_data.get('modificado_en')
-            if mod_en:
-                try:
-                    producto.modificado_en = datetime.fromisoformat(mod_en)
-                except (ValueError, TypeError):
-                    producto.modificado_en = datetime.utcnow()
+                if producto and p_data.get('modificado_por_nombre'):
+                    producto.modificado_por_nombre = p_data.get('modificado_por_nombre')
+                    mod_en = p_data.get('modificado_en')
+                    if mod_en:
+                        try:
+                            producto.modificado_en = datetime.fromisoformat(mod_en)
+                        except (ValueError, TypeError):
+                            producto.modificado_en = datetime.utcnow()
 
-        id_real = producto.id
+                id_real = producto.id
 
-        pres = ProductoTienda.query.filter_by(
-            producto_id=id_real, tienda_id=tienda_id
-        ).first()
+                pres = ProductoTienda.query.filter_by(
+                    producto_id=id_real, tienda_id=tienda_id
+                ).first()
 
-        if not pres:
-            pres = ProductoTienda(
-                producto_id=id_real,
-                tienda_id=tienda_id,
-                cantidad=0,
-            )
-            db.session.add(pres)
-            db.session.flush()
-            creados += 1
+                if not pres:
+                    pres = ProductoTienda(
+                        producto_id=id_real,
+                        tienda_id=tienda_id,
+                        cantidad=0,
+                    )
+                    db.session.add(pres)
+                    db.session.flush()
+                    creados += 1
 
-        # Todos los campos de ProductoTienda
-        pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
-        pres.precio_proveedor = Decimal(str(p_data.get('precio_proveedor', pres.precio_proveedor or 0)))
-        pres.precio_proveedor2 = Decimal(str(p_data.get('precio_proveedor2', pres.precio_proveedor2 or 0)))
-        pres.precio_proveedor3 = Decimal(str(p_data.get('precio_proveedor3', pres.precio_proveedor3 or 0)))
-        pres.porcentaje = Decimal(str(p_data.get('porcentaje', pres.porcentaje or 0)))
-        pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
-        pres.precio_venta1 = Decimal(str(p_data.get('precio_venta1', 0)))
-        pres.precio_venta2 = Decimal(str(p_data.get('precio_venta2', 0)))
-        pres.precio_venta3 = Decimal(str(p_data.get('precio_venta3', 0)))
-        pres.condicion1 = p_data.get('condicion1', '')
-        pres.condicion2 = p_data.get('condicion2', '')
-        pres.condicion3 = p_data.get('condicion3', '')
+                pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
+                pres.precio_proveedor = Decimal(str(p_data.get('precio_proveedor', pres.precio_proveedor or 0)))
+                pres.precio_proveedor2 = Decimal(str(p_data.get('precio_proveedor2', pres.precio_proveedor2 or 0)))
+                pres.precio_proveedor3 = Decimal(str(p_data.get('precio_proveedor3', pres.precio_proveedor3 or 0)))
+                pres.porcentaje = Decimal(str(p_data.get('porcentaje', pres.porcentaje or 0)))
+                pres.precio_venta = Decimal(str(p_data.get('precio_venta', 0)))
+                pres.precio_venta1 = Decimal(str(p_data.get('precio_venta1', 0)))
+                pres.precio_venta2 = Decimal(str(p_data.get('precio_venta2', 0)))
+                pres.precio_venta3 = Decimal(str(p_data.get('precio_venta3', 0)))
+                pres.condicion1 = p_data.get('condicion1', '')
+                pres.condicion2 = p_data.get('condicion2', '')
+                pres.condicion3 = p_data.get('condicion3', '')
 
-        pres.sync_estado = 'sincronizado'
-        pres.sync_fecha = datetime.utcnow()
+                pres.sync_estado = 'sincronizado'
+                pres.sync_fecha = datetime.utcnow()
 
-        actualizados += 1
-        ids_aplicados.append(producto_id)
+                actualizados += 1
+                ids_aplicados.append(producto_id)
+        except Exception as e:
+            # Si aún así algo falla, se anota el error pero el bucle sigue
+            print(f'  [IA Auto-Fix] Producto {p_data.get("nombre")} ignorado por error: {e}')
 
     db.session.commit()
-
-    if creados > 0:
-        print(f'  [pull] {creados} productos nuevos creados, {actualizados} actualizados')
 
     return {
         'actualizados': actualizados,
         'creados': creados,
         'ids_aplicados': ids_aplicados,
+        'errores_autofix': errores_autofix
     }
 
 
@@ -680,7 +672,6 @@ def procesar_push(tienda_id, datos):
 
             codigo_global = p_data.get('codigo_global')
 
-            # v2.54: matchear primero por codigo_global, después barcode, después nombre
             producto = None
             if codigo_global:
                 producto = Producto.query.filter_by(codigo_global=codigo_global).first()
@@ -724,7 +715,6 @@ def procesar_push(tienda_id, datos):
             if producto and nombre and producto.nombre != nombre:
                 producto.nombre = nombre
 
-            # v2.57-sync-modificado: sincronizar marca de modificacion
             if producto and p_data.get('modificado_por_nombre'):
                 producto.modificado_por_nombre = p_data.get('modificado_por_nombre')
                 mod_en = p_data.get('modificado_en')
@@ -766,7 +756,6 @@ def procesar_push(tienda_id, datos):
                     errores.append(f'Producto {producto_id}: no se pudo crear presentacion ({e})')
                     continue
 
-            # TODOS los campos de ProductoTienda
             pres.cantidad = int(p_data.get('cantidad', pres.cantidad or 0))
             pres.precio_proveedor = Decimal(str(p_data.get('precio_proveedor', pres.precio_proveedor or 0)))
             pres.precio_proveedor2 = Decimal(str(p_data.get('precio_proveedor2', pres.precio_proveedor2 or 0)))

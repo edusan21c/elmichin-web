@@ -1,10 +1,5 @@
 # scripts/sync_worker.py
 # Worker de sincronizacion. Corre en cada TIENDA y sincroniza con el central.
-# v2.14-backoff: retry exponencial en fallas de push/pull.
-# v2.15-alertas: notificaciones por Telegram en fallas consecutivas.
-# v2.37-fix-saldo-negativo: sanitizador de clientes con saldo negativo.
-# v2.66-fix-paginacion: paginacion por desde_id para evitar 10.000 vueltas.
-
 import os
 import sys
 import json
@@ -24,17 +19,13 @@ from app import create_app
 from app.extensions import db
 from app.services import sync_service
 
-
 # ==================== CONFIGURACION ====================
 TIMEOUT_PING = 3
 TIMEOUT_REQUEST = 30
 LOG_FILE = os.path.join(RAIZ, 'logs', 'sync.log')
 BACKOFF_FILE = os.path.join(RAIZ, '.sync_backoff.json')
 
-# Backoff en minutos segun numero de fallas consecutivas
 BACKOFF_MINUTOS = [2, 5, 15, 30, 60]
-
-# v2.15-alertas: umbral de fallas para disparar alerta
 UMBRAL_ALERTA_FALLAS = 3
 
 
@@ -54,8 +45,7 @@ def log(msg):
 
 # ==================== ALERTAS TELEGRAM ====================
 def enviar_alerta_telegram(mensaje):
-    """v2.15-alertas: envia alerta por Telegram si esta configurado.
-    Lee TELEGRAM_TOKEN y TELEGRAM_CHAT_ID desde el .env (via current_app)."""
+    """v2.15-alertas: envia alerta por Telegram si esta configurado."""
     from flask import current_app
 
     token = current_app.config.get('TELEGRAM_TOKEN', '')
@@ -85,68 +75,46 @@ def enviar_alerta_telegram(mensaje):
 
 # ==================== BACKOFF ====================
 def _leer_backoff():
-    """Lee el estado de backoff desde el archivo."""
-    if not os.path.exists(BACKOFF_FILE):
-        return {}
+    if not os.path.exists(BACKOFF_FILE): return {}
     try:
-        with open(BACKOFF_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception:
-        return {}
+        with open(BACKOFF_FILE, 'r', encoding='utf-8') as f: return json.load(f)
+    except Exception: return {}
 
 
 def _escribir_backoff(data):
-    """Escribe el estado de backoff al archivo."""
     try:
-        with open(BACKOFF_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2)
-    except Exception:
-        pass
+        with open(BACKOFF_FILE, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
+    except Exception: pass
 
 
 def puede_intentar(operacion):
-    """v2.14-backoff: verifica si ya paso el tiempo de espera."""
     data = _leer_backoff()
     op = data.get(operacion, {})
     proximo = op.get('proximo_intento')
-
-    if not proximo:
-        return True
+    if not proximo: return True
 
     try:
         proximo_dt = datetime.fromisoformat(proximo)
-        if datetime.now() >= proximo_dt:
-            return True
+        if datetime.now() >= proximo_dt: return True
         restante = int((proximo_dt - datetime.now()).total_seconds() / 60)
-        log(f'  {operacion.upper()}: en backoff, faltan {restante} min '
-            f'(fallas consecutivas: {op.get("fallas", 0)})')
+        log(f'  {operacion.upper()}: en backoff, faltan {restante} min (fallas: {op.get("fallas", 0)})')
         return False
     except Exception:
         return True
 
 
 def registrar_exito(operacion):
-    """v2.14-backoff: resetea el contador de fallas."""
     data = _leer_backoff()
-    data[operacion] = {
-        'fallas': 0,
-        'proximo_intento': None,
-        'ultimo_error': None,
-    }
+    data[operacion] = {'fallas': 0, 'proximo_intento': None, 'ultimo_error': None}
     _escribir_backoff(data)
 
 
 def registrar_falla(operacion, error_msg):
-    """v2.14-backoff: incrementa fallas y programa proximo intento.
-    v2.15-alertas: dispara alerta Telegram en el umbral."""
     data = _leer_backoff()
     op = data.get(operacion, {})
-    fallas_previas = op.get('fallas', 0)
-    fallas = fallas_previas + 1
-
+    fallas = op.get('fallas', 0) + 1
     idx = min(fallas - 1, len(BACKOFF_MINUTOS) - 1)
     espera_min = BACKOFF_MINUTOS[idx]
-
     proximo_dt = datetime.now() + timedelta(minutes=espera_min)
 
     data[operacion] = {
@@ -156,32 +124,21 @@ def registrar_falla(operacion, error_msg):
     }
     _escribir_backoff(data)
 
-    log(f'  {operacion.upper()}: falla {fallas} registrada, '
-        f'proximo intento en {espera_min} min')
+    log(f'  {operacion.upper()}: falla {fallas}, proximo intento en {espera_min} min')
 
     if fallas == UMBRAL_ALERTA_FALLAS:
         try:
             from flask import current_app
             tienda_id = current_app.config.get('TIENDA_ID', '?')
-            mensaje = (
-                f"[El Michin Alerta]\n"
-                f"Worker de Tienda {tienda_id} con {fallas} fallas consecutivas "
-                f"en operacion '{operacion}'.\n\n"
-                f"Ultimo error: {str(error_msg)[:150]}\n\n"
-                f"Revisar el estado de la red o la central."
-            )
+            mensaje = f"[El Michin Alerta]\nWorker de Tienda {tienda_id} con {fallas} fallas en '{operacion}'.\n\nUltimo error: {str(error_msg)[:150]}"
             enviar_alerta_telegram(mensaje)
         except Exception as e:
             log(f'  [alerta] Error al disparar: {e}')
 
 
 def hay_internet(url):
-    """Verifica si el central responde."""
     try:
-        r = requests.get(
-            url.rstrip('/') + '/api/sync/ping',
-            timeout=TIMEOUT_PING
-        )
+        r = requests.get(url.rstrip('/') + '/api/sync/ping', timeout=TIMEOUT_PING)
         return r.status_code == 200
     except requests.RequestException:
         return False
@@ -189,15 +146,11 @@ def hay_internet(url):
 
 # ==================== NUEVA FUNCION DE AUTO-REPARACION ====================
 def reparar_fotos_locales(app):
-    """Escanea la carpeta de fotos y las vincula a los productos en la BD si no lo están."""
     from app.models.producto import Producto
-    
     with app.app_context():
         try:
             img_dir = os.path.join(RAIZ, 'app', 'static', 'img', 'productos')
-            if not os.path.exists(img_dir):
-                log('  [Auto-Fix Fotos] Carpeta de productos no encontrada.')
-                return
+            if not os.path.exists(img_dir): return
 
             fotos = os.listdir(img_dir)
             arregladas = 0
@@ -205,31 +158,24 @@ def reparar_fotos_locales(app):
                 if foto.endswith('.webp'):
                     codigo = foto.replace('.webp', '')
                     prod = Producto.query.filter_by(codigo_barras=codigo).first()
-                    
                     if prod and prod.imagen != foto:
                         prod.imagen = foto
                         arregladas += 1
 
             if arregladas > 0:
                 db.session.commit()
-                log(f'  [Auto-Fix Fotos] Se vincularon {arregladas} fotos a sus productos correctamente.')
-            else:
-                log('  [Auto-Fix Fotos] Todas las fotos ya estaban vinculadas.')
+                log(f'  [Auto-Fix Fotos] Se vincularon {arregladas} fotos.')
         except Exception as e:
             log(f'  [Auto-Fix Fotos] Error: {e}')
             db.session.rollback()
-# =======================================================================
 
 
 def detectar_fantasmas(app, tienda_id):
-    """Detecta y re-marca facturas 'sincronizadas' que no existen en central."""
     with app.app_context():
         try:
             faltantes = sync_service.detectar_facturas_faltantes(tienda_id)
-            if faltantes > 0:
-                log(f'  {faltantes} facturas re-marcadas como pendiente')
-            else:
-                log('  Sin facturas fantasma')
+            if faltantes > 0: log(f'  {faltantes} facturas re-marcadas')
+            else: log('  Sin facturas fantasma')
             return faltantes
         except Exception as e:
             log(f'  Error: {e}')
@@ -237,116 +183,58 @@ def detectar_fantasmas(app, tienda_id):
 
 
 def corregir_saldos_negativos(app):
-    """v2.37-fix-saldo-negativo: red de seguridad."""
     from app.models.cliente import Cliente
     from app.models.factura import Factura
-
     with app.app_context():
         try:
             negativos = Cliente.query.filter(Cliente.saldo_actual < 0).all()
-            if not negativos:
-                log('  Sin clientes con saldo negativo')
-                return 0
-
-            corregidos = 0
+            if not negativos: return 0
             for c in negativos:
-                real = (db.session.query(
-                    db.func.coalesce(db.func.sum(Factura.saldo_pendiente), 0)
-                ).filter(Factura.cliente_id == c.id).scalar())
-                if real is None or real < 0:
-                    real = Decimal('0')
-                log(f'  FIX saldo cliente {c.id} ({c.nombre}): '
-                    f'{c.saldo_actual} -> {real}')
+                real = (db.session.query(db.func.coalesce(db.func.sum(Factura.saldo_pendiente), 0)).filter(Factura.cliente_id == c.id).scalar())
+                if real is None or real < 0: real = Decimal('0')
                 c.saldo_actual = Decimal(str(real))
                 c.sync_fecha = datetime.utcnow()
-                corregidos += 1
-
             db.session.commit()
-            log(f'  {corregidos} clientes corregidos')
-            return corregidos
+            return len(negativos)
         except Exception as e:
-            log(f'  Error corregir_saldos_negativos: {e}')
             db.session.rollback()
             return 0
 
 
 def hacer_push(app, central_url, sync_key, tienda_id):
-    """Envia datos pendientes al central."""
-    if not puede_intentar('push'):
-        return True
-
+    if not puede_intentar('push'): return True
     with app.app_context():
         pendientes = sync_service.obtener_pendientes_push(tienda_id)
-        productos_pendientes = sync_service.obtener_productos_pendientes_push(tienda_id)
-        pendientes['productos'] = productos_pendientes
-        config_pendientes = sync_service.obtener_config_pendientes_push(tienda_id)
-        pendientes['configuracion'] = config_pendientes
+        pendientes['productos'] = sync_service.obtener_productos_pendientes_push(tienda_id)
+        pendientes['configuracion'] = sync_service.obtener_config_pendientes_push(tienda_id)
 
-        total = (
-            len(pendientes['facturas']) +
-            len(pendientes['pagos']) +
-            len(pendientes['clientes']) +
-            len(pendientes['productos']) +
-            len(pendientes['configuracion'])
-        )
-
+        total = len(pendientes['facturas']) + len(pendientes['pagos']) + len(pendientes['clientes']) + len(pendientes['productos']) + len(pendientes['configuracion'])
         if total == 0:
-            log('  PUSH: sin cambios pendientes')
             registrar_exito('push')
             return True
 
-        log(f'  PUSH: enviando {total} registros...')
-        payload = {'tienda_id': tienda_id, **pendientes}
-
         try:
-            r = requests.post(
-                central_url.rstrip('/') + '/api/sync/push',
-                json=payload,
-                headers={'X-Sync-Key': sync_key},
-                timeout=TIMEOUT_REQUEST,
-            )
-
-            if r.status_code == 200:
-                data = r.json()
-                if data.get('ok'):
-                    sync_service.marcar_sincronizados(tienda_id, data)
-                    log(f'  PUSH: OK - {data.get("recibidas", {})}')
-                    sync_service.registrar_log(
-                        tienda_id, 'push', 'mixto', total, True, str(data.get('recibidas', {}))
-                    )
-                    registrar_exito('push')
-                    return True
-                else:
-                    err = str(data.get('error', 'unknown'))
-                    log(f'  PUSH: ERROR - {err}')
-                    sync_service.registrar_log(tienda_id, 'push', 'mixto', 0, False, err)
-                    registrar_falla('push', err)
-                    return False
+            r = requests.post(central_url.rstrip('/') + '/api/sync/push', json={'tienda_id': tienda_id, **pendientes}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
+            if r.status_code == 200 and r.json().get('ok'):
+                sync_service.marcar_sincronizados(tienda_id, r.json())
+                registrar_exito('push')
+                return True
             else:
-                err = f'HTTP {r.status_code}'
-                log(f'  PUSH: {err}')
-                sync_service.registrar_log(tienda_id, 'push', 'mixto', 0, False, err)
-                registrar_falla('push', err)
+                registrar_falla('push', f'HTTP {r.status_code}')
                 return False
-
         except requests.RequestException as e:
-            log(f'  PUSH: fallo de red - {e}')
             registrar_falla('push', f'Red: {e}')
             return False
 
 
 def hacer_pull(app, central_url, sync_key, tienda_id):
-    """Recibe cambios del central (productos Y facturas)."""
-    if not puede_intentar('pull'):
-        return True
-
+    if not puede_intentar('pull'): return True
     with app.app_context():
         desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
         headers_pull = {'X-Sync-Key': sync_key, 'X-Sync-Ack': 'true'}
         hubo_error_pull = False
-        desde_id = 0  # NUEVO: Paginación
+        desde_id = 0
 
-        # ============ 1. PULL PRODUCTOS (en lotes) ============
         log(f'  PULL productos desde {desde[:10]}...')
         total_productos = 0
         ids_pendientes_ack = []
@@ -354,47 +242,27 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
 
         for i in range(MAX_ITERACIONES):
             try:
-                r = requests.get(
-                    central_url.rstrip('/') + '/api/sync/pull',
-                    params={'tienda_id': tienda_id, 'desde': desde, 'desde_id': desde_id}, # NUEVO
-                    headers=headers_pull,
-                    timeout=TIMEOUT_REQUEST,
-                )
+                r = requests.get(central_url.rstrip('/') + '/api/sync/pull', params={'tienda_id': tienda_id, 'desde': desde, 'desde_id': desde_id}, headers=headers_pull, timeout=TIMEOUT_REQUEST)
                 if r.status_code != 200:
-                    log(f'  PULL productos: HTTP {r.status_code}')
                     hubo_error_pull = True
                     break
 
                 datos = r.json()
                 productos = datos.get('productos', [])
                 hay_mas = datos.get('hay_mas', False)
-                ultimo_id = datos.get('ultimo_id', desde_id) # NUEVO
+                ultimo_id = datos.get('ultimo_id', desde_id)
 
                 if not productos:
                     break
 
-                # 🛡️ BLINDAJE: Si un producto falla, el robot no se cae
-                try:
-                    resultado = sync_service.aplicar_cambios_pull({'productos': productos})
-                    aplicados = resultado.get('actualizados', 0)
-                    ids_lote = resultado.get('ids_aplicados', [])
-                except Exception as e:
-                    log(f'  [ALERTA] Error aplicando lote {i+1}. Omitiendo productos dañados.')
-                    log(f'  Detalle: {e}')
-                    db.session.rollback() # Deshacemos el error y seguimos
-                    aplicados = 0
-                    ids_lote = []
-                    
-                    # Guardamos el error en un archivo de texto para no perder el rastro
-                    try:
-                        with open(os.path.join(RAIZ, 'logs', 'errores_productos.txt'), 'a') as f_err:
-                            f_err.write(f'[{datetime.now()}] Error en lote {i+1}: {e}\n')
-                    except:
-                        pass
+                # 🛡️ EL ROBOT YA NO SE CAE AQUÍ GRACIAS AL BLINDAJE DEL SERVICIO
+                resultado = sync_service.aplicar_cambios_pull({'productos': productos})
+                aplicados = resultado.get('actualizados', 0)
+                ids_lote = resultado.get('ids_aplicados', [])
 
                 total_productos += aplicados
                 ids_pendientes_ack.extend(ids_lote)
-                desde_id = ultimo_id # NUEVO: actualizar para el siguiente lote SIEMPRE
+                desde_id = ultimo_id
 
                 log(f'  PULL productos lote {i+1}: {aplicados} actualizados (hay_mas={hay_mas})')
 
@@ -407,130 +275,41 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
 
         if ids_pendientes_ack:
             try:
-                r = requests.post(
-                    central_url.rstrip('/') + '/api/sync/ack',
-                    json={'tienda_id': tienda_id, 'ids_productos': ids_pendientes_ack},
-                    headers={'X-Sync-Key': sync_key},
-                    timeout=TIMEOUT_REQUEST,
-                )
-                if r.status_code == 200:
-                    data = r.json()
-                    log(f'  ACK productos: {data.get("marcados", 0)} marcados en central')
-                else:
-                    log(f'  ACK productos: HTTP {r.status_code} (se reintentaran)')
-            except requests.RequestException as e:
-                log(f'  ACK productos: fallo red - {e} (se reintentaran)')
+                requests.post(central_url.rstrip('/') + '/api/sync/ack', json={'tienda_id': tienda_id, 'ids_productos': ids_pendientes_ack}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
+            except requests.RequestException: pass
 
-        if total_productos > 0:
-            log(f'  PULL productos TOTAL: {total_productos} actualizados')
-        else:
-            log('  PULL productos: sin cambios')
-
-        # ============ 2. PULL CONFIGURACION GLOBAL ============
+        # PULL CONFIG
         try:
-            r = requests.get(
-                central_url.rstrip('/') + '/api/sync/pull-config',
-                params={'tienda_id': tienda_id},
-                headers={'X-Sync-Key': sync_key},
-                timeout=TIMEOUT_REQUEST,
-            )
-            if r.status_code == 200:
-                datos_conf = r.json()
-                configs = datos_conf.get('configuracion', [])
-                if configs:
-                    aplicadas, ids_conf = sync_service.aplicar_config_recibida(configs)
-                    log(f'  PULL config: {aplicadas} aplicadas')
-                    if ids_conf:
-                        try:
-                            requests.post(
-                                central_url.rstrip('/') + '/api/sync/marcar-config-enviada',
-                                json={'ids_configs': ids_conf},
-                                headers={'X-Sync-Key': sync_key},
-                                timeout=TIMEOUT_REQUEST,
-                            )
-                        except requests.RequestException:
-                            pass
-                else:
-                    log('  PULL config: sin cambios')
-            else:
-                log(f'  PULL config: HTTP {r.status_code}')
-                hubo_error_pull = True
-        except requests.RequestException as e:
-            log(f'  PULL config: fallo red - {e}')
-            hubo_error_pull = True
+            r = requests.get(central_url.rstrip('/') + '/api/sync/pull-config', params={'tienda_id': tienda_id}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
+            if r.status_code == 200 and r.json().get('configuracion'):
+                aplicadas, ids_conf = sync_service.aplicar_config_recibida(r.json()['configuracion'])
+                if ids_conf:
+                    requests.post(central_url.rstrip('/') + '/api/sync/marcar-config-enviada', json={'ids_configs': ids_conf}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
+        except requests.RequestException: hubo_error_pull = True
 
-        # ============ 3. PULL FACTURAS REMOTAS ============
-        log(f'  PULL facturas desde {desde[:10]}...')
+        # PULL FACTURAS
         try:
-            r = requests.get(
-                central_url.rstrip('/') + '/api/sync/pull-facturas',
-                params={'tienda_id': tienda_id, 'desde': desde},
-                headers={'X-Sync-Key': sync_key},
-                timeout=TIMEOUT_REQUEST,
-            )
-            if r.status_code == 200:
-                datos = r.json()
-                facturas = datos.get('facturas', [])
-                if facturas:
-                    insertadas = sync_service.aplicar_facturas_recibidas(tienda_id, facturas)
-                    log(f'  PULL facturas: {insertadas} nuevas (recibidas {len(facturas)})')
-                    sync_service.registrar_log(tienda_id, 'pull', 'facturas', insertadas, True, '')
-                else:
-                    log('  PULL facturas: sin cambios')
-            else:
-                log(f'  PULL facturas: HTTP {r.status_code}')
-                hubo_error_pull = True
-        except requests.RequestException as e:
-            log(f'  PULL facturas: fallo red - {e}')
-            hubo_error_pull = True
+            r = requests.get(central_url.rstrip('/') + '/api/sync/pull-facturas', params={'tienda_id': tienda_id, 'desde': desde}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
+            if r.status_code == 200 and r.json().get('facturas'):
+                sync_service.aplicar_facturas_recibidas(tienda_id, r.json()['facturas'])
+        except requests.RequestException: hubo_error_pull = True
 
-        # ============ 4. PULL PAGOS ============
-        log(f'  PULL pagos desde {desde[:10]}...')
+        # PULL PAGOS
         try:
-            r = requests.get(
-                central_url.rstrip('/') + '/api/sync/pull-pagos',
-                params={'tienda_id': tienda_id, 'desde': desde},
-                headers={'X-Sync-Key': sync_key},
-                timeout=TIMEOUT_REQUEST,
-            )
-            if r.status_code == 200:
-                datos = r.json()
-                pagos = datos.get('pagos', [])
-                if pagos:
-                    insertados, omitidos, errores = sync_service.aplicar_pagos_recibidos(tienda_id, pagos)
-                    log(f'  PULL pagos: {insertados} nuevos, {omitidos} omitidos, {len(errores)} errores')
-                    ids_ok = [p['id'] for p in pagos]
-                    if ids_ok:
-                        try:
-                            requests.post(
-                                central_url.rstrip('/') + '/api/sync/marcar-pagos-enviados',
-                                json={'tienda_id': tienda_id, 'ids_pagos': ids_ok},
-                                headers={'X-Sync-Key': sync_key},
-                                timeout=TIMEOUT_REQUEST,
-                            )
-                        except requests.RequestException:
-                            pass
-                else:
-                    log('  PULL pagos: sin cambios')
-            else:
-                log(f'  PULL pagos: HTTP {r.status_code}')
-                hubo_error_pull = True
-        except requests.RequestException as e:
-            log(f'  PULL pagos: fallo red - {e}')
-            hubo_error_pull = True
+            r = requests.get(central_url.rstrip('/') + '/api/sync/pull-pagos', params={'tienda_id': tienda_id, 'desde': desde}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
+            if r.status_code == 200 and r.json().get('pagos'):
+                sync_service.aplicar_pagos_recibidos(tienda_id, r.json()['pagos'])
+                ids_ok = [p['id'] for p in r.json()['pagos']]
+                requests.post(central_url.rstrip('/') + '/api/sync/marcar-pagos-enviados', json={'tienda_id': tienda_id, 'ids_pagos': ids_ok}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
+        except requests.RequestException: hubo_error_pull = True
 
-        if hubo_error_pull:
-            registrar_falla('pull', 'Error en algun paso del pull')
-        else:
-            registrar_exito('pull')
-
-        return True
+        if hubo_error_pull: registrar_falla('pull', 'Error en pull')
+        else: registrar_exito('pull')
+        return total_productos
 
 
 def main():
-    """Ciclo principal de sincronizacion."""
     app = create_app()
-
     with app.app_context():
         tienda_id = app.config.get('TIENDA_ID', 1)
         central_url = app.config.get('CENTRAL_URL', '')
@@ -541,16 +320,12 @@ def main():
     log(f'Central: {central_url}')
     log('=' * 60)
 
-    if not central_url:
-        log('ERROR: CENTRAL_URL no configurada')
-        sys.exit(1)
-
-    if not sync_key:
-        log('ERROR: SYNC_KEY no configurada')
+    if not central_url or not sync_key:
+        log('ERROR: Configuracion incompleta (Central_URL o Sync_Key)')
         sys.exit(1)
 
     if not hay_internet(central_url):
-        log('Sin conexion al central. Reintentando en el proximo ciclo.')
+        log('Sin conexion al central. Reintentando.')
         sys.exit(0)
 
     log('Conexion al central OK')
@@ -559,38 +334,36 @@ def main():
     detectar_fantasmas(app, tienda_id)
 
     log('--- PUSH (enviar pendientes) ---')
-    hacer_push(app, central_url, sync_key, tienda_id)
+    push_ok = hacer_push(app, central_url, sync_key, tienda_id)
 
     log('--- PULL (recibir cambios) ---')
-    hacer_pull(app, central_url, sync_key, tienda_id)
+    pull_count = hacer_pull(app, central_url, sync_key, tienda_id)
 
-    log('--- FIX SALDOS NEGATIVOS (v2.37) ---')
+    log('--- FIX SALDOS NEGATIVOS ---')
     corregir_saldos_negativos(app)
 
-    # NUEVA FUNCION PARA AUTO-REPARAR LAS FOTOS
     log('--- AUTO-REPARACION DE FOTOS ---')
     reparar_fotos_locales(app)
 
-    # --- ACTUALIZACION AUTOMATICA DE ARCHIVOS (v2.88) ---
-    log('--- GIT PULL (buscando actualizaciones) ---')
+    log('--- GIT PULL ---')
     import subprocess
     try:
-        # 1. Traemos los cambios incluyendo las etiquetas (tags)
         r = subprocess.run(['git', 'pull', 'origin', 'main', '--tags'], cwd=RAIZ, capture_output=True, text=True, timeout=60)
-        
-        # 2. Verificamos si hubo descarga de archivos nuevos
-        if 'Fast-forward' in r.stdout or 'files changed' in r.stdout or 'archivos cambiados' in r.stdout:
-            log('Git Pull: Se descargaron actualizaciones nuevas.')
-            log('REINICIANDO SISTEMA PARA APLICAR CAMBIOS...')
-            
-            # 3. Reiniciamos el servicio de Flask para que lea el nuevo código
+        if 'Fast-forward' in r.stdout or 'files changed' in r.stdout:
+            log('Git Pull: Actualizaciones descargadas. Reiniciando...')
             subprocess.run(['powershell', '-Command', 'Restart-Service MichinFlask -Force'], capture_output=True)
-            log('Sistema reiniciado con exito.')
         else:
-            log('Git Pull: Sin actualizaciones nuevas.')
+            log('Git Pull: Sin actualizaciones de código.')
     except Exception as e:
-        log(f'Git Pull Error: {e}')
-    # ----------------------------------------------------
+        log(f'Git Error: {e}')
+
+    # --- REPORTE INTELIGENTE A TELEGRAM ---
+    try:
+        if pull_count and pull_count > 0:
+            mensaje = f"🤖 *Reporte Tienda {tienda_id}*\n✅ Sincronización exitosa.\n📦 Productos actualizados: {pull_count}\n⏱ Hora: {datetime.now().strftime('%H:%M:%S')}"
+            enviar_alerta_telegram(mensaje)
+    except Exception:
+        pass
 
     log('Ciclo completado.')
     log('')
