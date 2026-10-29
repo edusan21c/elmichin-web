@@ -158,6 +158,8 @@ def api_datos():
         for d in f.detalles:
             prod = db.session.get(Producto, d.producto_id) if d.producto_id else None
             cat = (prod.categoria if prod and prod.categoria else 'Sin categoría').strip()
+            if cat == 'INACTIVO':
+                continue
             if cat not in categorias:
                 categorias[cat] = {'ingresos': 0.0, 'unidades': 0, 'productos_distintos': set()}
             categorias[cat]['ingresos'] += float(d.subtotal or 0)
@@ -276,6 +278,8 @@ def api_categoria_productos():
         for d in f.detalles:
             prod = db.session.get(Producto, d.producto_id) if d.producto_id else None
             cat = (prod.categoria if prod and prod.categoria else 'Sin categoría').strip()
+            if cat == 'INACTIVO':
+                continue
             if cat != categoria:
                 continue
             nombre = d.producto_nombre or '?'
