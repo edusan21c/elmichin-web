@@ -136,10 +136,16 @@ def save_data():
                 
         db.session.commit()
         
+        # Devolvemos TODOS los datos guardados para que la tabla se actualice perfecto
         return jsonify({
             "status": "success", 
             "message": "Datos guardados.",
-            "imagen_final": prod.imagen 
+            "datos": {
+                'id': prod.id, 'nombre': prod.nombre, 'categoria': prod.categoria,
+                'codigo_barras': prod.codigo_barras, 'imagen': prod.imagen,
+                't1_stock': fila.get('t1_stock'), 't1_base': fila.get('t1_base'),
+                't2_stock': fila.get('t2_stock'), 't2_base': fila.get('t2_base')
+            }
         })
     except Exception as e:
         db.session.rollback()

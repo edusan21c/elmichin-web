@@ -173,6 +173,7 @@
         ajaxConfig: "GET",
         placeholder: "Cargando productos...",
         selectableRows: false,
+        index: "id", // <--- ¡LA MAGIA PARA QUE NO SALTE!
         columns: [
             {title: "ID", field: "id", width: 60, hozAlign: "center", cssClass: "fw-bold text-muted"},
             {
@@ -180,7 +181,6 @@
                 formatter: function(cell) {
                     var imgName = cell.getValue();
                     if (imgName) {
-                        // Agregamos un parámetro ?v= para evitar el caché del navegador
                         return `<img src="/static/img/productos/${imgName}?v=${new Date().getTime()}" onerror="this.src='/static/img/productos/error.png'; this.onerror=null;" style="width: 40px; height: 40px; object-fit: cover; border-radius: 5px; border: 1px solid #ddd;">`;
                     } else {
                         return `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #ccc;"><i class="bi bi-image"></i></div>`;
@@ -335,21 +335,10 @@
             if (resData.status === "success") {
                 modalEditar.hide();
                 
-                // 🔥 LA MAGIA PARA QUE NO SALTE: Actualizar solo la fila de este producto
-                if (currentEditId) {
-                    var row = table.getRow(currentEditId);
-                    if (row) {
-                        row.update({
-                            nombre: datos.nombre,
-                            categoria: datos.categoria,
-                            codigo_barras: datos.codigo_barras,
-                            t1_stock: datos.t1_stock,
-                            t1_base: datos.t1_base,
-                            t2_stock: datos.t2_stock,
-                            t2_base: datos.t2_base,
-                            imagen: resData.imagen_final 
-                        });
-                    }
+                // 🔥 LA MAGIA: Actualizar solo la fila usando su ID único
+                var row = table.getRow(datos.id);
+                if (row) {
+                    row.update(resData.datos);
                 }
                 Swal.fire('¡Guardado!', 'El producto se actualizó sin saltar.', 'success');
             } else {
@@ -392,7 +381,7 @@
                 if (data.status === 'ok') {
                     preview.className = 'mt-2 text-success fw-bold';
                     preview.innerHTML = '<i class="bi bi-check-circle-fill"></i> ¡Foto actualizada!';
-                    // Actualizamos la foto en la fila actual
+                    // Actualizamos la foto en la fila actual sin recargar todo
                     var row = table.getRow(currentEditId);
                     if (row) row.update({ imagen: data.imagen_final });
                 } else {
