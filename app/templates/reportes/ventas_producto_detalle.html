@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block titulo %}Detalle de Ventas{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-search"></i> Ventas de: <span class="text-primary">{{ producto }}</span>
+    </h1>
+    <a href="{{ url_for('reportes.ventas_producto', desde=desde, hasta=hasta) }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Volver al Resumen
+    </a>
+</div>
+
+<div class="alert alert-info shadow-sm">
+    <i class="bi bi-calendar-range"></i> Mostrando las facturas del <strong>{{ desde }}</strong> al <strong>{{ hasta }}</strong>.
+</div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>N° Factura</th>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th class="text-center">Cant. Comprada</th>
+                    <th class="text-end">Precio Unit.</th>
+                    <th class="text-end">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f, d in resultados %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('reportes.detalle', factura_id=f.id) }}" target="_blank" class="fw-semibold text-decoration-none">
+                            {{ f.numero_factura }}
+                        </a>
+                    </td>
+                    <td class="text-muted small">{{ f.fecha_hora | fecha_local }}</td>
+                    <td>{{ f.cliente.nombre }}</td>
+                    <td class="text-center">
+                        <span class="badge bg-success fs-6">{{ d.cantidad }}</span>
+                    </td>
+                    <td class="text-end text-muted">${{ "{:,.0f}".format(d.precio_unitario) }}</td>
+                    <td class="text-end fw-bold">${{ "{:,.0f}".format(d.subtotal) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        No se encontraron facturas para este producto en este rango de fechas.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

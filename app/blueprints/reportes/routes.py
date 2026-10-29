@@ -468,3 +468,50 @@ def ventas_producto():
         hasta=hasta_str,
         q=q,
     )
+# ==================== DETALLE DE VENTAS POR PRODUCTO ====================
+@bp.route('/ventas-producto-detalle')
+@login_required
+def ventas_producto_detalle():
+    tienda_id = tienda_actual()
+    producto = request.args.get('producto', '', type=str).strip()
+    desde_str = request.args.get('desde', '', type=str).strip()
+    hasta_str = request.args.get('hasta', '', type=str).strip()
+
+    if not producto:
+        flash('No se especificó ningún producto', 'warning')
+        return redirect(url_for('reportes.ventas_producto'))
+
+    hoy = hora_local().date()
+    if not desde_str:
+        desde_str = hoy.replace(day=1).strftime('%Y-%m-%d')
+    if not hasta_str:
+        hasta_str = hoy.strftime('%Y-%m-%d')
+
+    try:
+        desde = datetime.strptime(desde_str, '%Y-%m-%d') + timedelta(hours=5)
+        hasta = datetime.strptime(hasta_str, '%Y-%m-%d') + timedelta(days=1, hours=5)
+    except ValueError:
+        desde = datetime.combine(hoy, datetime.min.time()) + timedelta(hours=5)
+        hasta = desde + timedelta(days=1)
+
+    # Consultamos las facturas que contengan ese producto
+    resultados = db.session.query(
+        Factura, DetalleFactura
+    ).join(
+        DetalleFactura, Factura.id == DetalleFactura.factura_id
+    ).filter(
+        Factura.tienda_id == tienda_id,
+        Factura.fecha_hora >= desde,
+        Factura.fecha_hora < hasta,
+        DetalleFactura.producto_nombre == producto
+    ).order_by(
+        Factura.fecha_hora.desc()
+    ).all()
+
+    return render_template(
+        'reportes/ventas_producto_detalle.html',
+        resultados=resultados,
+        producto=producto,
+        desde=desde_str,
+        hasta=hasta_str,
+    )

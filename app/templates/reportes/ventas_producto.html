@@ -22,7 +22,7 @@
                 <input type="date" name="hasta" class="form-control" value="{{ hasta }}">
             </div>
             <div class="col-md-4">
-                <label class="form-label small mb-1">Buscar Producto (Ej: Rothmans, Cigarrillo...)</label>
+                <label class="form-label small mb-1">Buscar Producto</label>
                 <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Nombre del producto...">
             </div>
             <div class="col-md-2">
@@ -46,9 +46,15 @@
             <tbody>
                 {% for r in resultados %}
                 <tr>
-                    <td class="fw-semibold">{{ r.producto_nombre }}</td>
+                    <td class="fw-semibold">
+                        <a href="{{ url_for('reportes.ventas_producto_detalle', producto=r.producto_nombre, desde=desde, hasta=hasta) }}" class="text-decoration-none">
+                            {{ r.producto_nombre }}
+                        </a>
+                    </td>
                     <td class="text-center">
-                        <span class="badge bg-primary fs-6">{{ r.total_unidades }}</span>
+                        <a href="{{ url_for('reportes.ventas_producto_detalle', producto=r.producto_nombre, desde=desde, hasta=hasta) }}" class="text-decoration-none">
+                            <span class="badge bg-primary fs-6">{{ r.total_unidades }}</span>
+                        </a>
                     </td>
                     <td class="text-end text-success fw-bold">${{ "{:,.0f}".format(r.total_plata) }}</td>
                 </tr>
