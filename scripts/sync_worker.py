@@ -518,15 +518,23 @@ def main():
     log('--- FIX SALDOS NEGATIVOS (v2.37) ---')
     corregir_saldos_negativos(app)
 
-    # --- ACTUALIZACION AUTOMATICA DE ARCHIVOS (v2.84) ---
-    log('--- GIT PULL (buscando fotos nuevas) ---')
+    # --- ACTUALIZACION AUTOMATICA DE ARCHIVOS (v2.88) ---
+    log('--- GIT PULL (buscando actualizaciones) ---')
     import subprocess
     try:
-        r = subprocess.run(['git', 'pull', 'origin', 'main'], cwd=RAIZ, capture_output=True, text=True, timeout=30)
-        if 'Already up to date' not in r.stdout and 'Ya está actualizado' not in r.stdout and 'Fast-forward' in r.stdout:
-            log('Git Pull: Se descargaron archivos nuevos.')
+        # 1. Traemos los cambios incluyendo las etiquetas (tags)
+        r = subprocess.run(['git', 'pull', 'origin', 'main', '--tags'], cwd=RAIZ, capture_output=True, text=True, timeout=60)
+        
+        # 2. Verificamos si hubo descarga de archivos nuevos
+        if 'Fast-forward' in r.stdout or 'files changed' in r.stdout or 'archivos cambiados' in r.stdout:
+            log('Git Pull: Se descargaron actualizaciones nuevas.')
+            log('REINICIANDO SISTEMA PARA APLICAR CAMBIOS...')
+            
+            # 3. Reiniciamos el servicio de Flask para que lea el nuevo código
+            subprocess.run(['powershell', '-Command', 'Restart-Service MichinFlask -Force'], capture_output=True)
+            log('Sistema reiniciado con exito.')
         else:
-            log('Git Pull: Sin archivos nuevos.')
+            log('Git Pull: Sin actualizaciones nuevas.')
     except Exception as e:
         log(f'Git Pull Error: {e}')
     # ----------------------------------------------------
