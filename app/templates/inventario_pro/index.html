@@ -8,14 +8,12 @@
 
 <style>
     body { font-family: 'Outfit', sans-serif; background-color: #f0f4f8; }
-    
     .top-bar { background: #ffffff; padding: 1rem 2rem; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
     .search-box { position: relative; flex-grow: 1; max-width: 500px; }
     .search-box input { border-radius: 50px; padding-left: 40px; padding-right: 40px; border: 2px solid #e2e8f0; background: #f8fafc; transition: all 0.3s; }
     .search-box input:focus { border-color: #3b82f6; background: #ffffff; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
     .search-box .search-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.2rem; }
     .search-box .clear-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8; cursor: pointer; display: none; font-size: 1.2rem; }
-    
     .kpi-card { background: white; border-radius: 16px; padding: 1.2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 15px; }
     .kpi-icon { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
     .kpi-icon.blue { background: #e0f2fe; color: #0284c7; }
@@ -23,17 +21,11 @@
     .kpi-icon.red { background: #fee2e2; color: #dc2626; }
     .kpi-info h6 { margin: 0; color: #64748b; font-size: 0.85rem; font-weight: 600; }
     .kpi-info h3 { margin: 0; color: #0f172a; font-weight: 700; font-size: 1.5rem; }
-
     .tabulator { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.03); background-color: #ffffff; }
     .tabulator .tabulator-header { background-color: #f8fafc !important; border-bottom: 2px solid #e2e8f0; }
     .tabulator .tabulator-header .tabulator-col { background-color: #f8fafc !important; color: #1e293b !important; font-weight: 600; border-right: 1px solid #e2e8f0 !important; }
-    
-    .tabulator .tabulator-header .tabulator-col-group .tabulator-col-title { background-color: #e0f2fe; color: #0369a1; font-weight: 700; border-bottom: 1px solid #bae6fd; }
-    .tabulator .tabulator-header .tabulator-col-group:nth-child(3) .tabulator-col-title { background-color: #dcfce7; color: #166534; }
-
     .col-t1 { background-color: #f0f9ff !important; }
     .col-t2 { background-color: #f0fdf4 !important; }
-
     .modal-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; border-radius: 16px 16px 0 0; }
     .modal-content { border-radius: 16px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
     .modal-body { max-height: 70vh; overflow-y: auto; }
@@ -45,7 +37,6 @@
 
 {% block contenido %}
 <div class="container-fluid py-4">
-    
     <div class="top-bar">
         <div class="search-box">
             <i class="bi bi-search search-icon"></i>
@@ -58,52 +49,30 @@
     </div>
 
     <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <div class="kpi-card">
-                <div class="kpi-icon blue"><i class="bi bi-box-seam"></i></div>
-                <div class="kpi-info"><h6>Total Productos</h6><h3 id="kpi-total">0</h3></div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="kpi-card">
-                <div class="kpi-icon red"><i class="bi bi-exclamation-triangle"></i></div>
-                <div class="kpi-info"><h6>Agotados en Central</h6><h3 id="kpi-sin-stock">0</h3></div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="kpi-card">
-                <div class="kpi-icon yellow"><i class="bi bi-tags"></i></div>
-                <div class="kpi-info"><h6>Categorías Diferentes</h6><h3 id="kpi-categorias">0</h3></div>
-            </div>
-        </div>
+        <div class="col-md-4"><div class="kpi-card"><div class="kpi-icon blue"><i class="bi bi-box-seam"></i></div><div class="kpi-info"><h6>Total Productos</h6><h3 id="kpi-total">0</h3></div></div></div>
+        <div class="col-md-4"><div class="kpi-card"><div class="kpi-icon red"><i class="bi bi-exclamation-triangle"></i></div><div class="kpi-info"><h6>Agotados en Central</h6><h3 id="kpi-sin-stock">0</h3></div></div></div>
+        <div class="col-md-4"><div class="kpi-card"><div class="kpi-icon yellow"><i class="bi bi-tags"></i></div><div class="kpi-info"><h6>Categorías Diferentes</h6><h3 id="kpi-categorias">0</h3></div></div></div>
     </div>
 
-    <div class="card border-0 shadow-sm" style="border-radius: 16px;">
-        <div class="card-body p-0">
-            <div id="tabla-inventario"></div>
-        </div>
-    </div>
+    <div class="card border-0 shadow-sm" style="border-radius: 16px;"><div class="card-body p-0"><div id="tabla-inventario"></div></div></div>
 </div>
 
-<!-- MODAL PARA EDITAR / CREAR -->
+<!-- MODAL COMPLETO -->
 <div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modal-titulo"><i class="bi bi-pencil-square"></i> Editar Producto</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="edit-id">
                 
                 <div class="row mb-3">
-                    <div class="col-md-8">
-                        <label class="form-label">Nombre Producto</label>
-                        <input type="text" class="form-control" id="edit-nombre">
-                    </div>
+                    <div class="col-md-8"><label class="form-label">Nombre Producto</label><input type="text" class="form-control" id="edit-nombre"></div>
                     <div class="col-md-4">
                         <label class="form-label">Categoría</label>
-                        <select class="form-select" id="edit-categoria" name="categoria">
+                        <select class="form-select" id="edit-categoria">
                             <option value="">-- Sin categoría --</option>
                             <option value="dulce">Dulce</option>
                             <option value="cigarro">Cigarrillo</option>
@@ -124,109 +93,54 @@
                     <div class="col-md-8">
                         <label class="form-label">Código de Barras</label>
                         <div class="input-group">
-                            <input type="text" class="form-control" id="edit-codigo" placeholder="Ej: 770... o déjalo vacío">
-                            <button class="btn btn-outline-primary fw-bold" type="button" onclick="generarCodigoEAN13()" title="Genera un código interno válido para productos sin código">
-                                <i class="bi bi-upc-scan"></i> Generar 200...
-                            </button>
+                            <input type="text" class="form-control" id="edit-codigo">
+                            <button class="btn btn-outline-primary fw-bold" type="button" onclick="generarCodigoEAN13()"><i class="bi bi-upc-scan"></i> Generar 200...</button>
                         </div>
-                        <small class="text-muted">Si el producto no tiene código de fábrica, haz clic en "Generar".</small>
                     </div>
                 </div>
 
-                <!-- ZONA DE FOTO -->
                 <div class="row mb-4">
                     <div class="col-12">
                         <label class="form-label">Foto del Producto</label>
-                        <div id="drop-zone" class="border border-2 border-dashed rounded p-3 text-center" style="cursor: pointer; background-color: #f8fafc; transition: all 0.2s;">
+                        <div id="drop-zone" class="border border-2 border-dashed rounded p-3 text-center" style="cursor: pointer; background-color: #f8fafc;">
                             <div id="foto-actual" style="display: none; margin-bottom: 10px;">
-                                <img id="img-actual" src="" onerror="this.style.display='none'" style="max-height: 100px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <img id="img-actual" src="" onerror="this.style.display='none'" style="max-height: 100px; border-radius: 8px;">
                                 <p class="text-muted small mt-1 mb-0">Foto actual</p>
                             </div>
-
                             <i class="bi bi-cloud-arrow-up fs-2 text-primary"></i>
-                            <p class="mb-0 text-muted small">Arrastra una foto aquí o haz clic para reemplazarla (PC o Celular)</p>
+                            <p class="mb-0 text-muted small">Arrastra una foto aquí o haz clic para reemplazarla</p>
                             <input type="file" id="foto-input" accept="image/*" style="display: none;">
                             <div id="foto-preview" class="mt-2 fw-bold" style="display: none;"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- TIENDA 1 -->
                 <div class="section-title text-primary">🏢 TIENDA 1 (CENTRAL)</div>
                 <div class="row g-2 mb-3">
-                    <div class="col-md-3">
-                        <label class="form-label">Stock</label>
-                        <input type="number" class="form-control" id="edit-t1-stock">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Costo</label>
-                        <input type="number" class="form-control" id="edit-t1-costo">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">% Gan</label>
-                        <input type="number" class="form-control" id="edit-t1-gan">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Precio Base</label>
-                        <input type="number" class="form-control" id="edit-t1-base">
-                    </div>
+                    <div class="col-md-3"><label class="form-label">Stock</label><input type="number" class="form-control" id="edit-t1-stock"></div>
+                    <div class="col-md-3"><label class="form-label">Costo</label><input type="number" class="form-control" id="edit-t1-costo"></div>
+                    <div class="col-md-2"><label class="form-label">% Gan</label><input type="number" class="form-control" id="edit-t1-gan"></div>
+                    <div class="col-md-4"><label class="form-label">Precio Base</label><input type="number" class="form-control" id="edit-t1-base"></div>
                 </div>
                 <div class="row g-2 mb-3">
-                    <div class="col-md-2">
-                        <label class="form-label">Cant 1</label>
-                        <input type="number" class="form-control" id="edit-t1-c1">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Precio 1</label>
-                        <input type="number" class="form-control" id="edit-t1-p1">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Cant 2</label>
-                        <input type="number" class="form-control" id="edit-t1-c2">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Precio 2</label>
-                        <input type="number" class="form-control" id="edit-t1-p2">
-                    </div>
+                    <div class="col-md-2"><label class="form-label">Cant 1</label><input type="number" class="form-control" id="edit-t1-c1"></div>
+                    <div class="col-md-4"><label class="form-label">Precio 1</label><input type="number" class="form-control" id="edit-t1-p1"></div>
+                    <div class="col-md-2"><label class="form-label">Cant 2</label><input type="number" class="form-control" id="edit-t1-c2"></div>
+                    <div class="col-md-4"><label class="form-label">Precio 2</label><input type="number" class="form-control" id="edit-t1-p2"></div>
                 </div>
 
-                <!-- TIENDA 2 -->
                 <div class="section-title text-success">🏪 TIENDA 2 (EL MICHÍN DOS)</div>
                 <div class="row g-2 mb-3">
-                    <div class="col-md-3">
-                        <label class="form-label">Stock</label>
-                        <input type="number" class="form-control" id="edit-t2-stock">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Costo</label>
-                        <input type="number" class="form-control" id="edit-t2-costo">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">% Gan</label>
-                        <input type="number" class="form-control" id="edit-t2-gan">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Precio Base</label>
-                        <input type="number" class="form-control" id="edit-t2-base">
-                    </div>
+                    <div class="col-md-3"><label class="form-label">Stock</label><input type="number" class="form-control" id="edit-t2-stock"></div>
+                    <div class="col-md-3"><label class="form-label">Costo</label><input type="number" class="form-control" id="edit-t2-costo"></div>
+                    <div class="col-md-2"><label class="form-label">% Gan</label><input type="number" class="form-control" id="edit-t2-gan"></div>
+                    <div class="col-md-4"><label class="form-label">Precio Base</label><input type="number" class="form-control" id="edit-t2-base"></div>
                 </div>
                 <div class="row g-2 mb-3">
-                    <div class="col-md-2">
-                        <label class="form-label">Cant 1</label>
-                        <input type="number" class="form-control" id="edit-t2-c1">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Precio 1</label>
-                        <input type="number" class="form-control" id="edit-t2-p1">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Cant 2</label>
-                        <input type="number" class="form-control" id="edit-t2-c2">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Precio 2</label>
-                        <input type="number" class="form-control" id="edit-t2-p2">
-                    </div>
+                    <div class="col-md-2"><label class="form-label">Cant 1</label><input type="number" class="form-control" id="edit-t2-c1"></div>
+                    <div class="col-md-4"><label class="form-label">Precio 1</label><input type="number" class="form-control" id="edit-t2-p1"></div>
+                    <div class="col-md-2"><label class="form-label">Cant 2</label><input type="number" class="form-control" id="edit-t2-c2"></div>
+                    <div class="col-md-4"><label class="form-label">Precio 2</label><input type="number" class="form-control" id="edit-t2-p2"></div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -259,96 +173,54 @@
         ajaxConfig: "GET",
         placeholder: "Cargando productos...",
         selectableRows: false,
-        
         columns: [
             {title: "ID", field: "id", width: 60, hozAlign: "center", cssClass: "fw-bold text-muted"},
-            
             {
-                title: "Foto", 
-                field: "imagen", 
-                width: 70, 
-                hozAlign: "center",
-                formatter: function(cell, formatterParams, onRendered){
+                title: "Foto", field: "imagen", width: 70, hozAlign: "center",
+                formatter: function(cell) {
                     var imgName = cell.getValue();
                     if (imgName) {
-                        // onerror oculta la imagen rota y pone un fondo gris
-                        return `<img src="/static/img/productos/${imgName}" onerror="this.style.display='none'" style="width: 40px; height: 40px; object-fit: cover; border-radius: 5px; border: 1px solid #ddd;">`;
+                        // Agregamos un parámetro ?v= para evitar el caché del navegador
+                        return `<img src="/static/img/productos/${imgName}?v=${new Date().getTime()}" onerror="this.src='/static/img/productos/error.png'; this.onerror=null;" style="width: 40px; height: 40px; object-fit: cover; border-radius: 5px; border: 1px solid #ddd;">`;
                     } else {
                         return `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #ccc;"><i class="bi bi-image"></i></div>`;
                     }
                 }
             },
-            
             {title: "Nombre Producto", field: "nombre", width: 280, cssClass: "fw-semibold text-dark"},
             {title: "Categoría", field: "categoria", width: 120},
             {title: "C. Barras", field: "codigo_barras", width: 130},
-            
             {title: "T1 Stock", field: "t1_stock", width: 90, hozAlign: "center", cssClass: "col-t1"},
             {title: "T1 P. Base", field: "t1_base", width: 110, hozAlign: "right", formatter: moneyFormatter, cssClass: "text-success fw-bold col-t1"},
-            
             {title: "T2 Stock", field: "t2_stock", width: 90, hozAlign: "center", cssClass: "col-t2"},
             {title: "T2 P. Base", field: "t2_base", width: 110, hozAlign: "right", formatter: moneyFormatter, cssClass: "text-success fw-bold col-t2"},
-            
             {
-                title: "Acción", 
-                width: 100, 
-                hozAlign: "center",
-                formatter: function(cell, formatterParams, onRendered){
-                    return "<button class='btn btn-sm btn-primary'><i class='bi bi-pencil'></i> Editar</button>";
-                },
-                cellClick: function(e, cell){
-                    abrirModalEditar(cell.getRow().getData());
-                }
+                title: "Acción", width: 100, hozAlign: "center",
+                formatter: function(cell) { return "<button class='btn btn-sm btn-primary'><i class='bi bi-pencil'></i> Editar</button>"; },
+                cellClick: function(e, cell) { abrirModalEditar(cell.getRow().getData()); }
             }
         ]
     });
 
-    // ⚡ LÓGICA DE BÚSQUEDA Y FILTRO PERFECTO ⚡
     const inputBuscador = document.getElementById("buscador");
     const btnLimpiarBusqueda = document.getElementById("btn-limpiar-busqueda");
 
     function aplicarFiltro() {
         let term = inputBuscador.value.toLowerCase().trim();
-        
-        // Mostrar u ocultar el botón de limpiar
         btnLimpiarBusqueda.style.display = term !== "" ? "block" : "none";
-        
-        if (term === '') {
-            table.clearFilter();
-        } else {
-            table.setFilter([
-                [
-                    {field: "nombre", type: "like", value: term},
-                    {field: "categoria", type: "like", value: term},
-                    {field: "codigo_barras", type: "like", value: term}
-                ]
-            ]);
-        }
+        if (term === '') table.clearFilter();
+        else table.setFilter([[{field: "nombre", type: "like", value: term},{field: "categoria", type: "like", value: term},{field: "codigo_barras", type: "like", value: term}]]);
     }
 
     document.addEventListener("DOMContentLoaded", function() {
         let busquedaGuardada = localStorage.getItem("busqueda_inventario_pro");
-        if (busquedaGuardada) {
-            inputBuscador.value = busquedaGuardada;
-        }
-
-        inputBuscador.addEventListener("keyup", function(e){
-            localStorage.setItem("busqueda_inventario_pro", e.target.value);
-            aplicarFiltro();
-        });
-
-        btnLimpiarBusqueda.addEventListener("click", function() {
-            inputBuscador.value = '';
-            localStorage.setItem("busqueda_inventario_pro", '');
-            aplicarFiltro();
-            inputBuscador.focus();
-        });
+        if (busquedaGuardada) inputBuscador.value = busquedaGuardada;
+        inputBuscador.addEventListener("keyup", function(e){ localStorage.setItem("busqueda_inventario_pro", e.target.value); aplicarFiltro(); });
+        btnLimpiarBusqueda.addEventListener("click", function() { inputBuscador.value = ''; localStorage.setItem("busqueda_inventario_pro", ''); aplicarFiltro(); inputBuscador.focus(); });
     });
 
-    // LA MAGIA: Cada vez que la tabla recarga datos (al guardar o cargar), aplica el filtro y actualiza KPIs
     table.on("dataLoaded", function(data){
         aplicarFiltro();
-        
         document.getElementById("kpi-total").innerText = data.length;
         document.getElementById("kpi-sin-stock").innerText = data.filter(p => p.t1_stock === 0).length;
         var categorias = new Set(data.map(p => p.categoria).filter(c => c));
@@ -367,16 +239,13 @@
         currentEditId = null;
         document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-plus-circle"></i> Crear Nuevo Producto';
         document.getElementById('edit-id').value = '';
-        
         document.getElementById('edit-nombre').value = '';
         document.getElementById('edit-categoria').value = '';
         document.getElementById('edit-codigo').value = '';
-        
         ['t1_stock', 't1_costo', 't1_gan', 't1_base', 't1_c1', 't1_p1', 't1_c2', 't1_p2',
-         't2_stock', 't2_costo', 't2_gan', 't2_base', 't2_c1', 't2_p1', 't2_c2', 't2_p2'].forEach(field => {
-            document.getElementById('edit-' + field.replace('_', '-')).value = '';
+         't2_stock', 't2_costo', 't2_gan', 't2_base', 't2_c1', 't2_p1', 't2_c2', 't2_p2'].forEach(field => { 
+            document.getElementById('edit-' + field.replace('_', '-')).value = ''; 
         });
-
         limpiarZonaFoto();
         modalEditar.show();
     }
@@ -386,15 +255,10 @@
         document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-pencil-square"></i> Editar Producto';
         document.getElementById('edit-id').value = data.id;
         document.getElementById('edit-nombre').value = data.nombre;
-        
         var selectCat = document.getElementById('edit-categoria');
         var catActual = data.categoria ? data.categoria.trim() : "";
-        if (catActual !== "" && !Array.from(selectCat.options).some(opt => opt.value === catActual)) {
-            var newOpt = new Option(catActual, catActual);
-            selectCat.add(newOpt);
-        }
+        if (catActual !== "" && !Array.from(selectCat.options).some(opt => opt.value === catActual)) selectCat.add(new Option(catActual, catActual));
         selectCat.value = catActual;
-
         document.getElementById('edit-codigo').value = data.codigo_barras || '';
         
         document.getElementById('edit-t1-stock').value = data.t1_stock;
@@ -416,57 +280,33 @@
         document.getElementById('edit-t2-p2').value = data.t2_p2;
 
         limpiarZonaFoto();
-
         if (data.imagen) {
             document.getElementById('foto-actual').style.display = 'block';
-            // Se asegura de mostrar la foto actual con su timestamp
-            document.getElementById('img-actual').src = `/static/img/productos/${data.imagen}?t=${new Date().getTime()}`;
+            document.getElementById('img-actual').src = `/static/img/productos/${data.imagen}?v=${new Date().getTime()}`;
         }
-
         modalEditar.show();
     }
 
     function generarCodigoEAN13() {
         let codigosActuales = table.getData().map(p => p.codigo_barras);
-        let codigoFinal = "";
-        let repetido = true;
-
+        let codigoFinal = "", repetido = true;
         while (repetido) {
-            let base = "200";
-            for (let i = 0; i < 9; i++) {
-                base += Math.floor(Math.random() * 10);
-            }
-            
-            let suma = 0;
-            for (let i = 0; i < 12; i++) {
-                let digito = parseInt(base[i]);
-                suma += (i % 2 === 0) ? digito : digito * 3;
-            }
-            let checkDigit = (10 - (suma % 10)) % 10;
-            codigoFinal = base + checkDigit;
-
-            if (!codigosActuales.includes(codigoFinal)) {
-                repetido = false;
-            }
+            let base = "200"; for (let i = 0; i < 9; i++) base += Math.floor(Math.random() * 10);
+            let suma = 0; for (let i = 0; i < 12; i++) suma += (i % 2 === 0) ? parseInt(base[i]) : parseInt(base[i]) * 3;
+            codigoFinal = base + ((10 - (suma % 10)) % 10);
+            if (!codigosActuales.includes(codigoFinal)) repetido = false;
         }
-
         document.getElementById('edit-codigo').value = codigoFinal;
-        let input = document.getElementById('edit-codigo');
-        input.style.backgroundColor = "#d1e7dd";
-        setTimeout(() => { input.style.backgroundColor = ""; }, 800);
     }
 
     document.getElementById('btn-guardar-modal').addEventListener('click', function() {
         var btn = this;
-        btn.innerHTML = 'Guardando...';
-        btn.disabled = true;
-
+        btn.innerHTML = 'Guardando...'; btn.disabled = true;
         var datos = {
-            id: currentEditId,
-            nombre: document.getElementById('edit-nombre').value,
-            categoria: document.getElementById('edit-categoria').value,
+            id: currentEditId, 
+            nombre: document.getElementById('edit-nombre').value, 
+            categoria: document.getElementById('edit-categoria').value, 
             codigo_barras: document.getElementById('edit-codigo').value,
-            
             t1_stock: document.getElementById('edit-t1-stock').value,
             t1_costo: document.getElementById('edit-t1-costo').value,
             t1_gan: document.getElementById('edit-t1-gan').value,
@@ -475,7 +315,6 @@
             t1_p1: document.getElementById('edit-t1-p1').value,
             t1_c2: document.getElementById('edit-t1-c2').value,
             t1_p2: document.getElementById('edit-t1-p2').value,
-
             t2_stock: document.getElementById('edit-t2-stock').value,
             t2_costo: document.getElementById('edit-t2-costo').value,
             t2_gan: document.getElementById('edit-t2-gan').value,
@@ -495,90 +334,73 @@
         .then(resData => {
             if (resData.status === "success") {
                 modalEditar.hide();
-                Swal.fire('¡Guardado!', 'El producto se guardó correctamente.', 'success').then(() => {
-                    table.replaceData(); // Esto recarga la tabla y el filtro se mantiene
-                });
+                
+                // 🔥 LA MAGIA PARA QUE NO SALTE: Actualizar solo la fila de este producto
+                if (currentEditId) {
+                    var row = table.getRow(currentEditId);
+                    if (row) {
+                        row.update({
+                            nombre: datos.nombre,
+                            categoria: datos.categoria,
+                            codigo_barras: datos.codigo_barras,
+                            t1_stock: datos.t1_stock,
+                            t1_base: datos.t1_base,
+                            t2_stock: datos.t2_stock,
+                            t2_base: datos.t2_base,
+                            imagen: resData.imagen_final 
+                        });
+                    }
+                }
+                Swal.fire('¡Guardado!', 'El producto se actualizó sin saltar.', 'success');
             } else {
                 Swal.fire('Error', resData.message, 'error');
             }
         })
-        .catch(err => {
-            Swal.fire('Error', 'No se pudo conectar.', 'error');
-        })
-        .finally(() => {
-            btn.innerHTML = 'Guardar Cambios';
-            btn.disabled = false;
-        });
+        .catch(err => Swal.fire('Error', 'No se pudo conectar.', 'error'))
+        .finally(() => { btn.innerHTML = 'Guardar Cambios'; btn.disabled = false; });
     });
 
-    // ==================== LÓGICA DE SUBIR FOTO ====================
     document.addEventListener('DOMContentLoaded', function() {
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('foto-input');
         const preview = document.getElementById('foto-preview');
 
         dropZone.addEventListener('click', () => fileInput.click());
-
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.style.backgroundColor = '#e0f2fe';
-            dropZone.style.borderColor = '#3b82f6';
-        });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.style.backgroundColor = '#f8fafc';
-            dropZone.style.borderColor = '#cbd5e1';
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.style.backgroundColor = '#f8fafc';
-            dropZone.style.borderColor = '#cbd5e1';
-            if (e.dataTransfer.files.length > 0) {
-                subirFoto(e.dataTransfer.files[0]);
-            }
-        });
-
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files.length > 0) {
-                subirFoto(fileInput.files[0]);
-            }
-        });
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.backgroundColor = '#e0f2fe'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.backgroundColor = '#f8fafc'; });
+        dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.style.backgroundColor = '#f8fafc'; if (e.dataTransfer.files.length > 0) subirFoto(e.dataTransfer.files[0]); });
+        fileInput.addEventListener('change', () => { if (fileInput.files.length > 0) subirFoto(fileInput.files[0]); });
 
         function subirFoto(file) {
             if (!currentEditId) {
-                Swal.fire('Atención', 'Primero debes guardar los datos básicos del producto antes de subir la foto.', 'info');
+                Swal.fire('Atención', 'Primero debes guardar los datos básicos del producto.', 'info');
                 return;
             }
-            
             const formData = new FormData();
             formData.append('producto_id', currentEditId);
+            // 🔥 EL TRUCO: Mandamos el código que está escrito en la caja en ese exacto momento
+            formData.append('nuevo_codigo', document.getElementById('edit-codigo').value);
             formData.append('foto', file);
 
             preview.style.display = 'block';
             preview.className = 'mt-2 text-primary fw-bold';
             preview.innerHTML = '<i class="bi bi-hourglass-split"></i> Subiendo foto...';
 
-            fetch('/inventario-pro/api/upload-foto', {
-                method: 'POST',
-                body: formData
-            })
+            fetch('/inventario-pro/api/upload-foto', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'ok') {
                     preview.className = 'mt-2 text-success fw-bold';
-                    preview.innerHTML = '<i class="bi bi-check-circle-fill"></i> ¡Foto actualizada y optimizada!';
-                    // Recargamos la tabla para que se vea el nuevo nombre de la foto
-                    setTimeout(() => { table.replaceData(); }, 1500);
+                    preview.innerHTML = '<i class="bi bi-check-circle-fill"></i> ¡Foto actualizada!';
+                    // Actualizamos la foto en la fila actual
+                    var row = table.getRow(currentEditId);
+                    if (row) row.update({ imagen: data.imagen_final });
                 } else {
                     preview.className = 'mt-2 text-danger fw-bold';
                     preview.innerHTML = '<i class="bi bi-x-circle-fill"></i> Error: ' + data.message;
                 }
             })
-            .catch(err => {
-                preview.className = 'mt-2 text-danger fw-bold';
-                preview.innerHTML = '<i class="bi bi-x-circle-fill"></i> Error de conexión.';
-            });
+            .catch(err => { preview.className = 'mt-2 text-danger fw-bold'; preview.innerHTML = '<i class="bi bi-x-circle-fill"></i> Error de conexión.'; });
         }
     });
 </script>
