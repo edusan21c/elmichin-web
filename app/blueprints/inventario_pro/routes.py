@@ -136,15 +136,32 @@ def save_data():
                 
         db.session.commit()
         
-        # Devolvemos TODOS los datos guardados para que la tabla se actualice perfecto
+        # 🔥 ARREGLO: Devolvemos los datos forzando a que sean números (float/int)
         return jsonify({
             "status": "success", 
             "message": "Datos guardados.",
             "datos": {
-                'id': prod.id, 'nombre': prod.nombre, 'categoria': prod.categoria,
-                'codigo_barras': prod.codigo_barras, 'imagen': prod.imagen,
-                't1_stock': fila.get('t1_stock'), 't1_base': fila.get('t1_base'),
-                't2_stock': fila.get('t2_stock'), 't2_base': fila.get('t2_base')
+                'id': prod.id, 
+                'nombre': prod.nombre, 
+                'categoria': prod.categoria or '',
+                'codigo_barras': prod.codigo_barras or '', 
+                'imagen': prod.imagen or '',
+                't1_stock': safe_int(fila.get('t1_stock')), 
+                't1_costo': float(safe_dec(fila.get('t1_costo'))),
+                't1_gan': float(safe_dec(fila.get('t1_gan'))),
+                't1_base': float(safe_dec(fila.get('t1_base'))),
+                't1_c1': fila.get('t1_c1', ''), 
+                't1_p1': float(safe_dec(fila.get('t1_p1'))),
+                't1_c2': fila.get('t1_c2', ''), 
+                't1_p2': float(safe_dec(fila.get('t1_p2'))),
+                't2_stock': safe_int(fila.get('t2_stock')), 
+                't2_costo': float(safe_dec(fila.get('t2_costo'))),
+                't2_gan': float(safe_dec(fila.get('t2_gan'))),
+                't2_base': float(safe_dec(fila.get('t2_base'))),
+                't2_c1': fila.get('t2_c1', ''), 
+                't2_p1': float(safe_dec(fila.get('t2_p1'))),
+                't2_c2': fila.get('t2_c2', ''), 
+                't2_p2': float(safe_dec(fila.get('t2_p2'))),
             }
         })
     except Exception as e:

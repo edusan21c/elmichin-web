@@ -173,7 +173,7 @@
         ajaxConfig: "GET",
         placeholder: "Cargando productos...",
         selectableRows: false,
-        index: "id", // <--- ¡LA MAGIA PARA QUE NO SALTE!
+        index: "id", // 🔥 LA MAGIA PARA QUE NO SALTE
         columns: [
             {title: "ID", field: "id", width: 60, hozAlign: "center", cssClass: "fw-bold text-muted"},
             {
@@ -335,12 +335,13 @@
             if (resData.status === "success") {
                 modalEditar.hide();
                 
-                // 🔥 LA MAGIA: Actualizar solo la fila usando su ID único
+                // 🔥 LA MAGIA: Actualizamos la fila Y forzamos que se vuelva a pintar
                 var row = table.getRow(datos.id);
                 if (row) {
                     row.update(resData.datos);
+                    row.reformat(); // <--- ESTA ES LA LÍNEA MÁGICA QUE REFRESCA EL PRECIO
                 }
-                Swal.fire('¡Guardado!', 'El producto se actualizó sin saltar.', 'success');
+                Swal.fire('¡Guardado!', 'El producto se actualizó correctamente.', 'success');
             } else {
                 Swal.fire('Error', resData.message, 'error');
             }
