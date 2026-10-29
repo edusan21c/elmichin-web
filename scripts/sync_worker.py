@@ -187,6 +187,40 @@ def hay_internet(url):
         return False
 
 
+# ==================== NUEVA FUNCION DE AUTO-REPARACION ====================
+def reparar_fotos_locales(app):
+    """Escanea la carpeta de fotos y las vincula a los productos en la BD si no lo están."""
+    from app.models.producto import Producto
+    
+    with app.app_context():
+        try:
+            img_dir = os.path.join(RAIZ, 'app', 'static', 'img', 'productos')
+            if not os.path.exists(img_dir):
+                log('  [Auto-Fix Fotos] Carpeta de productos no encontrada.')
+                return
+
+            fotos = os.listdir(img_dir)
+            arregladas = 0
+            for foto in fotos:
+                if foto.endswith('.webp'):
+                    codigo = foto.replace('.webp', '')
+                    prod = Producto.query.filter_by(codigo_barras=codigo).first()
+                    
+                    if prod and prod.imagen != foto:
+                        prod.imagen = foto
+                        arregladas += 1
+
+            if arregladas > 0:
+                db.session.commit()
+                log(f'  [Auto-Fix Fotos] Se vincularon {arregladas} fotos a sus productos correctamente.')
+            else:
+                log('  [Auto-Fix Fotos] Todas las fotos ya estaban vinculadas.')
+        except Exception as e:
+            log(f'  [Auto-Fix Fotos] Error: {e}')
+            db.session.rollback()
+# =======================================================================
+
+
 def detectar_fantasmas(app, tienda_id):
     """Detecta y re-marca facturas 'sincronizadas' que no existen en central."""
     with app.app_context():
@@ -518,6 +552,10 @@ def main():
     log('--- FIX SALDOS NEGATIVOS (v2.37) ---')
     corregir_saldos_negativos(app)
 
+    # NUEVA FUNCION PARA AUTO-REPARAR LAS FOTOS
+    log('--- AUTO-REPARACION DE FOTOS ---')
+    reparar_fotos_locales(app)
+
     # --- ACTUALIZACION AUTOMATICA DE ARCHIVOS (v2.88) ---
     log('--- GIT PULL (buscando actualizaciones) ---')
     import subprocess
@@ -538,7 +576,6 @@ def main():
     except Exception as e:
         log(f'Git Pull Error: {e}')
     # ----------------------------------------------------
-
 
     log('Ciclo completado.')
     log('')
