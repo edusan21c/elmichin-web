@@ -1,4 +1,4 @@
-from flask import render_template, jsonify, request
+from flask import render_template, jsonify, request, current_app, flash, redirect, url_for
 from flask_login import login_required, current_user
 from . import bp
 from app.extensions import db
@@ -23,16 +23,31 @@ def safe_int(val):
     except:
         return 0
 
+# CANDADO DE SEGURIDAD: Verifica que estemos en la Central
+def verificar_central():
+    if current_app.config.get('MODO') != 'central':
+        return False
+    return True
+
 @bp.route('/')
 @login_required
 def index():
     if not current_user.es_programador():
         return "Acceso denegado. Solo el programador puede ver esta página.", 403
+    
+    # Si estamos en una tienda (T1 o T2), bloqueamos el acceso
+    if not verificar_central():
+        flash('El Inventario Pro solo está disponible desde la Central.', 'warning')
+        return redirect(url_for('dashboard.index')) # Redirige al inicio
+        
     return render_template('inventario_pro/index.html')
 
 @bp.route('/api/data')
 @login_required
 def get_data():
+    if not verificar_central():
+        return jsonify({"status": "error", "message": "Solo disponible en la Central"}), 403
+
     productos = Producto.query.all()
     data = []
     for p in productos:
@@ -44,7 +59,7 @@ def get_data():
             'nombre': p.nombre,
             'categoria': p.categoria or '',
             'codigo_barras': p.codigo_barras or '',
-            'imagen': p.imagen or '',  # <--- AQUÍ ENVIAMOS LA FOTO
+            'imagen': p.imagen or '',
             't1_stock': t1.cantidad if t1 else 0,
             't1_costo': float(t1.precio_proveedor) if t1 else 0,
             't1_gan': float(t1.porcentaje) if t1 else 0,
@@ -68,7 +83,7 @@ def get_data():
 @bp.route('/api/save', methods=['POST'])
 @login_required
 def save_data():
-    if not current_user.es_programador():
+    if not current_user.es_programador() or not verificar_central():
         return jsonify({"status": "error", "message": "No tienes permiso."}), 403
         
     cambios = request.json
@@ -128,7 +143,7 @@ def save_data():
 @bp.route('/api/upload-foto', methods=['POST'])
 @login_required
 def upload_foto():
-    if not current_user.es_programador():
+    if not current_user.es_programador() or not verificar_central():
         return jsonify({"status": "error", "message": "No tienes permiso."}), 403
 
     prod_id = request.form.get('producto_id')
