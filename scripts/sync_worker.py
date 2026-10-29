@@ -144,8 +144,9 @@ def hay_internet(url):
         return False
 
 
-# ==================== NUEVA FUNCION DE AUTO-REPARACION ====================
+# ==================== FUNCION DE AUTO-REPARACION CORREGIDA ====================
 def reparar_fotos_locales(app):
+    """Escanea la carpeta de fotos y las vincula a los productos (Ignora el sufijo _v de version)."""
     from app.models.producto import Producto
     with app.app_context():
         try:
@@ -156,7 +157,13 @@ def reparar_fotos_locales(app):
             arregladas = 0
             for foto in fotos:
                 if foto.endswith('.webp'):
-                    codigo = foto.replace('.webp', '')
+                    # EL FIX: Si el archivo se llama 770123_v1234.webp, extraemos solo el 770123
+                    nombre_base = foto.replace('.webp', '')
+                    if '_v' in nombre_base:
+                        codigo = nombre_base.split('_v')[0]
+                    else:
+                        codigo = nombre_base
+
                     prod = Producto.query.filter_by(codigo_barras=codigo).first()
                     if prod and prod.imagen != foto:
                         prod.imagen = foto
@@ -164,7 +171,7 @@ def reparar_fotos_locales(app):
 
             if arregladas > 0:
                 db.session.commit()
-                log(f'  [Auto-Fix Fotos] Se vincularon {arregladas} fotos.')
+                log(f'  [Auto-Fix Fotos] Se vincularon {arregladas} fotos a sus productos.')
         except Exception as e:
             log(f'  [Auto-Fix Fotos] Error: {e}')
             db.session.rollback()
@@ -255,10 +262,16 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 if not productos:
                     break
 
-                # 🛡️ EL ROBOT YA NO SE CAE AQUÍ GRACIAS AL BLINDAJE DEL SERVICIO
-                resultado = sync_service.aplicar_cambios_pull({'productos': productos})
-                aplicados = resultado.get('actualizados', 0)
-                ids_lote = resultado.get('ids_aplicados', [])
+                # Blindaje: Si algo falla, el lote no se rompe
+                try:
+                    resultado = sync_service.aplicar_cambios_pull({'productos': productos})
+                    aplicados = resultado.get('actualizados', 0)
+                    ids_lote = resultado.get('ids_aplicados', [])
+                except Exception as e:
+                    log(f'  [ALERTA] Error en lote {i+1}, ignorando para no caer.')
+                    db.session.rollback()
+                    aplicados = 0
+                    ids_lote = []
 
                 total_productos += aplicados
                 ids_pendientes_ack.extend(ids_lote)
