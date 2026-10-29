@@ -88,10 +88,10 @@
             </div>
             <div class="card-body">
                 <div class="row g-2">
-                    <div class="col-md-6">
+                    <div class="col-md-6 position-relative">
                         <label class="form-label small">Nombre *</label>
-                        <input type="text" id="cliente-nombre" class="form-control" placeholder="Nombre del cliente">
-                        <div id="cliente-info" class="small text-muted mt-1"></div>
+                        <input type="text" id="cliente-nombre" class="form-control" placeholder="Nombre del cliente" autocomplete="off">
+                        <div id="cliente-info" class="small text-muted"></div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small">Documento (opcional)</label>
@@ -170,8 +170,6 @@
         </div>
 
         <!-- Pago (solo si no es crédito) -->
-                <!-- Pagos parciales (solo si no es credito) -->
-                <!-- v2.34-pagos-mixtos: cada casilla tiene su método -->
         <div class="card mb-3" id="card-pago">
             <div class="card-header bg-white fw-semibold">
                 <i class="bi bi-cash-coin"></i> Pagos
@@ -302,4 +300,131 @@
         color: #666;
     }
 </style>
+
+<!-- CEREBRO DE AUTOCOMPLETADO DE CLIENTES (Con flechas y limpieza) -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const inputNombre = document.getElementById('cliente-nombre');
+    const divInfo = document.getElementById('cliente-info');
+    let timeoutId = null;
+    let clienteIndex = -1; // Para saber qué cliente está seleccionado con las flechas
+
+    // Función para pintar la lista
+    function renderListaClientes(data) {
+        divInfo.innerHTML = '';
+        clienteIndex = -1; // Reiniciamos el índice
+        
+        if (data.length > 0) {
+            const ul = document.createElement('ul');
+            ul.className = 'list-group shadow mt-1 w-100';
+            ul.style.maxHeight = '250px';
+            ul.style.overflowY = 'auto';
+            ul.style.position = 'absolute';
+            ul.style.zIndex = '1000';
+            
+            data.forEach(c => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item list-group-item-action';
+                li.style.cursor = 'pointer';
+                
+                let detalle = c.telefono ? `Tel: ${c.telefono}` : (c.documento ? `Doc: ${c.documento}` : 'Sin datos');
+                li.innerHTML = `<div class="d-flex justify-content-between">
+                    <strong>${c.nombre}</strong>
+                    <small class="text-muted">${detalle}</small>
+                </div>`;
+                
+                // Al hacer clic con el mouse
+                li.addEventListener('click', function() {
+                    seleccionarCliente(c);
+                });
+                
+                ul.appendChild(li);
+            });
+            divInfo.appendChild(ul);
+        }
+    }
+
+    // Función para llenar los datos del cliente
+    function seleccionarCliente(c) {
+        inputNombre.value = c.nombre;
+        document.getElementById('cliente-documento').value = c.documento || '';
+        document.getElementById('cliente-telefono').value = c.telefono || '';
+        document.getElementById('cliente-direccion').value = c.direccion || '';
+        divInfo.innerHTML = ''; 
+        
+        // Disparamos el evento para que el sistema guarde el estado
+        inputNombre.dispatchEvent(new Event('input'));
+    }
+
+    // Escuchar cuando el cajero escribe
+    inputNombre.addEventListener('input', function() {
+        clearTimeout(timeoutId);
+        const q = this.value.trim();
+        
+        // Si borra todo el nombre, limpiamos también los otros campos
+        if (q.length < 2) {
+            divInfo.innerHTML = '';
+            if (q.length === 0) {
+                document.getElementById('cliente-documento').value = '';
+                document.getElementById('cliente-telefono').value = '';
+                document.getElementById('cliente-direccion').value = '';
+            }
+            return;
+        }
+
+        timeoutId = setTimeout(() => {
+            const url = window.FACTURACION_CONFIG.urlBuscarClientes + `?q=${encodeURIComponent(q)}`;
+            fetch(url)
+                .then(res => res.json())
+                .then(data => renderListaClientes(data));
+        }, 300);
+    });
+
+    // Control con las flechas del teclado
+    inputNombre.addEventListener('keydown', function(e) {
+        const ul = divInfo.querySelector('ul');
+        if (!ul) return;
+        const items = ul.querySelectorAll('li');
+        if (items.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault(); // Evita que el cursor se mueva en el texto
+            clienteIndex = (clienteIndex + 1) % items.length;
+            actualizarActivo(items, ul);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            clienteIndex = clienteIndex <= 0 ? items.length - 1 : clienteIndex - 1;
+            actualizarActivo(items, ul);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (clienteIndex >= 0 && clienteIndex < items.length) {
+                items[clienteIndex].click(); // Simula el clic
+            }
+        } else if (e.key === 'Escape') {
+            divInfo.innerHTML = '';
+            clienteIndex = -1;
+        }
+    });
+
+    // Pintar la fila que está resaltada con las flechas
+    function actualizarActivo(items, ul) {
+        items.forEach((it, i) => {
+            if (i === clienteIndex) {
+                it.classList.add('active'); // Pone la fila azul
+                it.scrollIntoView({ block: 'nearest' });
+            } else {
+                it.classList.remove('active');
+            }
+        });
+    }
+
+    // Ocultar la listica si hace clic afuera
+    document.addEventListener('click', function(e) {
+        if (!inputNombre.contains(e.target) && !divInfo.contains(e.target)) {
+            divInfo.innerHTML = '';
+            clienteIndex = -1;
+        }
+    });
+});
+</script>
 {% endblock %}

@@ -308,7 +308,6 @@
             item.type = 'button';
             item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2';
             
-            // Preparamos la etiqueta <img> si tiene imagen, o un ícono gris si no
             const imgHtml = p.imagen 
                 ? `<img src="/static/img/productos/${p.imagen}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 5px; margin-right: 12px;">` 
                 : `<div style="width: 45px; height: 45px; background: #f0f0f0; border-radius: 5px; margin-right: 12px; display: flex; align-items: center; justify-content: center; color: #ccc;"><i class="bi bi-image"></i></div>`;
@@ -752,31 +751,6 @@
         renderPestanas();
         cargarPestanaEnUI();
         inputBuscar.focus();
-    });
-
-    // ==================== AUTOCOMPLETE CLIENTE ====================
-    let timeoutCliente = null;
-    $('#cliente-nombre').addEventListener('input', function() {
-        clearTimeout(timeoutCliente);
-        const q = this.value.trim();
-        if (q.length < 3) {
-            $('#cliente-info').textContent = '';
-            return;
-        }
-        timeoutCliente = setTimeout(async () => {
-            try {
-                const r = await fetch(CFG.urlBuscarClientes + '?q=' + encodeURIComponent(q));
-                const data = await r.json();
-                if (data.length > 0) {
-                    const c = data[0];
-                    $('#cliente-info').innerHTML = `<i class="bi bi-info-circle"></i> Cliente existente - Saldo: ${fmt(c.saldo)}`;
-                } else {
-                    $('#cliente-info').innerHTML = '<i class="bi bi-plus-circle text-success"></i> Se creará un cliente nuevo';
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        }, 400);
     });
 
     // ==================== SELECTOR DE TIENDA ====================
