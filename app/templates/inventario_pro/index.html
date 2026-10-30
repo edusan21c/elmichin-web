@@ -128,6 +128,12 @@
                     <div class="col-md-2"><label class="form-label">Cant 2</label><input type="text" class="form-control text-end" id="edit-t1-c2" inputmode="decimal"></div>
                     <div class="col-md-4"><label class="form-label">Precio 2</label><input type="text" class="form-control text-end" id="edit-t1-p2" inputmode="decimal"></div>
                 </div>
+                <!-- Proveedores T1 -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4"><label class="form-label text-muted" style="font-size: 0.75rem;">Prov 1 (Costo Base)</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-pv1" inputmode="decimal"></div>
+                    <div class="col-md-4"><label class="form-label text-muted" style="font-size: 0.75rem;">Prov 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-pv2" inputmode="decimal"></div>
+                    <div class="col-md-4"><label class="form-label text-muted" style="font-size: 0.75rem;">Prov 3</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-pv3" inputmode="decimal"></div>
+                </div>
 
                 <div class="section-title text-success">🏪 TIENDA 2 (EL MICHÍN DOS)</div>
                 <div class="row g-2 mb-3">
@@ -141,6 +147,12 @@
                     <div class="col-md-4"><label class="form-label">Precio 1</label><input type="text" class="form-control text-end" id="edit-t2-p1" inputmode="decimal"></div>
                     <div class="col-md-2"><label class="form-label">Cant 2</label><input type="text" class="form-control text-end" id="edit-t2-c2" inputmode="decimal"></div>
                     <div class="col-md-4"><label class="form-label">Precio 2</label><input type="text" class="form-control text-end" id="edit-t2-p2" inputmode="decimal"></div>
+                </div>
+                <!-- Proveedores T2 -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4"><label class="form-label text-muted" style="font-size: 0.75rem;">Prov 1 (Costo Base)</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-pv1" inputmode="decimal"></div>
+                    <div class="col-md-4"><label class="form-label text-muted" style="font-size: 0.75rem;">Prov 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-pv2" inputmode="decimal"></div>
+                    <div class="col-md-4"><label class="form-label text-muted" style="font-size: 0.75rem;">Prov 3</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-pv3" inputmode="decimal"></div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -244,8 +256,8 @@
         document.getElementById('edit-nombre').value = '';
         document.getElementById('edit-categoria').value = '';
         document.getElementById('edit-codigo').value = '';
-        ['t1_stock', 't1_costo', 't1_gan', 't1_base', 't1_c1', 't1_p1', 't1_c2', 't1_p2',
-         't2_stock', 't2_costo', 't2_gan', 't2_base', 't2_c1', 't2_p1', 't2_c2', 't2_p2'].forEach(field => {
+        ['t1_stock', 't1_costo', 't1_gan', 't1_base', 't1_c1', 't1_p1', 't1_c2', 't1_p2', 't1_pv1', 't1_pv2', 't1_pv3',
+         't2_stock', 't2_costo', 't2_gan', 't2_base', 't2_c1', 't2_p1', 't2_c2', 't2_p2', 't2_pv1', 't2_pv2', 't2_pv3'].forEach(field => {
             document.getElementById('edit-' + field.replace('_', '-')).value = '';
         });
         limpiarZonaFoto();
@@ -271,6 +283,9 @@
         document.getElementById('edit-t1-p1').value = data.t1_p1;
         document.getElementById('edit-t1-c2').value = data.t1_c2;
         document.getElementById('edit-t1-p2').value = data.t1_p2;
+        document.getElementById('edit-t1-pv1').value = data.t1_prov1 || '';
+        document.getElementById('edit-t1-pv2').value = data.t1_prov2 || '';
+        document.getElementById('edit-t1-pv3').value = data.t1_prov3 || '';
 
         document.getElementById('edit-t2-stock').value = data.t2_stock;
         document.getElementById('edit-t2-costo').value = data.t2_costo;
@@ -280,6 +295,9 @@
         document.getElementById('edit-t2-p1').value = data.t2_p1;
         document.getElementById('edit-t2-c2').value = data.t2_c2;
         document.getElementById('edit-t2-p2').value = data.t2_p2;
+        document.getElementById('edit-t2-pv1').value = data.t2_prov1 || '';
+        document.getElementById('edit-t2-pv2').value = data.t2_prov2 || '';
+        document.getElementById('edit-t2-pv3').value = data.t2_prov3 || '';
 
         limpiarZonaFoto();
         if (data.imagen) {
@@ -327,6 +345,37 @@
     function evaluarTodasLasCasillas() {
         document.querySelectorAll('#modalEditar input[type="text"][id^="edit-t"]').forEach(inp => evaluarCasilla(inp));
     }
+
+    // --- CALCULAR PROMEDIO DE PROVEEDORES ---
+    function calcularPromedioProveedores(prefijo) {
+        const p1 = parseFloat(document.getElementById(`edit-${prefijo}-pv1`).value) || 0;
+        const p2 = parseFloat(document.getElementById(`edit-${prefijo}-pv2`).value) || 0;
+        const p3 = parseFloat(document.getElementById(`edit-${prefijo}-pv3`).value) || 0;
+
+        let suma = 0;
+        let cantidad = 0;
+        if (p1 > 0) { suma += p1; cantidad++; }
+        if (p2 > 0) { suma += p2; cantidad++; }
+        if (p3 > 0) { suma += p3; cantidad++; }
+
+        if (cantidad > 0) {
+            const promedio = suma / cantidad;
+            const costoInput = document.getElementById(`edit-${prefijo}-costo`);
+            costoInput.value = Math.round(promedio * 100) / 100;
+        }
+    }
+
+    ['t1', 't2'].forEach(prefijo => {
+        ['pv1', 'pv2', 'pv3'].forEach(pv => {
+            const input = document.getElementById(`edit-${prefijo}-${pv}`);
+            if (input) {
+                input.addEventListener('blur', function() {
+                    evaluarCasilla(this);
+                    calcularPromedioProveedores(prefijo);
+                });
+            }
+        });
+    });
     // ===================================================
 
     document.getElementById('btn-guardar-modal').addEventListener('click', function() {
@@ -348,6 +397,9 @@
             t1_p1: document.getElementById('edit-t1-p1').value,
             t1_c2: document.getElementById('edit-t1-c2').value,
             t1_p2: document.getElementById('edit-t1-p2').value,
+            t1_pv1: document.getElementById('edit-t1-pv1').value,
+            t1_pv2: document.getElementById('edit-t1-pv2').value,
+            t1_pv3: document.getElementById('edit-t1-pv3').value,
             t2_stock: document.getElementById('edit-t2-stock').value,
             t2_costo: document.getElementById('edit-t2-costo').value,
             t2_gan: document.getElementById('edit-t2-gan').value,
@@ -356,6 +408,9 @@
             t2_p1: document.getElementById('edit-t2-p1').value,
             t2_c2: document.getElementById('edit-t2-c2').value,
             t2_p2: document.getElementById('edit-t2-p2').value,
+            t2_pv1: document.getElementById('edit-t2-pv1').value,
+            t2_pv2: document.getElementById('edit-t2-pv2').value,
+            t2_pv3: document.getElementById('edit-t2-pv3').value,
         };
 
         fetch("/inventario-pro/api/save", {
