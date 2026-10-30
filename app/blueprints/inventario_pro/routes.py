@@ -14,14 +14,15 @@ import random
 def safe_dec(val):
     try:
         if val is None or str(val).strip() == '': return Decimal('0.00')
-        return Decimal(str(val))
+        # Quantize fuerza maximo 2 decimales: 1234.234999 -> 1234.23
+        return Decimal(str(val)).quantize(Decimal('0.01'))
     except:
         return Decimal('0.00')
 
 def safe_int(val):
     try:
         if val is None or str(val).strip() == '': return 0
-        return int(val)
+        return int(round(float(val)))
     except:
         return 0
 
@@ -32,26 +33,17 @@ def verificar_central():
 # --- FUNCION SÍNCRONA PARA SUBIR A GITHUB ---
 def subir_foto_github_sync(base_dir, codigo):
     try:
-        # Configurar identidad de Git para el servicio (evita fallos de commit)
         subprocess.run(['git', 'config', 'user.email', 'bot@michin.com'], cwd=base_dir, check=False)
         subprocess.run(['git', 'config', 'user.name', 'MichinBot'], cwd=base_dir, check=False)
-        
-        # 1. Resetear cualquier conflicto
         subprocess.run(['git', 'reset', 'HEAD'], cwd=base_dir, check=False, capture_output=True)
         subprocess.run(['git', 'fetch', 'origin', 'main'], cwd=base_dir, check=False, capture_output=True)
-        
-        # 2. Agregar archivos
         subprocess.run(['git', 'add', 'app/static/img/productos/', 'data/imagenes/'], cwd=base_dir, check=True, capture_output=True)
-        
-        # 3. Commit y Push forzado
         subprocess.run(['git', 'commit', '-m', f'feat: foto auto para {codigo}'], cwd=base_dir, check=False, capture_output=True)
         r = subprocess.run(['git', 'push', 'origin', 'main', '--force'], cwd=base_dir, check=False, capture_output=True, text=True)
-        
         if r.returncode == 0:
             print(f"[Git Auto] Foto {codigo} subida a GitHub exitosamente.")
         else:
             print(f"[Git Auto] ERROR al subir a GitHub: {r.stderr}")
-            
     except Exception as e:
         print(f"[Git Auto] Error en el proceso: {e}")
 # ----------------------------------------------------
@@ -97,14 +89,14 @@ def get_data():
 def save_data():
     if not current_user.es_programador() or not verificar_central():
         return jsonify({"status": "error", "message": "No tienes permiso."}), 403
-        
+
     cambios = request.json
     try:
         for fila in cambios:
             prod_id = fila.get('id')
             nuevo_nombre = fila.get('nombre')
             nuevo_codigo = fila.get('codigo_barras') or None
-            
+
             existe_otro = Producto.query.filter(Producto.nombre == nuevo_nombre, Producto.id != prod_id).first()
             if existe_otro:
                 return jsonify({"status": "error", "message": f"¡ALTO! Ya existe un producto llamado '{nuevo_nombre}'."}), 400
@@ -124,8 +116,7 @@ def save_data():
                 db.session.flush()
 
             if not prod: continue
-            
-            # Renombrar la foto si cambió el código
+
             codigo_viejo = prod.codigo_barras
             if codigo_viejo and nuevo_codigo and codigo_viejo != nuevo_codigo:
                 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -142,11 +133,11 @@ def save_data():
                             prod.imagen = nombre_nuevo_img
                     except Exception as e:
                         print(f"No se pudo renombrar la foto: {e}")
-            
+
             prod.nombre = nuevo_nombre
             prod.categoria = fila.get('categoria')
             prod.codigo_barras = nuevo_codigo
-            
+
             for t_id, prefix in [(1, 't1'), (2, 't2')]:
                 pres = ProductoTienda.query.filter_by(producto_id=prod.id, tienda_id=t_id).first()
                 if not pres:
@@ -161,34 +152,33 @@ def save_data():
                 pres.condicion2 = str(fila.get(f'{prefix}_c2', ''))
                 pres.precio_venta2 = safe_dec(fila.get(f'{prefix}_p2'))
                 pres.sync_estado = 'pendiente'
-                
+
         db.session.commit()
-        
-        # Devolvemos los datos forzando a que sean números (float/int)
+
         return jsonify({
-            "status": "success", 
+            "status": "success",
             "message": "Datos guardados.",
             "datos": {
-                'id': prod.id, 
-                'nombre': prod.nombre, 
+                'id': prod.id,
+                'nombre': prod.nombre,
                 'categoria': prod.categoria or '',
-                'codigo_barras': prod.codigo_barras or '', 
+                'codigo_barras': prod.codigo_barras or '',
                 'imagen': prod.imagen or '',
-                't1_stock': safe_int(fila.get('t1_stock')), 
+                't1_stock': safe_int(fila.get('t1_stock')),
                 't1_costo': float(safe_dec(fila.get('t1_costo'))),
                 't1_gan': float(safe_dec(fila.get('t1_gan'))),
                 't1_base': float(safe_dec(fila.get('t1_base'))),
-                't1_c1': fila.get('t1_c1', ''), 
+                't1_c1': fila.get('t1_c1', ''),
                 't1_p1': float(safe_dec(fila.get('t1_p1'))),
-                't1_c2': fila.get('t1_c2', ''), 
+                't1_c2': fila.get('t1_c2', ''),
                 't1_p2': float(safe_dec(fila.get('t1_p2'))),
-                't2_stock': safe_int(fila.get('t2_stock')), 
+                't2_stock': safe_int(fila.get('t2_stock')),
                 't2_costo': float(safe_dec(fila.get('t2_costo'))),
                 't2_gan': float(safe_dec(fila.get('t2_gan'))),
                 't2_base': float(safe_dec(fila.get('t2_base'))),
-                't2_c1': fila.get('t2_c1', ''), 
+                't2_c1': fila.get('t2_c1', ''),
                 't2_p1': float(safe_dec(fila.get('t2_p1'))),
-                't2_c2': fila.get('t2_c2', ''), 
+                't2_c2': fila.get('t2_c2', ''),
                 't2_p2': float(safe_dec(fila.get('t2_p2'))),
             }
         })
@@ -203,7 +193,7 @@ def upload_foto():
         return jsonify({"status": "error", "message": "No tienes permiso."}), 403
 
     prod_id = request.form.get('producto_id')
-    nuevo_codigo_form = request.form.get('nuevo_codigo') 
+    nuevo_codigo_form = request.form.get('nuevo_codigo')
     file = request.files.get('foto')
 
     if not prod_id or not file:
@@ -217,7 +207,7 @@ def upload_foto():
         codigo = nuevo_codigo_form.strip()
     else:
         codigo = prod.codigo_barras or f"PROD-{prod.id}"
-    
+
     BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
     ORIGEN = os.path.join(BASE_DIR, 'data', 'imagenes')
     DESTINO = os.path.join(BASE_DIR, 'app', 'static', 'img', 'productos')
@@ -232,7 +222,7 @@ def upload_foto():
         timestamp = int(time.time())
         nombre_webp = f"{codigo}_v{timestamp}.webp"
         ruta_destino = os.path.join(DESTINO, nombre_webp)
-        
+
         img = Image.open(ruta_original).convert("RGB")
         img.thumbnail((150, 150))
         img.save(ruta_destino, "WEBP", quality=80)
@@ -246,9 +236,6 @@ def upload_foto():
         prod.imagen = nombre_webp
         ProductoTienda.query.filter_by(producto_id=prod.id).update({'sync_estado': 'pendiente'})
         db.session.commit()
-
-        # SUBIDA SÍNCRONA ELIMINADA (Ahora la hace push_worker.py)
-        # subir_foto_github_sync(BASE_DIR, codigo)
 
         return jsonify({"status": "ok", "message": "Foto guardada. Se enviará a las tiendas en breve.", "imagen_final": nombre_webp})
     except Exception as e:
