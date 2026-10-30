@@ -19,7 +19,9 @@ def log(msg):
         pass
 
 def git(*args, timeout=180):
-    return subprocess.run(['git', *args], cwd=RAIZ, capture_output=True, text=True, timeout=timeout)
+    # CREATE_NO_WINDOW evita que Git abra ventanas negras en Windows
+    flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+    return subprocess.run(['git', *args], cwd=RAIZ, capture_output=True, text=True, timeout=timeout, creationflags=flags)
 
 def main():
     log('--- Ciclo push_worker ---')
