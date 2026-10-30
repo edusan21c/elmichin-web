@@ -48,7 +48,6 @@ def enviar_alerta_telegram(mensaje):
     from flask import current_app
     token = current_app.config.get('TELEGRAM_TOKEN', '')
     chat_id = current_app.config.get('TELEGRAM_CHAT_ID', '')
-
     if not token or not chat_id:
         return False
 
