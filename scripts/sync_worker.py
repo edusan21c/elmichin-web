@@ -45,29 +45,18 @@ def log(msg):
 
 # ==================== ALERTAS TELEGRAM ====================
 def enviar_alerta_telegram(mensaje):
-    """v2.15-alertas: envia alerta por Telegram si esta configurado."""
     from flask import current_app
-
     token = current_app.config.get('TELEGRAM_TOKEN', '')
     chat_id = current_app.config.get('TELEGRAM_CHAT_ID', '')
 
     if not token or not chat_id:
-        log('  [alerta] Telegram no configurado, se omite.')
         return False
 
     try:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": mensaje,
-        }
+        payload = {"chat_id": chat_id, "text": mensaje}
         r = requests.post(url, json=payload, timeout=10)
-        if r.status_code == 200:
-            log('  [alerta] Telegram enviado OK.')
-            return True
-        else:
-            log(f'  [alerta] Error Telegram HTTP {r.status_code}')
-            return False
+        return r.status_code == 200
     except Exception as e:
         log(f'  [alerta] Fallo al enviar: {e}')
         return False
@@ -97,7 +86,7 @@ def puede_intentar(operacion):
         proximo_dt = datetime.fromisoformat(proximo)
         if datetime.now() >= proximo_dt: return True
         restante = int((proximo_dt - datetime.now()).total_seconds() / 60)
-        log(f'  {operacion.upper()}: en backoff, faltan {restante} min (fallas: {op.get("fallas", 0)})')
+        log(f'  {operacion.upper()}: en backoff, faltan {restante} min')
         return False
     except Exception:
         return True
@@ -123,14 +112,13 @@ def registrar_falla(operacion, error_msg):
         'ultimo_error': str(error_msg)[:200],
     }
     _escribir_backoff(data)
-
     log(f'  {operacion.upper()}: falla {fallas}, proximo intento en {espera_min} min')
 
     if fallas == UMBRAL_ALERTA_FALLAS:
         try:
             from flask import current_app
             tienda_id = current_app.config.get('TIENDA_ID', '?')
-            mensaje = f"[El Michin Alerta]\nWorker de Tienda {tienda_id} con {fallas} fallas en '{operacion}'.\n\nUltimo error: {str(error_msg)[:150]}"
+            mensaje = f"[El Michin Alerta]\nWorker de Tienda {tienda_id} con {fallas} fallas en '{operacion}'.\nUltimo error: {str(error_msg)[:150]}"
             enviar_alerta_telegram(mensaje)
         except Exception as e:
             log(f'  [alerta] Error al disparar: {e}')
@@ -144,9 +132,9 @@ def hay_internet(url):
         return False
 
 
-# ==================== FUNCION DE AUTO-REPARACION CORREGIDA ====================
+# ==================== FUNCION DE AUTO-REPARACION ====================
 def reparar_fotos_locales(app):
-    """Escanea la carpeta de fotos y las vincula a los productos (Ignora el sufijo _v de version)."""
+    """Escanea la carpeta de fotos y las vincula a los productos (Ignora el sufijo _v)."""
     from app.models.producto import Producto
     with app.app_context():
         try:
@@ -157,7 +145,6 @@ def reparar_fotos_locales(app):
             arregladas = 0
             for foto in fotos:
                 if foto.endswith('.webp'):
-                    # EL FIX: Si el archivo se llama 770123_v1234.webp, extraemos solo el 770123
                     nombre_base = foto.replace('.webp', '')
                     if '_v' in nombre_base:
                         codigo = nombre_base.split('_v')[0]
@@ -171,7 +158,7 @@ def reparar_fotos_locales(app):
 
             if arregladas > 0:
                 db.session.commit()
-                log(f'  [Auto-Fix Fotos] Se vincularon {arregladas} fotos a sus productos.')
+                log(f'  [Auto-Fix Fotos] Se vincularon {arregladas} fotos.')
         except Exception as e:
             log(f'  [Auto-Fix Fotos] Error: {e}')
             db.session.rollback()
@@ -262,7 +249,6 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 if not productos:
                     break
 
-                # Blindaje: Si algo falla, el lote no se rompe
                 try:
                     resultado = sync_service.aplicar_cambios_pull({'productos': productos})
                     aplicados = resultado.get('actualizados', 0)
@@ -277,8 +263,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 ids_pendientes_ack.extend(ids_lote)
                 desde_id = ultimo_id
 
-                log(f'  PULL productos lote {i+1}: {aplicados} actualizados (hay_mas={hay_mas})')
-
+                log(f'  PULL productos lote {i+1}: {aplicados} actualizados')
                 if not hay_mas:
                     break
             except requests.RequestException as e:
@@ -358,25 +343,30 @@ def main():
     log('--- AUTO-REPARACION DE FOTOS ---')
     reparar_fotos_locales(app)
 
-    log('--- GIT PULL ---')
+    # 🚨 GIT PULL BLINDADO: Fuerza la descarga ignorando bloqueos
+    log('--- GIT PULL (sincronizacion forzada) ---')
     import subprocess
     try:
-        r = subprocess.run(['git', 'pull', 'origin', 'main', '--tags'], cwd=RAIZ, capture_output=True, text=True, timeout=60)
-        if 'Fast-forward' in r.stdout or 'files changed' in r.stdout:
-            log('Git Pull: Actualizaciones descargadas. Reiniciando...')
+        # Guardamos el hash antes de descargar
+        old_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=RAIZ, capture_output=True, text=True).stdout.strip()
+        
+        # Traemos los cambios y tags
+        subprocess.run(['git', 'fetch', 'origin', 'main', '--tags'], cwd=RAIZ, capture_output=True, timeout=60)
+        
+        # FORZAMOS la actualización (esto sobrescribe los archivos de fotos sin tocar la base de datos)
+        subprocess.run(['git', 'reset', '--hard', 'origin/main'], cwd=RAIZ, capture_output=True, timeout=60)
+        
+        # Vemos si el hash cambió (o sea, si hubo actualización)
+        new_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=RAIZ, capture_output=True, text=True).stdout.strip()
+        
+        if old_hash != new_hash:
+            log('Git Pull: ¡Actualizaciones forzadas con éxito! Reiniciando sistema...')
             subprocess.run(['powershell', '-Command', 'Restart-Service MichinFlask -Force'], capture_output=True)
+            log('Sistema reiniciado.')
         else:
-            log('Git Pull: Sin actualizaciones de código.')
+            log('Git Pull: Sin actualizaciones nuevas.')
     except Exception as e:
         log(f'Git Error: {e}')
-
-    # --- REPORTE INTELIGENTE A TELEGRAM ---
-    try:
-        if pull_count and pull_count > 0:
-            mensaje = f"🤖 *Reporte Tienda {tienda_id}*\n✅ Sincronización exitosa.\n📦 Productos actualizados: {pull_count}\n⏱ Hora: {datetime.now().strftime('%H:%M:%S')}"
-            enviar_alerta_telegram(mensaje)
-    except Exception:
-        pass
 
     log('Ciclo completado.')
     log('')
