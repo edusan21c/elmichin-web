@@ -49,36 +49,32 @@ def _audit(accion, detalle, tienda_id=None):
         print(f'[auditoria {accion}] aviso: {e}')
 
 
-# ==================== LISTA ====================
+# ==================== LISTA (SUGERIDO DE COMPRAS) ====================
 @bp.route('/')
 @login_required
 def lista():
     page = request.args.get('page', 1, type=int)
     busqueda = request.args.get('q', '', type=str).strip()
-    filtro_stock = request.args.get('filtro', '', type=str).strip()
     tienda_id = tienda_actual()
-    per_page = 20
+    per_page = 50 
 
-    # FILTRO DE INACTIVOS APLICADO AQUI
+    # Solo productos activos
     query = Producto.query.filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
-    
+
     if busqueda:
         query = query.filter(or_(
             Producto.nombre.ilike(f'%{busqueda}%'),
             Producto.codigo_barras.ilike(f'%{busqueda}%')
         ))
-    query = query.order_by(Producto.nombre)
-
-    if filtro_stock and tienda_id:
-        sub = db.session.query(ProductoTienda.producto_id).filter(
-            ProductoTienda.tienda_id == tienda_id
+        
+    # LÓGICA DEL SUGERIDO: Solo mostramos productos donde cantidad <= stock_minimo
+    if tienda_id:
+        query = query.join(ProductoTienda).filter(
+            ProductoTienda.tienda_id == tienda_id,
+            ProductoTienda.cantidad <= ProductoTienda.stock_minimo
         )
-        if filtro_stock == 'sin_stock':
-            sub = sub.filter(ProductoTienda.cantidad <= 0)
-        elif filtro_stock == 'bajo':
-            sub = sub.filter(ProductoTienda.cantidad.between(1, 5))
-        query = query.filter(Producto.id.in_(sub))
 
+    query = query.order_by(Producto.nombre)
     paginacion = query.paginate(page=page, per_page=per_page, error_out=False)
 
     productos_con_info = []
@@ -88,38 +84,36 @@ def lista():
             pres = ProductoTienda.query.filter_by(
                 producto_id=prod.id, tienda_id=tienda_id
             ).first()
+            
+        stock_actual = pres.cantidad if pres else 0
+        stock_min = pres.stock_minimo if pres and pres.stock_minimo else 5
+        stock_max = pres.stock_maximo if pres and pres.stock_maximo else 20
+        
+        # Calcular cuánto pedir (Si el máximo es 20, y tengo 5, necesito pedir 15)
+        sugerido = stock_max - stock_actual if stock_max > stock_actual else 0
+
         productos_con_info.append({
             'producto': prod,
             'presentacion': pres,
-            'stock': pres.cantidad if pres else 0,
+            'stock': stock_actual,
+            'stock_minimo': stock_min,
+            'stock_maximo': stock_max,
+            'cantidad_sugerida': sugerido,
             'precio_venta': float(pres.precio_venta) if pres and pres.precio_venta else 0,
         })
 
     tiendas = Tienda.query.filter_by(activa=True).all()
     tienda_actual_obj = Tienda.query.get(tienda_id) if tienda_id else None
 
-    contadores = {'total': 0, 'sin_stock': 0, 'bajo': 0}
-    if tienda_id:
-        # CONTADORES TAMBIEN FILTRADOS
-        base_count = db.session.query(ProductoTienda).join(Producto).filter(
-            ProductoTienda.tienda_id == tienda_id,
-            func.coalesce(Producto.categoria, '') != 'INACTIVO'
-        )
-        contadores['total'] = base_count.count()
-        contadores['sin_stock'] = base_count.filter(ProductoTienda.cantidad <= 0).count()
-        contadores['bajo'] = base_count.filter(ProductoTienda.cantidad.between(1, 5)).count()
-
     return render_template(
         'inventario/lista.html',
         productos=productos_con_info,
         paginacion=paginacion,
         busqueda=busqueda,
-        filtro_stock=filtro_stock,
         tienda_id=tienda_id,
         tienda_actual_obj=tienda_actual_obj,
         tiendas=tiendas,
         puede_editar=puede_editar(),
-        contadores=contadores,
         modo_central=es_central(),
     )
 
@@ -157,7 +151,6 @@ def nuevo():
         db.session.add(producto)
         db.session.flush()
 
-        # Crear el producto en TODAS las tiendas activas
         for tienda in Tienda.query.filter_by(activa=True).all():
             pres = ProductoTienda(
                 producto_id=producto.id, tienda_id=tienda.id, cantidad=0,
@@ -201,13 +194,11 @@ def editar(producto_id):
         nombre_nuevo = form.nombre.data.strip()
         codigo_nuevo = form.codigo_barras.data.strip() if form.codigo_barras.data else None
 
-        # 1. Validación estricta de Nombre Duplicado (Sin importar la categoría)
         existe_otro = Producto.query.filter(Producto.nombre == nombre_nuevo, Producto.id != producto.id).first()
         if existe_otro:
             flash(f'⚠️ No se puede guardar: Ya existe el producto "{existe_otro.nombre}" (ID {existe_otro.id}) con ese mismo nombre.', 'danger')
             return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
 
-        # 2. Validación estricta de Código de Barras
         if codigo_nuevo:
             existe_codigo = Producto.query.filter(Producto.codigo_barras == codigo_nuevo, Producto.id != producto.id).first()
             if existe_codigo:
@@ -222,11 +213,9 @@ def editar(producto_id):
             producto.modificado_por_nombre = current_user.nombre
             producto.modificado_en = datetime.utcnow()
 
-            # Si el nombre cambia, actualizar históricos de facturas
             if viejo_nombre != producto.nombre:
                 DetalleFactura.query.filter_by(producto_id=producto.id, producto_nombre=viejo_nombre).update({'producto_nombre': producto.nombre}, synchronize_session=False)
 
-            # Actualizar precios de la tienda
             pres.precio_proveedor = form.precio_proveedor.data or 0
             pres.precio_proveedor2 = form.precio_proveedor2.data or 0
             pres.precio_proveedor3 = form.precio_proveedor3.data or 0
@@ -242,7 +231,6 @@ def editar(producto_id):
             pres.sync_estado = 'pendiente'
             pres.sync_fecha = datetime.utcnow()
 
-            # Sincronizar otras tiendas
             if viejo_nombre != producto.nombre:
                 for t in Tienda.query.filter_by(activa=True).all():
                     p_t = ProductoTienda.query.filter_by(producto_id=producto.id, tienda_id=t.id).first()
@@ -276,7 +264,7 @@ def editar(producto_id):
     return render_template('inventario/form.html', form=form, producto=producto, presentacion=pres, tienda_actual_obj=tienda_actual_obj)
 
 
-# ==================== ELIMINAR ====================# ==================== ELIMINAR ====================# ==================== ELIMINAR ====================
+# ==================== ELIMINAR ====================
 @bp.route('/<int:producto_id>/eliminar', methods=['POST'])
 @login_required
 @programador_requerido
@@ -372,7 +360,6 @@ def stock_masivo():
     filtro = request.args.get('filtro', '', type=str).strip()
     page = request.args.get('page', 1, type=int)
 
-    # FILTRO DE INACTIVOS APLICADO AQUI TAMBIEN
     q = db.session.query(Producto, ProductoTienda).join(ProductoTienda, Producto.id == ProductoTienda.producto_id).filter(
         ProductoTienda.tienda_id == tienda_id,
         func.coalesce(Producto.categoria, '') != 'INACTIVO'
