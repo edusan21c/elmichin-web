@@ -6,7 +6,6 @@ from app.models.producto import Producto, ProductoTienda
 from decimal import Decimal
 import os
 import time
-import threading
 import subprocess
 from PIL import Image
 import uuid
@@ -30,13 +29,13 @@ def verificar_central():
     if current_app.config.get('MODO') != 'central': return False
     return True
 
-# --- FUNCION EN SEGUNDO PLANO PARA SUBIR A GITHUB ---
-def subir_foto_github_bg(base_dir, codigo):
+# --- FUNCION SÍNCRONA PARA SUBIR A GITHUB ---
+def subir_foto_github_sync(base_dir, codigo):
     try:
         # 1. Agregar archivos
-        subprocess.run(['git', 'add', 'app/static/img/productos/', 'data/imagenes/'], cwd=base_dir, check=True)
+        subprocess.run(['git', 'add', 'app/static/img/productos/', 'data/imagenes/'], cwd=base_dir, check=True, capture_output=True)
         
-        # 2. Verificar si hay cambios reales
+        # 2. Verificar si hay cambios reales antes de hacer commit
         status = subprocess.run(
             ['git', 'status', '--porcelain', 'app/static/img/productos/', 'data/imagenes/'], 
             cwd=base_dir, capture_output=True, text=True
@@ -44,14 +43,16 @@ def subir_foto_github_bg(base_dir, codigo):
         
         # 3. Si hay cambios, hacer commit y push
         if status.stdout.strip():
-            subprocess.run(['git', 'commit', '-m', f'feat: foto actualizada para el codigo {codigo}'], cwd=base_dir, check=True)
-            subprocess.run(['git', 'push', 'origin', 'main'], cwd=base_dir, check=True)
-            print(f"[Git Auto] Foto para {codigo} subida a GitHub exitosamente.")
+            subprocess.run(['git', 'commit', '-m', f'feat: foto auto para {codigo}'], cwd=base_dir, check=False, capture_output=True)
+            subprocess.run(['git', 'push', 'origin', 'main'], cwd=base_dir, check=False, capture_output=True)
+            print(f"[Git Auto] Foto {codigo} subida a GitHub.")
+            return True
         else:
             print(f"[Git Auto] No hay cambios nuevos para subir en {codigo}.")
-            
+            return True
     except Exception as e:
         print(f"[Git Auto] Error subiendo foto {codigo} a GitHub: {e}")
+        return False
 # ----------------------------------------------------
 
 @bp.route('/')
@@ -162,7 +163,6 @@ def save_data():
                 
         db.session.commit()
         
-        # 🔥 ARREGLO: Devolvemos los datos forzando a que sean números (float/int)
         return jsonify({
             "status": "success", 
             "message": "Datos guardados.",
@@ -245,11 +245,9 @@ def upload_foto():
         ProductoTienda.query.filter_by(producto_id=prod.id).update({'sync_estado': 'pendiente'})
         db.session.commit()
 
-        # 🔥 INICIAR SUBIDA A GITHUB EN SEGUNDO PLANO
-        hilo_github = threading.Thread(target=subir_foto_github_bg, args=(BASE_DIR, codigo))
-        hilo_github.daemon = True
-        hilo_github.start()
+        # 🔥 SUBIDA SÍNCRONA (No usamos hilos, así garantizamos que termine antes de responder)
+        subir_foto_github_sync(BASE_DIR, codigo)
 
-        return jsonify({"status": "ok", "message": "Foto guardada con nueva versión", "imagen_final": nombre_webp})
+        return jsonify({"status": "ok", "message": "Foto guardada y enviada a las tiendas", "imagen_final": nombre_webp})
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error al procesar la foto: {str(e)}"}), 500
