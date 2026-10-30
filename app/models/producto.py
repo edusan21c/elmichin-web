@@ -53,6 +53,8 @@ class ProductoTienda(db.Model):
 
     # Stock
     cantidad = db.Column(db.Integer, nullable=False, default=0)
+    stock_minimo = db.Column(db.Integer, default=5)
+    stock_maximo = db.Column(db.Integer, default=20)
 
     # Precios de proveedor
     precio_proveedor = db.Column(db.Numeric(12, 2), default=0)

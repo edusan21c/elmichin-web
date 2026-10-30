@@ -14,7 +14,6 @@ import random
 def safe_dec(val):
     try:
         if val is None or str(val).strip() == '': return Decimal('0.00')
-        # Quantize fuerza maximo 2 decimales
         return Decimal(str(val)).quantize(Decimal('0.01'))
     except:
         return Decimal('0.00')
@@ -61,6 +60,8 @@ def get_data():
             't1_prov1': float(t1.precio_proveedor) if t1 else 0,
             't1_prov2': float(t1.precio_proveedor2) if t1 and t1.precio_proveedor2 else 0,
             't1_prov3': float(t1.precio_proveedor3) if t1 and t1.precio_proveedor3 else 0,
+            't1_min': t1.stock_minimo if t1 else 5, 't1_max': t1.stock_maximo if t1 else 20,
+            
             't2_stock': t2.cantidad if t2 else 0, 't2_costo': float(t2.precio_proveedor) if t2 else 0,
             't2_gan': float(t2.porcentaje) if t2 else 0, 't2_base': float(t2.precio_venta) if t2 else 0,
             't2_c1': t2.condicion1 if t2 else '', 't2_p1': float(t2.precio_venta1) if t2 else 0,
@@ -68,6 +69,7 @@ def get_data():
             't2_prov1': float(t2.precio_proveedor) if t2 else 0,
             't2_prov2': float(t2.precio_proveedor2) if t2 and t2.precio_proveedor2 else 0,
             't2_prov3': float(t2.precio_proveedor3) if t2 and t2.precio_proveedor3 else 0,
+            't2_min': t2.stock_minimo if t2 else 5, 't2_max': t2.stock_maximo if t2 else 20,
         }
         data.append(fila)
     return jsonify(data)
@@ -141,6 +143,11 @@ def save_data():
                 pres.precio_venta1 = safe_dec(fila.get(f'{prefix}_p1'))
                 pres.condicion2 = str(fila.get(f'{prefix}_c2', ''))
                 pres.precio_venta2 = safe_dec(fila.get(f'{prefix}_p2'))
+                
+                # NUEVOS CAMPOS MIN Y MAX
+                pres.stock_minimo = safe_int(fila.get(f'{prefix}_min', 5))
+                pres.stock_maximo = safe_int(fila.get(f'{prefix}_max', 20))
+                
                 pres.sync_estado = 'pendiente'
 
         db.session.commit()
@@ -165,6 +172,8 @@ def save_data():
                 't1_prov1': float(safe_dec(fila.get('t1_pv1'))),
                 't1_prov2': float(safe_dec(fila.get('t1_pv2'))),
                 't1_prov3': float(safe_dec(fila.get('t1_pv3'))),
+                't1_min': safe_int(fila.get('t1_min', 5)),
+                't1_max': safe_int(fila.get('t1_max', 20)),
                 't2_stock': safe_int(fila.get('t2_stock')),
                 't2_costo': float(safe_dec(fila.get('t2_costo'))),
                 't2_gan': float(safe_dec(fila.get('t2_gan'))),
@@ -176,6 +185,8 @@ def save_data():
                 't2_prov1': float(safe_dec(fila.get('t2_pv1'))),
                 't2_prov2': float(safe_dec(fila.get('t2_pv2'))),
                 't2_prov3': float(safe_dec(fila.get('t2_pv3'))),
+                't2_min': safe_int(fila.get('t2_min', 5)),
+                't2_max': safe_int(fila.get('t2_max', 20)),
             }
         })
     except Exception as e:
