@@ -337,15 +337,23 @@
             if (resData.status === "success") {
                 modalEditar.hide();
                 
-                if (resData.datos) {
-                    table.updateData([resData.datos]);
-                    var row = table.getRow(datos.id);
-                    if (row) row.reformat(); // REFRESCA EL PRECIO AL INSTANTE
+                // Si es un producto nuevo, recargamos la tabla completa
+                if (!currentEditId) {
+                    document.getElementById("buscador").value = "";
+                    table.clearFilter();
+                    table.setData("/inventario-pro/api/data"); // Recarga y muestra el nuevo
+                } else {
+                    // Si es edición, actualizamos la fila
+                    if (resData.datos) {
+                        table.updateData([resData.datos]);
+                        var row = table.getRow(resData.datos.id);
+                        if (row) row.reformat();
+                    }
                 }
 
                 if (fotoPendiente) {
                     let formData = new FormData();
-                    formData.append('producto_id', currentEditId);
+                    formData.append('producto_id', resData.datos.id); // ID real
                     formData.append('nuevo_codigo', datos.codigo_barras);
                     formData.append('foto', fotoPendiente);
 
@@ -353,22 +361,18 @@
                     .then(res => res.json())
                     .then(dataFoto => {
                         if (dataFoto.status === 'ok') {
-                            var rowImg = table.getRow(currentEditId);
-                            if (rowImg) {
-                                rowImg.update({ imagen: dataFoto.imagen_final });
-                                rowImg.reformat(); // REFRESCA LA FOTO AL INSTANTE
-                            }
-                            Swal.fire('¡Guardado!', 'Producto y foto actualizados correctamente.', 'success');
+                            table.setData("/inventario-pro/api/data"); // Recarga la tabla para mostrar la foto
+                            Swal.fire('¡Guardado!', 'Producto y foto guardados correctamente.', 'success');
                         } else {
                             Swal.fire('Producto guardado', 'Pero la foto falló: ' + dataFoto.message, 'warning');
                         }
                     })
                     .catch(err => Swal.fire('Producto guardado', 'Error al subir la foto.', 'warning'));
                 } else {
-                    Swal.fire('¡Guardado!', 'El producto se actualizó correctamente.', 'success');
+                    Swal.fire('¡Guardado!', 'El producto se guardó correctamente.', 'success');
                 }
                 fotoPendiente = null;
-
+                currentEditId = null;
             } else {
                 Swal.fire('Error', resData.message, 'error');
             }
