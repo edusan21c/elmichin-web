@@ -165,6 +165,7 @@
 
     var modalEditar = new bootstrap.Modal(document.getElementById('modalEditar'));
     var currentEditId = null;
+    var fotoPendiente = null; // 🔥 Guarda el archivo para subirlo después de guardar
 
     var table = new Tabulator("#tabla-inventario", {
         height: "60vh",
@@ -173,7 +174,7 @@
         ajaxConfig: "GET",
         placeholder: "Cargando productos...",
         selectableRows: false,
-        index: "id", // 🔥 LA MAGIA PARA QUE NO SALTE
+        index: "id",
         columns: [
             {title: "ID", field: "id", width: 60, hozAlign: "center", cssClass: "fw-bold text-muted"},
             {
@@ -228,6 +229,7 @@
     });
 
     function limpiarZonaFoto() {
+        fotoPendiente = null;
         document.getElementById('foto-preview').style.display = 'none';
         document.getElementById('foto-preview').innerHTML = '';
         document.getElementById('foto-input').value = '';
@@ -299,6 +301,7 @@
         document.getElementById('edit-codigo').value = codigoFinal;
     }
 
+    // 🔥 NUEVA LÓGICA DE GUARDADO: Primero datos, luego foto
     document.getElementById('btn-guardar-modal').addEventListener('click', function() {
         var btn = this;
         btn.innerHTML = 'Guardando...'; btn.disabled = true;
@@ -335,13 +338,35 @@
             if (resData.status === "success") {
                 modalEditar.hide();
                 
-                // 🔥 LA MAGIA: Actualizamos la fila Y forzamos que se vuelva a pintar
-                var row = table.getRow(datos.id);
-                if (row) {
-                    row.update(resData.datos);
-                    row.reformat(); // <--- ESTA ES LA LÍNEA MÁGICA QUE REFRESCA EL PRECIO
+                // Actualizamos la tabla con los datos guardados
+                if (resData.datos) {
+                    table.updateData([resData.datos]);
                 }
-                Swal.fire('¡Guardado!', 'El producto se actualizó correctamente.', 'success');
+
+                // 🔥 SI HABÍA UNA FOTO PENDIENTE, LA SUBIMOS AHORA CON EL CÓDIGO YA GUARDADO
+                if (fotoPendiente) {
+                    let formData = new FormData();
+                    formData.append('producto_id', currentEditId);
+                    formData.append('nuevo_codigo', datos.codigo_barras); // Usamos el código nuevo
+                    formData.append('foto', fotoPendiente);
+
+                    fetch('/inventario-pro/api/upload-foto', { method: 'POST', body: formData })
+                    .then(res => res.json())
+                    .then(dataFoto => {
+                        if (dataFoto.status === 'ok') {
+                            var row = table.getRow(currentEditId);
+                            if (row) row.update({ imagen: dataFoto.imagen_final });
+                            Swal.fire('¡Guardado!', 'Producto y foto actualizados correctamente.', 'success');
+                        } else {
+                            Swal.fire('Producto guardado', 'Pero la foto falló: ' + dataFoto.message, 'warning');
+                        }
+                    })
+                    .catch(err => Swal.fire('Producto guardado', 'Error al subir la foto de conexión.', 'warning'));
+                } else {
+                    Swal.fire('¡Guardado!', 'El producto se actualizó correctamente.', 'success');
+                }
+                fotoPendiente = null;
+
             } else {
                 Swal.fire('Error', resData.message, 'error');
             }
@@ -358,39 +383,21 @@
         dropZone.addEventListener('click', () => fileInput.click());
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.backgroundColor = '#e0f2fe'; });
         dropZone.addEventListener('dragleave', () => { dropZone.style.backgroundColor = '#f8fafc'; });
-        dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.style.backgroundColor = '#f8fafc'; if (e.dataTransfer.files.length > 0) subirFoto(e.dataTransfer.files[0]); });
-        fileInput.addEventListener('change', () => { if (fileInput.files.length > 0) subirFoto(fileInput.files[0]); });
+        dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.style.backgroundColor = '#f8fafc'; if (e.dataTransfer.files.length > 0) cargarFotoPrevia(e.dataTransfer.files[0]); });
+        fileInput.addEventListener('change', () => { if (fileInput.files.length > 0) cargarFotoPrevia(fileInput.files[0]); });
 
-        function subirFoto(file) {
-            if (!currentEditId) {
-                Swal.fire('Atención', 'Primero debes guardar los datos básicos del producto.', 'info');
-                return;
+        // 🔥 SOLO GUARDAMOS LA FOTO EN MEMORIA Y MOSTRAMOS VISTA PREVIA
+        function cargarFotoPrevia(file) {
+            fotoPendiente = file;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('foto-actual').style.display = 'block';
+                document.getElementById('img-actual').src = e.target.result;
             }
-            const formData = new FormData();
-            formData.append('producto_id', currentEditId);
-            // 🔥 EL TRUCO: Mandamos el código que está escrito en la caja en ese exacto momento
-            formData.append('nuevo_codigo', document.getElementById('edit-codigo').value);
-            formData.append('foto', file);
-
+            reader.readAsDataURL(file);
             preview.style.display = 'block';
-            preview.className = 'mt-2 text-primary fw-bold';
-            preview.innerHTML = '<i class="bi bi-hourglass-split"></i> Subiendo foto...';
-
-            fetch('/inventario-pro/api/upload-foto', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    preview.className = 'mt-2 text-success fw-bold';
-                    preview.innerHTML = '<i class="bi bi-check-circle-fill"></i> ¡Foto actualizada!';
-                    // Actualizamos la foto en la fila actual sin recargar todo
-                    var row = table.getRow(currentEditId);
-                    if (row) row.update({ imagen: data.imagen_final });
-                } else {
-                    preview.className = 'mt-2 text-danger fw-bold';
-                    preview.innerHTML = '<i class="bi bi-x-circle-fill"></i> Error: ' + data.message;
-                }
-            })
-            .catch(err => { preview.className = 'mt-2 text-danger fw-bold'; preview.innerHTML = '<i class="bi bi-x-circle-fill"></i> Error de conexión.'; });
+            preview.className = 'mt-2 text-success fw-bold';
+            preview.innerHTML = '<i class="bi bi-check-circle-fill"></i> Foto lista. Se subirá al guardar.';
         }
     });
 </script>

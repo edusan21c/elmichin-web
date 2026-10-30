@@ -6,6 +6,8 @@ from app.models.producto import Producto, ProductoTienda
 from decimal import Decimal
 import os
 import time
+import threading
+import subprocess
 from PIL import Image
 import uuid
 import random
@@ -27,6 +29,30 @@ def safe_int(val):
 def verificar_central():
     if current_app.config.get('MODO') != 'central': return False
     return True
+
+# --- FUNCION EN SEGUNDO PLANO PARA SUBIR A GITHUB ---
+def subir_foto_github_bg(base_dir, codigo):
+    try:
+        # 1. Agregar archivos
+        subprocess.run(['git', 'add', 'app/static/img/productos/', 'data/imagenes/'], cwd=base_dir, check=True)
+        
+        # 2. Verificar si hay cambios reales
+        status = subprocess.run(
+            ['git', 'status', '--porcelain', 'app/static/img/productos/', 'data/imagenes/'], 
+            cwd=base_dir, capture_output=True, text=True
+        )
+        
+        # 3. Si hay cambios, hacer commit y push
+        if status.stdout.strip():
+            subprocess.run(['git', 'commit', '-m', f'feat: foto actualizada para el codigo {codigo}'], cwd=base_dir, check=True)
+            subprocess.run(['git', 'push', 'origin', 'main'], cwd=base_dir, check=True)
+            print(f"[Git Auto] Foto para {codigo} subida a GitHub exitosamente.")
+        else:
+            print(f"[Git Auto] No hay cambios nuevos para subir en {codigo}.")
+            
+    except Exception as e:
+        print(f"[Git Auto] Error subiendo foto {codigo} a GitHub: {e}")
+# ----------------------------------------------------
 
 @bp.route('/')
 @login_required
@@ -218,6 +244,11 @@ def upload_foto():
         prod.imagen = nombre_webp
         ProductoTienda.query.filter_by(producto_id=prod.id).update({'sync_estado': 'pendiente'})
         db.session.commit()
+
+        # 🔥 INICIAR SUBIDA A GITHUB EN SEGUNDO PLANO
+        hilo_github = threading.Thread(target=subir_foto_github_bg, args=(BASE_DIR, codigo))
+        hilo_github.daemon = True
+        hilo_github.start()
 
         return jsonify({"status": "ok", "message": "Foto guardada con nueva versión", "imagen_final": nombre_webp})
     except Exception as e:
