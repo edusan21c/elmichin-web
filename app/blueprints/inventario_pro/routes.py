@@ -247,9 +247,9 @@ def upload_foto():
         ProductoTienda.query.filter_by(producto_id=prod.id).update({'sync_estado': 'pendiente'})
         db.session.commit()
 
-        # SUBIDA SÍNCRONA GARANTIZADA
-        subir_foto_github_sync(BASE_DIR, codigo)
+        # SUBIDA SÍNCRONA ELIMINADA (Ahora la hace push_worker.py)
+        # subir_foto_github_sync(BASE_DIR, codigo)
 
-        return jsonify({"status": "ok", "message": "Foto guardada y enviada a GitHub", "imagen_final": nombre_webp})
+        return jsonify({"status": "ok", "message": "Foto guardada. Se enviará a las tiendas en breve.", "imagen_final": nombre_webp})
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error al procesar la foto: {str(e)}"}), 500

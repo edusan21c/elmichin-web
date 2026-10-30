@@ -1,6 +1,4 @@
 # scripts/push_worker.py
-# Worker de subida de fotos a GitHub. Corre en la CENTRAL.
-# Diseñado para ejecutarse UNA vez por ciclo (Programador de Tareas cada 2 min).
 import os
 import subprocess
 import sys
@@ -28,29 +26,33 @@ def main():
     git('config', 'user.email', 'bot@michin.com')
     git('config', 'user.name', 'MichinBot')
 
-    # Ver si hay algo que subir SOLO en las carpetas de fotos
-    est = git('status', '--porcelain', 'app/static/img/productos/', 'data/imagenes/')
-    if not est.stdout.strip():
-        log('Sin fotos nuevas. Nada que subir.')
-        return 0
-
     # Traer remoto sin tocar archivos locales
     git('fetch', 'origin', 'main')
 
-    # Desmarcar lo que estuviera en staging y dejar SOLO las fotos
-    git('reset', 'HEAD')
-    git('add', 'app/static/img/productos/', 'data/imagenes/')
+    # 1. Ver si hay archivos nuevos modificados
+    est = git('status', '--porcelain', 'app/static/img/productos/', 'data/imagenes/')
+    
+    # 2. Ver si hay commits atascados (locales que no están en GitHub)
+    ahead = git('rev-list', '--count', 'origin/main..HEAD')
+    commits_pendientes = ahead.stdout.strip() != '0'
 
-    # Commit (si no hay nada, no es error)
-    git('commit', '-m', 'feat: fotos pendientes desde Central (auto)')
+    if not est.stdout.strip() and not commits_pendientes:
+        log('Sin fotos nuevas ni commits pendientes. Nada que subir.')
+        return 0
 
-    # 1er intento: push normal (seguro)
+    # Si hay archivos nuevos sin commitear, los commiteamos
+    if est.stdout.strip():
+        git('reset', 'HEAD')
+        git('add', 'app/static/img/productos/', 'data/imagenes/')
+        git('commit', '-m', 'feat: fotos pendientes desde Central (auto)')
+
+    # Push normal
     r = git('push', 'origin', 'main')
     if r.returncode == 0:
         log('Push normal exitoso.')
         return 0
 
-    # Si rechazó por non-fast-forward, reintentar con --force (igual que antes)
+    # Si falla por force, reintentamos
     err = (r.stderr or '') + (r.stdout or '')
     if 'non-fast-forward' in err or 'rejected' in err or 'fetch first' in err:
         log('Push normal rechazado. Reintentando con --force...')
