@@ -48,7 +48,8 @@
             <i class="bi bi-box-seam"></i> Inventario
         </h1>
         <div>
-            {% if puede_editar %}
+            <!-- 🔒 CANDADO: Solo el programador puede ver estos botones -->
+            {% if current_user.es_programador() %}
             <a href="{{ url_for('inventario.stock_masivo', tienda=tienda_id) }}" class="btn btn-success">
                 <i class="bi bi-lightning"></i> Stock masivo
             </a>
@@ -190,11 +191,12 @@
                                     <button type="button" class="btn btn-sm btn-outline-success btn-stock" title="Actualizar stock" data-id="{{ p.id }}" data-nombre="{{ p.nombre }}" data-stock="{{ stock }}">
                                         <i class="bi bi-plus-slash-minus"></i>
                                     </button>
+                                {% endif %}
+                                <!-- 🔒 CANDADO: Solo el programador puede editar o eliminar el producto -->
+                                {% if current_user.es_programador() %}
                                     <a href="{{ url_for('inventario.editar', producto_id=p.id, tienda=tienda_id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                {% endif %}
-                                {% if current_user.es_programador() %}
                                     <form method="POST" action="{{ url_for('inventario.eliminar', producto_id=p.id, q=busqueda, filtro=filtro_stock, tienda=tienda_id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar {{ p.nombre }}?');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
