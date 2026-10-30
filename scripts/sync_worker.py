@@ -342,20 +342,13 @@ def main():
     log('--- AUTO-REPARACION DE FOTOS ---')
     reparar_fotos_locales(app)
 
-    # 🚨 GIT PULL BLINDADO: Fuerza la descarga ignorando bloqueos
+    # 🚨 GIT PULL BLINDADO
     log('--- GIT PULL (sincronizacion forzada) ---')
     import subprocess
     try:
-        # Guardamos el hash antes de descargar
         old_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=RAIZ, capture_output=True, text=True).stdout.strip()
-        
-        # Traemos los cambios y tags
         subprocess.run(['git', 'fetch', 'origin', 'main', '--tags'], cwd=RAIZ, capture_output=True, timeout=60)
-        
-        # FORZAMOS la actualización (esto sobrescribe los archivos de fotos sin tocar la base de datos)
         subprocess.run(['git', 'reset', '--hard', 'origin/main'], cwd=RAIZ, capture_output=True, timeout=60)
-        
-        # Vemos si el hash cambió (o sea, si hubo actualización)
         new_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=RAIZ, capture_output=True, text=True).stdout.strip()
         
         if old_hash != new_hash:

@@ -165,7 +165,7 @@
 
     var modalEditar = new bootstrap.Modal(document.getElementById('modalEditar'));
     var currentEditId = null;
-    var fotoPendiente = null; // Guarda el archivo para subirlo después de guardar
+    var fotoPendiente = null;
 
     var table = new Tabulator("#tabla-inventario", {
         height: "60vh",
@@ -174,7 +174,7 @@
         ajaxConfig: "GET",
         placeholder: "Cargando productos...",
         selectableRows: false,
-        index: "id", // MAGIA PARA QUE NO SALTE
+        index: "id",
         columns: [
             {title: "ID", field: "id", width: 60, hozAlign: "center", cssClass: "fw-bold text-muted"},
             {

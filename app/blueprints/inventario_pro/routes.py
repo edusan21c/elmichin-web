@@ -32,17 +32,19 @@ def verificar_central():
 # --- FUNCION SÍNCRONA PARA SUBIR A GITHUB ---
 def subir_foto_github_sync(base_dir, codigo):
     try:
-        # 1. Resetear cualquier conflicto y traer lo último
+        # Configurar identidad de Git para el servicio (evita fallos de commit)
+        subprocess.run(['git', 'config', 'user.email', 'bot@michin.com'], cwd=base_dir, check=False)
+        subprocess.run(['git', 'config', 'user.name', 'MichinBot'], cwd=base_dir, check=False)
+        
+        # 1. Resetear cualquier conflicto
         subprocess.run(['git', 'reset', 'HEAD'], cwd=base_dir, check=False, capture_output=True)
         subprocess.run(['git', 'fetch', 'origin', 'main'], cwd=base_dir, check=False, capture_output=True)
         
-        # 2. Forzar la subida de la foto
+        # 2. Agregar archivos
         subprocess.run(['git', 'add', 'app/static/img/productos/', 'data/imagenes/'], cwd=base_dir, check=True, capture_output=True)
         
-        # 3. Commit y Push
+        # 3. Commit y Push forzado
         subprocess.run(['git', 'commit', '-m', f'feat: foto auto para {codigo}'], cwd=base_dir, check=False, capture_output=True)
-        
-        # 4. Push a la fuerza (esto sube la foto sí o sí)
         r = subprocess.run(['git', 'push', 'origin', 'main', '--force'], cwd=base_dir, check=False, capture_output=True, text=True)
         
         if r.returncode == 0:
