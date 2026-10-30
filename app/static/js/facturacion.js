@@ -13,6 +13,8 @@
         activa: 0
     };
 
+    let procesandoProducto = false;
+
     function crearPestanaVacia(id) {
         return {
             id: id,
@@ -239,11 +241,8 @@
     inputBuscar.addEventListener('input', function() {
         clearTimeout(timeoutBuscar);
         const q = this.value.trim();
-        if (q.length < 2) {
-            resultados.innerHTML = '';
-            return;
-        }
-        timeoutBuscar = setTimeout(() => buscarProductos(q), 250);
+        if (!q) { resultados.innerHTML = ''; return; }
+        timeoutBuscar = setTimeout(() => buscarProductos(q), 150);
     });
 
     let indiceActivo = -1;
@@ -288,13 +287,17 @@
         try {
             const r = await fetch(CFG.urlBuscarProductos + '?q=' + encodeURIComponent(q));
             const data = await r.json();
-            pintarResultados(data);
+            
+            // SOLUCIÓN VENTA RÁPIDA: Solo pintar si el buscador TODAVÍA tiene el mismo texto
+            if (inputBuscar.value.trim() === q) {
+                pintarResultados(data);
+            }
         } catch (e) {
             console.error('Error buscando productos:', e);
         }
     }
 
-        function pintarResultados(data) {
+    function pintarResultados(data) {
         resultados.innerHTML = '';
         indiceActivo = -1;
         
@@ -334,17 +337,15 @@
                     const urlImagen = this.getAttribute('data-img');
                     const nombreProducto = this.getAttribute('data-nombre');
                     
-                    // Usamos HTML en lugar de imageUrl para asegurar que se vea
                     Swal.fire({
-    title: `<span style="font-size: 1.6rem; font-weight: bold; color: #333;">${nombreProducto}</span>`,
-    // El "onerror" dice: si la foto HD falla, carga la miniatura que ya sabemos que funciona.
-    html: `<img src="${urlImagen}" onerror="this.src='/static/img/productos/${p.imagen}'" style="max-width: 100%; max-height: 75vh; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); object-fit: contain;">`,
-    showConfirmButton: false,
-    showCloseButton: true,
-    padding: '1em',
-    width: 'auto',
-    backdrop: `rgba(0,0,0,0.8)`
-});
+                        title: `<span style="font-size: 1.6rem; font-weight: bold; color: #333;">${nombreProducto}</span>`,
+                        html: `<img src="${urlImagen}" onerror="this.src='/static/img/productos/${p.imagen}'" style="max-width: 100%; max-height: 75vh; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); object-fit: contain;">`,
+                        showConfirmButton: false,
+                        showCloseButton: true,
+                        padding: '1em',
+                        width: 'auto',
+                        backdrop: `rgba(0,0,0,0.8)`
+                    });
                 });
             }
 
@@ -355,49 +356,55 @@
 
     // ==================== AGREGAR AL CARRITO ====================
     async function agregarAlCarrito(prod) {
+        if (procesandoProducto) return; // Evita modales dobles si presionan Enter muy rápido
         if (prod.stock <= 0) {
             alert('Producto sin stock');
             return;
         }
 
-        const cantidad = await window.michinPedirCantidad(prod.nombre, prod.stock, 1);
-        if (cantidad === null) return;
+        procesandoProducto = true;
+        try {
+            const cantidad = await window.michinPedirCantidad(prod.nombre, prod.stock, 1);
+            if (cantidad === null) return;
 
-        const p = pestanaActual();
-        const existente = p.carrito.find(it => it.producto_id === prod.id);
+            const p = pestanaActual();
+            const existente = p.carrito.find(it => it.producto_id === prod.id);
 
-        if (existente) {
-            const nuevaCant = existente.cantidad + cantidad;
-            if (nuevaCant > prod.stock) {
-                alert(`Solo hay ${prod.stock} unidades en total`);
-                return;
+            if (existente) {
+                const nuevaCant = existente.cantidad + cantidad;
+                if (nuevaCant > prod.stock) {
+                    alert(`Solo hay ${prod.stock} unidades en total`);
+                    return;
+                }
+                existente.cantidad = nuevaCant;
+                if (!existente.precio_editado) {
+                    existente.precio_unitario = calcularPrecioProducto(prod, nuevaCant);
+                }
+                existente.subtotal = existente.precio_unitario * nuevaCant;
+            } else {
+                p.carrito.push({
+                    producto_id: prod.id,
+                    nombre: prod.nombre,
+                    cantidad: cantidad,
+                    precio_unitario: calcularPrecioProducto(prod, cantidad),
+                    subtotal: calcularPrecioProducto(prod, cantidad) * cantidad,
+                    stock_max: prod.stock,
+                    prod_data: prod,
+                    precio_editado: false,
+                    _empacado: false,
+                });
             }
-            existente.cantidad = nuevaCant;
-            if (!existente.precio_editado) {
-                existente.precio_unitario = calcularPrecioProducto(prod, nuevaCant);
-            }
-            existente.subtotal = existente.precio_unitario * nuevaCant;
-        } else {
-            p.carrito.push({
-                producto_id: prod.id,
-                nombre: prod.nombre,
-                cantidad: cantidad,
-                precio_unitario: calcularPrecioProducto(prod, cantidad),
-                subtotal: calcularPrecioProducto(prod, cantidad) * cantidad,
-                stock_max: prod.stock,
-                prod_data: prod,
-                precio_editado: false,
-                _empacado: false,
-            });
+
+            inputBuscar.value = '';
+            resultados.innerHTML = '';
+            inputBuscar.focus();
+
+            guardarEstado();
+            renderPestanas();
+            renderCarrito();
+        } finally {
+            procesandoProducto = false;
         }
-
-        inputBuscar.value = '';
-        resultados.innerHTML = '';
-        inputBuscar.focus();
-
-        guardarEstado();
-        renderPestanas();
-        renderCarrito();
     }
 
     // ==================== RENDER CARRITO ====================
@@ -476,6 +483,10 @@
                     guardarEstado();
                     renderPestanas();
                     renderCarrito();
+                    
+                    // RESTAURAR FOCO: Para que no toque volver a hacer clic en la casilla
+                    const nextInput = document.querySelector(`#carrito-body input[data-accion="cantidad"][data-idx="${idx}"]`);
+                    if (nextInput) { nextInput.focus(); nextInput.select(); }
                 });
             });
 
@@ -492,11 +503,21 @@
                     guardarEstado();
                     renderPestanas();
                     renderCarrito();
+
+                    // RESTAURAR FOCO
+                    const nextInput = document.querySelector(`#carrito-body input[data-accion="precio"][data-idx="${idx}"]`);
+                    if (nextInput) { nextInput.focus(); nextInput.select(); }
                 });
             });
 
             body.querySelectorAll('button[data-accion="eliminar"]').forEach(btn => {
-                btn.addEventListener('click', function() {
+                btn.addEventListener('click', function(e) {
+                    // MAGIA: Quitamos el foco y la selección de texto para que no quede "pintado"
+                    this.blur();
+                    if (window.getSelection) {
+                        window.getSelection().removeAllRanges();
+                    }
+
                     const idx = parseInt(this.dataset.idx);
                     carrito.splice(idx, 1);
                     guardarEstado();
@@ -788,6 +809,16 @@
             }
         });
     }
+
+    // Quitar el resaltado (active) de la lista de búsqueda si se hace clic afuera
+    document.addEventListener('click', function(e) {
+        if (inputBuscar && !inputBuscar.contains(e.target) && !resultados.contains(e.target)) {
+            const items = resultados.querySelectorAll('.list-group-item');
+            items.forEach(it => it.classList.remove('active'));
+            indiceActivo = -1;
+        }
+    });
+
 
     // ==================== INIT ====================
     cargarEstado();
