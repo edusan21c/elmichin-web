@@ -2,12 +2,10 @@
 {% block titulo %}Inventario Profesional - El Michín{% endblock %}
 
 {% block estilos_extra %}
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link href="https://unpkg.com/tabulator-tables@6.2.1/dist/css/tabulator_bootstrap5.min.css" rel="stylesheet">
+<link href="{{ url_for('static', filename='lib/tabulator.min.css') }}" rel="stylesheet">
 
 <style>
-    body { font-family: 'Outfit', sans-serif; background-color: #f0f4f8; }
+    body { font-family: sans-serif; background-color: #f0f4f8; }
     .top-bar { background: #ffffff; padding: 1rem 2rem; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
     .search-box { position: relative; flex-grow: 1; max-width: 500px; }
     .search-box input { border-radius: 50px; padding-left: 40px; padding-right: 40px; border: 2px solid #e2e8f0; background: #f8fafc; transition: all 0.3s; }
@@ -27,52 +25,20 @@
     .col-t1 { background-color: #f0f9ff !important; }
     .col-t2 { background-color: #f0fdf4 !important; }
     
-    /* Estilos del Modal estilo Ventana */
     .modal-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; border-radius: 16px 16px 0 0; }
-    .modal-content { 
-        border-radius: 16px; 
-        border: none; 
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
-        height: 96vh; 
-        display: flex; 
-        flex-direction: column; 
-    }
-    .modal-body { 
-        flex-grow: 1; 
-        overflow-y: auto; 
-        background: #f8fafc; 
-        padding: 2rem;
-    }
+    .modal-content { border-radius: 16px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.2); height: 96vh; display: flex; flex-direction: column; }
+    .modal-body { flex-grow: 1; overflow-y: auto; background: #f8fafc; padding: 2rem; }
     .form-control, .form-select { border-radius: 8px; border: 1px solid #cbd5e1; }
     .form-label { font-weight: 600; color: #475569; font-size: 0.8rem; margin-bottom: 2px; }
     
-    /* Tarjetas de Tiendas */
     .card-tienda { border: none; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); height: 100%; }
     .card-t1 { border-top: 4px solid #3b82f6; }
     .card-t2 { border-top: 4px solid #10b981; }
     .card-header-tienda { background: white; border-bottom: 1px solid #e2e8f0; font-weight: 700; font-size: 1.1rem; padding: 1rem; border-radius: 12px 12px 0 0; }
     .section-subtitle { font-size: 0.85rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 15px; margin-bottom: 8px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 4px; }
     
-    /* Estilo Hoja de Vida para la Foto */
-    .foto-hoja-vida {
-        width: 110px;
-        height: 110px;
-        background: white;
-        border: 2px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 4px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        flex-shrink: 0;
-    }
-    .foto-hoja-vida img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        border-radius: 4px;
-    }
+    .foto-hoja-vida { width: 110px; height: 110px; background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); flex-shrink: 0; }
+    .foto-hoja-vida img { width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
     .drop-zone-hover:hover { border-color: #3b82f6; background-color: #eff6ff !important; }
 </style>
 {% endblock %}
@@ -111,7 +77,6 @@
             <div class="modal-body">
                 <input type="hidden" id="edit-id">
                 
-                <!-- DATOS BÁSICOS (Arriba a lo ancho) -->
                 <div class="card border-0 shadow-sm mb-4" style="border-radius: 12px;">
                     <div class="card-body">
                         <div class="row g-3">
@@ -147,13 +112,10 @@
 
                         <div class="row mt-4">
                             <div class="col-12">
-                                <!-- DISEÑO HOJA DE VIDA -->
                                 <div id="drop-zone" class="drop-zone-hover border-2 border-dashed rounded p-3 d-flex align-items-center gap-4" style="cursor: pointer; background-color: #f8fafc; transition: all 0.2s; border: 2px dashed #cbd5e1;">
-                                    
                                     <div id="foto-actual" class="foto-hoja-vida" style="display: none;">
                                         <img id="img-actual" src="" onerror="this.src='/static/img/productos/error.png'">
                                     </div>
-                                    
                                     <div class="flex-grow-1">
                                         <div class="d-flex align-items-center mb-1">
                                             <i class="bi bi-cloud-arrow-up fs-3 text-primary me-3"></i>
@@ -164,7 +126,6 @@
                                         </div>
                                         <div id="foto-preview" class="mt-2 fw-bold small text-success" style="display: none;"></div>
                                     </div>
-
                                     <input type="file" id="foto-input" accept="image/*" style="display: none;">
                                 </div>
                             </div>
@@ -172,14 +133,10 @@
                     </div>
                 </div>
 
-                <!-- TIENDAS LADO A LADO -->
                 <div class="row g-4">
-                    <!-- TIENDA 1 -->
                     <div class="col-md-6">
                         <div class="card card-tienda card-t1">
-                            <div class="card-header-tienda text-primary">
-                                <i class="bi bi-shop"></i> Tienda 1 (Central)
-                            </div>
+                            <div class="card-header-tienda text-primary"><i class="bi bi-shop"></i> Tienda 1 (Central)</div>
                             <div class="card-body">
                                 <div class="section-subtitle">Stock y Precios de Venta</div>
                                 <div class="row g-2 mb-2">
@@ -190,7 +147,6 @@
                                 <div class="row g-2 mb-3">
                                     <div class="col-12"><label class="form-label">Precio Base</label><input type="text" class="form-control text-end fw-bold text-success" id="edit-t1-base" inputmode="decimal"></div>
                                 </div>
-
                                 <div class="section-subtitle">Precios por Cantidad (Opcional)</div>
                                 <div class="row g-2 mb-2">
                                     <div class="col-3"><label class="form-label">Cant 1</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-c1" inputmode="decimal"></div>
@@ -200,14 +156,12 @@
                                     <div class="col-3"><label class="form-label">Cant 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-c2" inputmode="decimal"></div>
                                     <div class="col-9"><label class="form-label">Precio 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-p2" inputmode="decimal"></div>
                                 </div>
-
                                 <div class="section-subtitle">Proveedores (Promedio)</div>
                                 <div class="row g-2 mb-3">
                                     <div class="col-4"><label class="form-label">Prov 1</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-pv1" inputmode="decimal"></div>
                                     <div class="col-4"><label class="form-label">Prov 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-pv2" inputmode="decimal"></div>
                                     <div class="col-4"><label class="form-label">Prov 3</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-pv3" inputmode="decimal"></div>
                                 </div>
-
                                 <div class="section-subtitle">Sugerido de Compras (Reorden)</div>
                                 <div class="row g-2">
                                     <div class="col-6"><label class="form-label text-danger">Stock Mínimo</label><input type="text" class="form-control form-control-sm text-end border-danger" id="edit-t1-min" inputmode="decimal"></div>
@@ -217,12 +171,9 @@
                         </div>
                     </div>
 
-                    <!-- TIENDA 2 -->
                     <div class="col-md-6">
                         <div class="card card-tienda card-t2">
-                            <div class="card-header-tienda text-success">
-                                <i class="bi bi-shop"></i> Tienda 2 (El Michín Dos)
-                            </div>
+                            <div class="card-header-tienda text-success"><i class="bi bi-shop"></i> Tienda 2 (El Michín Dos)</div>
                             <div class="card-body">
                                 <div class="section-subtitle">Stock y Precios de Venta</div>
                                 <div class="row g-2 mb-2">
@@ -233,7 +184,6 @@
                                 <div class="row g-2 mb-3">
                                     <div class="col-12"><label class="form-label">Precio Base</label><input type="text" class="form-control text-end fw-bold text-success" id="edit-t2-base" inputmode="decimal"></div>
                                 </div>
-
                                 <div class="section-subtitle">Precios por Cantidad (Opcional)</div>
                                 <div class="row g-2 mb-2">
                                     <div class="col-3"><label class="form-label">Cant 1</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-c1" inputmode="decimal"></div>
@@ -243,14 +193,12 @@
                                     <div class="col-3"><label class="form-label">Cant 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-c2" inputmode="decimal"></div>
                                     <div class="col-9"><label class="form-label">Precio 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-p2" inputmode="decimal"></div>
                                 </div>
-
                                 <div class="section-subtitle">Proveedores (Promedio)</div>
                                 <div class="row g-2 mb-3">
                                     <div class="col-4"><label class="form-label">Prov 1</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-pv1" inputmode="decimal"></div>
                                     <div class="col-4"><label class="form-label">Prov 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-pv2" inputmode="decimal"></div>
                                     <div class="col-4"><label class="form-label">Prov 3</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-pv3" inputmode="decimal"></div>
                                 </div>
-
                                 <div class="section-subtitle">Sugerido de Compras (Reorden)</div>
                                 <div class="row g-2">
                                     <div class="col-6"><label class="form-label text-danger">Stock Mínimo</label><input type="text" class="form-control form-control-sm text-end border-danger" id="edit-t2-min" inputmode="decimal"></div>
@@ -272,9 +220,9 @@
 {% endblock %}
 
 {% block scripts_extra %}
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://unpkg.com/tabulator-tables@6.2.1/dist/js/tabulator.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="{{ url_for('static', filename='lib/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='lib/tabulator.min.js') }}"></script>
+<script src="{{ url_for('static', filename='lib/sweetalert2.js') }}"></script>
 <script>
     var moneyFormatter = function(cell) {
         var val = cell.getValue();
@@ -353,7 +301,7 @@
         document.getElementById('foto-preview').innerHTML = '';
         document.getElementById('foto-input').value = '';
         document.getElementById('foto-actual').style.display = 'none';
-        document.getElementById('img-actual').src = '/static/img/productos/error.png'; // Por si acaso
+        document.getElementById('img-actual').src = '/static/img/productos/error.png';
     }
 
     function abrirModalNuevo() {
@@ -416,7 +364,7 @@
 
         limpiarZonaFoto();
         if (data.imagen) {
-            document.getElementById('foto-actual').style.display = 'flex'; // Mostramos el contenedor
+            document.getElementById('foto-actual').style.display = 'flex';
             document.getElementById('img-actual').src = `/static/img/productos/${data.imagen}?v=${new Date().getTime()}`;
         }
         modalEditar.show();
@@ -434,7 +382,6 @@
         document.getElementById('edit-codigo').value = codigoFinal;
     }
 
-    // ===== FÓRMULAS TIPO EXCEL + REDONDEO ESTRICTO =====
     function evaluarCasilla(input) {
         let val = input.value.trim();
         if (!val) return;
@@ -461,7 +408,6 @@
         document.querySelectorAll('#modalEditar input[type="text"][id^="edit-t"]').forEach(inp => evaluarCasilla(inp));
     }
 
-    // --- CALCULAR PROMEDIO DE PROVEEDORES ---
     function calcularPromedioProveedores(prefijo) {
         const p1 = parseFloat(document.getElementById(`edit-${prefijo}-pv1`).value) || 0;
         const p2 = parseFloat(document.getElementById(`edit-${prefijo}-pv2`).value) || 0;
@@ -491,7 +437,6 @@
             }
         });
     });
-    // ===================================================
 
     document.getElementById('btn-guardar-modal').addEventListener('click', function() {
         var btn = this;
@@ -603,7 +548,6 @@
             fotoPendiente = file;
             const reader = new FileReader();
             reader.onload = function(e) {
-                // Mostramos la previsualización en la "hoja de vida"
                 document.getElementById('foto-actual').style.display = 'flex';
                 document.getElementById('img-actual').src = e.target.result;
             }
