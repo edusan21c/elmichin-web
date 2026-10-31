@@ -34,19 +34,19 @@
 #documento-impresion {
     font-family: 'Courier New', Courier, monospace;
     color: #000;
-    max-width: 300px;
+    max-width: 350px;
     margin: 0 auto;
 }
 .ticket-header { text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
-.ticket-header h2 { font-size: 16px; font-weight: bold; margin: 0; }
-.ticket-header p { font-size: 11px; margin: 2px 0 0 0; }
-.ticket-info { font-size: 11px; margin-bottom: 10px; }
+.ticket-header h2 { font-size: 18px; font-weight: bold; margin: 0; }
+.ticket-header p { font-size: 12px; margin: 2px 0 0 0; }
+.ticket-info { font-size: 12px; margin-bottom: 10px; }
 .ticket-lista { border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
 .ticket-item { font-size: 12px; margin-bottom: 5px; display: flex; justify-content: space-between; border-bottom: 1px dotted #ccc; padding-bottom: 2px;}
-.ticket-footer { text-align: center; font-size: 10px; margin-top: 15px; }
+.ticket-footer { text-align: center; font-size: 11px; margin-top: 15px; }
 
 /* =========================================
-   MAGIA PARA IMPRESIÓN TÉRMICA (Estilo Facturación)
+   MAGIA PARA IMPRESIÓN TÉRMICA
    ========================================= */
 @media print {
     .navbar, .sidebar, header, nav, .btn, .alert, .modal-backdrop, .modal-header, .modal-footer {
@@ -311,35 +311,57 @@ document.addEventListener('DOMContentLoaded', function() {
             const fechaStr = ahora.toLocaleDateString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute:'2-digit' });
             document.getElementById('doc-fecha').textContent = fechaStr;
             
-            // Armamos el texto puro para la impresora térmica (ESCPOS)
-            textoParaImpresora = "EL MICHIN\n";
+            // ==========================================
+            // MAGIA ESC/POS PARA IMPRESORA DE 80mm
+            // ==========================================
+            const ESC = '\x1b';
+            const ALIGN_CENTER = ESC + 'a' + '\x01';
+            const ALIGN_LEFT = ESC + 'a' + '\x00';
+            const TEXT_BIG = ESC + '!' + '\x30'; // Doble altura y ancho
+            const TEXT_NORMAL = ESC + '!' + '\x00';
+
+            // Encabezado grande y centrado
+            textoParaImpresora = ALIGN_CENTER + TEXT_BIG + "EL MICHIN\n" + TEXT_NORMAL;
             textoParaImpresora += "ORDEN DE COMPRA\n";
             textoParaImpresora += "Fecha: " + fechaStr + "\n";
-            textoParaImpresora += "--------------------------------\n";
+            textoParaImpresora += "------------------------------------------------\n";
+            textoParaImpresora += ALIGN_LEFT; // Regresamos a la izquierda para la lista
             
             let contador = 1;
-            seleccionados.forEach(chk => {
-                // Recortar nombre para que no se desborde en el ticket
-                let nombreCorto = chk.dataset.nombre;
-                if (nombreCorto.length > 22) nombreCorto = nombreCorto.substring(0, 22);
-                
-                // Formato en la vista HTML
-                listaOrdenBody.innerHTML += `<div class="ticket-item">
-                    <span>${contador}. ${chk.dataset.nombre}</span>
-                    <strong>x${chk.dataset.cant}</strong>
-                </div>`;
+            const anchoLinea = 48; // Ancho estándar para 80mm letra normal
 
-                // Formato para la impresora de texto (Alineado)
-                let lineaTexto = contador + ". " + nombreCorto;
-                while(lineaTexto.length < 28) { lineaTexto += " "; } // Rellenar con espacios
-                lineaTexto += "x" + chk.dataset.cant + "\n";
+            seleccionados.forEach(chk => {
+                let nombre = chk.dataset.nombre;
+                let cantStr = "x" + chk.dataset.cant;
+                let prefijo = contador + ". ";
                 
-                textoParaImpresora += lineaTexto;
+                // Si el nombre + prefijo + cantidad caben en una sola línea
+                if ((prefijo.length + nombre.length + cantStr.length) <= anchoLinea) {
+                    let espacio = anchoLinea - (prefijo.length + nombre.length + cantStr.length);
+                    // Para la vista HTML
+                    listaOrdenBody.innerHTML += `<div class="ticket-item">
+                        <span>${prefijo}${nombre}</span>
+                        <strong>${cantStr}</strong>
+                    </div>`;
+                    // Para la impresora
+                    textoParaImpresora += prefijo + nombre + " ".repeat(espacio) + cantStr + "\n";
+                } else {
+                    // Si es muy largo, ponemos el nombre en una línea y la cantidad en la siguiente
+                    listaOrdenBody.innerHTML += `<div class="ticket-item flex-wrap">
+                        <span class="w-100">${prefijo}${nombre}</span>
+                        <strong class="w-100 text-end" style="display:block; margin-top:2px;">${cantStr}</strong>
+                    </div>`;
+                    
+                    textoParaImpresora += prefijo + nombre + "\n";
+                    let espacio = anchoLinea - cantStr.length;
+                    if (espacio < 0) espacio = 0;
+                    textoParaImpresora += " ".repeat(espacio) + cantStr + "\n";
+                }
                 contador++;
             });
             
-            textoParaImpresora += "--------------------------------\n";
-            textoParaImpresora += "*** FIN DEL PEDIDO ***\n\n\n\n";
+            textoParaImpresora += "------------------------------------------------\n";
+            textoParaImpresora += ALIGN_CENTER + "*** FIN DEL PEDIDO ***\n\n\n\n";
 
             new bootstrap.Modal(document.getElementById('modalOrden')).show();
         });
@@ -373,7 +395,6 @@ async function imprimirTermica(event) {
         if (data.ok) {
             bootstrap.Modal.getInstance(document.getElementById('modalOrden')).hide();
             
-            // Alerta flotante de éxito
             const div = document.createElement('div');
             div.className = 'alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3 shadow';
             div.style.zIndex = '9999';
