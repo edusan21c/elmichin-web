@@ -304,3 +304,39 @@ def guardar_orden():
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'mensaje': f'Error al guardar: {str(e)}'})
+
+        # ==================== HISTORIAL DE ÓRDENES ====================
+@bp.route('/ordenes')
+@login_required
+def ordenes():
+    tienda_id = tienda_actual()
+    # Traemos las órdenes de esta tienda, las más recientes primero
+    lista_ordenes = OrdenCompra.query.filter_by(tienda_id=tienda_id).order_by(OrdenCompra.fecha.desc()).all()
+    return render_template('inventario/ordenes.html', ordenes=lista_ordenes, tienda_id=tienda_id)
+
+@bp.route('/ordenes/<int:orden_id>/recibir', methods=['POST'])
+@login_required
+def recibir_orden(orden_id):
+    orden = OrdenCompra.query.get_or_404(orden_id)
+    
+    if orden.estado == 'recibida':
+        return jsonify({'ok': False, 'mensaje': 'Esta orden ya fue recibida anteriormente.'})
+        
+    try:
+        # Sumamos el stock de cada producto
+        for detalle in orden.detalles:
+            pres = ProductoTienda.query.filter_by(producto_id=detalle.producto_id, tienda_id=orden.tienda_id).first()
+            if pres:
+                pres.cantidad += detalle.cantidad_pedida
+                pres.sync_estado = 'pendiente' # Para que se actualice en las tiendas
+            detalle.cantidad_recibida = detalle.cantidad_pedida
+            
+        orden.estado = 'recibida'
+        db.session.commit()
+        
+        _audit('orden_recibida', f'Orden {orden.id} recibida en su totalidad', orden.tienda_id)
+        
+        return jsonify({'ok': True, 'mensaje': 'Mercancía recibida y stock actualizado con éxito.'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'mensaje': f'Error: {str(e)}'})

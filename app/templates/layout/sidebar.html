@@ -10,9 +10,15 @@
 
             {% if current_user.rol in ('admin', 'programador') %}
             <li class="nav-item">
-                <a class="nav-link {% if request.blueprint == 'inventario' %}active{% endif %}"
+                <a class="nav-link {% if request.blueprint == 'inventario' and request.path != '/inventario/ordenes' %}active{% endif %}"
                    href="{{ url_for('inventario.lista') }}">
                     <i class="bi bi-box-seam"></i> Inventario
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.path == '/inventario/ordenes' %}active{% endif %}" 
+                   href="{{ url_for('inventario.ordenes') }}">
+                    <i class="bi bi-list-check"></i> Órdenes de Compra
                 </a>
             </li>
             {% endif %}
