@@ -38,6 +38,7 @@ def create_app(config_class=None):
     # ============ Importar modelos ============
     from .models import usuario, tienda, producto, cliente, factura
     from .models import pago, venta, borrador, configuracion, sync_log
+    from app.models.compra import OrdenCompra, DetalleOrdenCompra
 
     # ============ Configurar login manager ============
     from .models.usuario import Usuario

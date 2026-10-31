@@ -14,6 +14,7 @@ from app.models.tienda import Tienda
 from app.models.configuracion import Configuracion
 from app.services import impresion_service
 from app.utils.decorators import admin_requerido, programador_requerido
+from app.models.compra import OrdenCompra, DetalleOrdenCompra
 
 def es_central():
     return current_app.config.get('MODO', 'tienda_local') == 'central'
@@ -254,3 +255,52 @@ def stock_masivo():
     tienda_id = request.args.get('tienda', type=int) or tienda_actual()
     # Esta ruta usualmente solo renderiza una plantilla para cargar un Excel o editar rápido
     return render_template('inventario/stock_masivo.html', tienda_id=tienda_id)
+
+# ==================== GUARDAR ORDEN DE COMPRA ====================
+@bp.route('/guardar-orden', methods=['POST'])
+@login_required
+def guardar_orden():
+    data = request.json
+    tienda_id = data.get('tienda_id')
+    items = data.get('items', [])
+    
+    if not items:
+        return jsonify({'ok': False, 'mensaje': 'No hay productos seleccionados'})
+        
+    try:
+        # 1. Crear la cabecera de la orden
+        nueva_orden = OrdenCompra(tienda_id=tienda_id, estado='pendiente')
+        db.session.add(nueva_orden)
+        db.session.flush() # Esto genera el ID de la orden en la base de datos
+        
+        total_estimado = 0
+        
+        # 2. Guardar los detalles (qué productos y cuántas cantidades)
+        for item in items:
+            prod_id = item.get('producto_id')
+            cant = item.get('cantidad')
+            
+            # Buscamos el costo actual del producto para calcular el total estimado
+            pres = ProductoTienda.query.filter_by(producto_id=prod_id, tienda_id=tienda_id).first()
+            costo = pres.precio_proveedor if pres else 0
+            
+            detalle = DetalleOrdenCompra(
+                orden_id=nueva_orden.id,
+                producto_id=prod_id,
+                cantidad_pedida=cant,
+                costo_unitario=costo
+            )
+            db.session.add(detalle)
+            total_estimado += (float(costo) * cant)
+            
+        nueva_orden.total_estimado = total_estimado
+        db.session.commit()
+        
+        return jsonify({
+            'ok': True, 
+            'orden_id': nueva_orden.id, 
+            'mensaje': f'Orden #{nueva_orden.id} guardada exitosamente'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'mensaje': f'Error al guardar: {str(e)}'})

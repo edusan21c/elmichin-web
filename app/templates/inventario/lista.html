@@ -302,68 +302,106 @@ document.addEventListener('DOMContentLoaded', function() {
     checkProductos.forEach(chk => chk.addEventListener('change', actualizarBoton));
 
     if (btnGenerar) {
-        btnGenerar.addEventListener('click', function(e) {
+        btnGenerar.addEventListener('click', async function(e) {
             e.preventDefault();
             const seleccionados = document.querySelectorAll('.check-producto:checked');
-            listaOrdenBody.innerHTML = ''; 
             
-            const ahora = new Date();
-            const fechaStr = ahora.toLocaleDateString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute:'2-digit' });
-            document.getElementById('doc-fecha').textContent = fechaStr;
-            
-            // ==========================================
-            // MAGIA ESC/POS PARA IMPRESORA DE 80mm
-            // ==========================================
-            const ESC = '\x1b';
-            const ALIGN_CENTER = ESC + 'a' + '\x01';
-            const ALIGN_LEFT = ESC + 'a' + '\x00';
-            const TEXT_BIG = ESC + '!' + '\x30'; // Doble altura y ancho
-            const TEXT_NORMAL = ESC + '!' + '\x00';
-
-            // Encabezado grande y centrado
-            textoParaImpresora = ALIGN_CENTER + TEXT_BIG + "EL MICHIN\n" + TEXT_NORMAL;
-            textoParaImpresora += "ORDEN DE COMPRA\n";
-            textoParaImpresora += "Fecha: " + fechaStr + "\n";
-            textoParaImpresora += "------------------------------------------------\n";
-            textoParaImpresora += ALIGN_LEFT; // Regresamos a la izquierda para la lista
-            
-            let contador = 1;
-            const anchoLinea = 48; // Ancho estándar para 80mm letra normal
-
+            // 1. Preparamos los datos para guardar en la base de datos
+            const itemsPayload = [];
             seleccionados.forEach(chk => {
-                let nombre = chk.dataset.nombre;
-                let cantStr = "x" + chk.dataset.cant;
-                let prefijo = contador + ". ";
-                
-                // Si el nombre + prefijo + cantidad caben en una sola línea
-                if ((prefijo.length + nombre.length + cantStr.length) <= anchoLinea) {
-                    let espacio = anchoLinea - (prefijo.length + nombre.length + cantStr.length);
-                    // Para la vista HTML
-                    listaOrdenBody.innerHTML += `<div class="ticket-item">
-                        <span>${prefijo}${nombre}</span>
-                        <strong>${cantStr}</strong>
-                    </div>`;
-                    // Para la impresora
-                    textoParaImpresora += prefijo + nombre + " ".repeat(espacio) + cantStr + "\n";
-                } else {
-                    // Si es muy largo, ponemos el nombre en una línea y la cantidad en la siguiente
-                    listaOrdenBody.innerHTML += `<div class="ticket-item flex-wrap">
-                        <span class="w-100">${prefijo}${nombre}</span>
-                        <strong class="w-100 text-end" style="display:block; margin-top:2px;">${cantStr}</strong>
-                    </div>`;
-                    
-                    textoParaImpresora += prefijo + nombre + "\n";
-                    let espacio = anchoLinea - cantStr.length;
-                    if (espacio < 0) espacio = 0;
-                    textoParaImpresora += " ".repeat(espacio) + cantStr + "\n";
-                }
-                contador++;
+                itemsPayload.push({
+                    producto_id: parseInt(chk.dataset.id),
+                    cantidad: parseInt(chk.dataset.cant)
+                });
             });
-            
-            textoParaImpresora += "------------------------------------------------\n";
-            textoParaImpresora += ALIGN_CENTER + "*** FIN DEL PEDIDO ***\n\n\n\n";
 
-            new bootstrap.Modal(document.getElementById('modalOrden')).show();
+            // 2. Deshabilitar botón mientras guarda
+            const textoOriginal = btnGenerar.innerHTML;
+            btnGenerar.disabled = true;
+            btnGenerar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+            try {
+                // 3. Enviar a Python para que guarde la orden
+                const r = await fetch('/inventario/guardar-orden', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ 
+                        tienda_id: parseInt("{{ tienda_id }}"), 
+                        items: itemsPayload 
+                    })
+                });
+                const res = await r.json();
+
+                if (!res.ok) {
+                    alert(res.mensaje);
+                    return;
+                }
+
+                // 4. Si guardó bien, procedemos a armar el ticket visual
+                listaOrdenBody.innerHTML = ''; 
+                const ahora = new Date();
+                const fechaStr = ahora.toLocaleDateString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute:'2-digit' });
+                document.getElementById('doc-fecha').textContent = fechaStr;
+                
+                const ESC = '\x1b';
+                const ALIGN_CENTER = ESC + 'a' + '\x01';
+                const ALIGN_LEFT = ESC + 'a' + '\x00';
+                const TEXT_BIG = ESC + '!' + '\x30';
+                const TEXT_NORMAL = ESC + '!' + '\x00';
+
+                textoParaImpresora = ALIGN_CENTER + TEXT_BIG + "EL MICHIN\n" + TEXT_NORMAL;
+                textoParaImpresora += `ORDEN DE COMPRA #${res.orden_id}\n`;
+                textoParaImpresora += "Fecha: " + fechaStr + "\n";
+                textoParaImpresora += "------------------------------------------------\n";
+                textoParaImpresora += ALIGN_LEFT;
+                
+                let contador = 1;
+                const anchoLinea = 48;
+
+                seleccionados.forEach(chk => {
+                    let nombre = chk.dataset.nombre;
+                    let cantStr = "x" + chk.dataset.cant;
+                    let prefijo = contador + ". ";
+                    
+                    if ((prefijo.length + nombre.length + cantStr.length) <= anchoLinea) {
+                        let espacio = anchoLinea - (prefijo.length + nombre.length + cantStr.length);
+                        listaOrdenBody.innerHTML += `<div class="ticket-item">
+                            <span>${prefijo}${nombre}</span>
+                            <strong>${cantStr}</strong>
+                        </div>`;
+                        textoParaImpresora += prefijo + nombre + " ".repeat(espacio) + cantStr + "\n";
+                    } else {
+                        listaOrdenBody.innerHTML += `<div class="ticket-item flex-wrap">
+                            <span class="w-100">${prefijo}${nombre}</span>
+                            <strong class="w-100 text-end" style="display:block; margin-top:2px;">${cantStr}</strong>
+                        </div>`;
+                        textoParaImpresora += prefijo + nombre + "\n";
+                        let espacio = anchoLinea - cantStr.length;
+                        if (espacio < 0) espacio = 0;
+                        textoParaImpresora += " ".repeat(espacio) + cantStr + "\n";
+                    }
+                    contador++;
+                });
+                
+                textoParaImpresora += "------------------------------------------------\n";
+                textoParaImpresora += ALIGN_CENTER + "*** FIN DEL PEDIDO ***\n\n\n\n";
+
+                // 5. Actualizar el título del modal con el número de orden
+                document.querySelector('#modalOrden .modal-title').innerHTML = `<i class="bi bi-receipt"></i> Orden #${res.orden_id} Generada`;
+
+                // 6. Mostrar el modal
+                new bootstrap.Modal(document.getElementById('modalOrden')).show();
+
+            } catch (error) {
+                alert('Error de conexión al guardar la orden.');
+                console.error(error);
+            } finally {
+                btnGenerar.disabled = false;
+                btnGenerar.innerHTML = textoOriginal;
+            }
         });
     }
 });
