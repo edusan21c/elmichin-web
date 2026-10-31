@@ -23,9 +23,74 @@
 .badge-categoria.cat-aseo { background: linear-gradient(135deg, #4caf50, #1b5e20); }
 .badge-categoria.cat-otro, .badge-categoria.cat-sin-categoria { background: linear-gradient(135deg, #78909c, #455a64); }
 
-/* Estilos para la imagen del producto */
 .producto-img { width: 40px; height: 40px; object-fit: cover; border-radius: 5px; margin-right: 12px; flex-shrink: 0; }
 .producto-img-fallback { width: 40px; height: 40px; margin-right: 12px; background-color: #f0f0f0; border-radius: 5px; align-items: center; justify-content: center; flex-shrink: 0; }
+
+.form-check-input { cursor: pointer; width: 1.2em; height: 1.2em; }
+
+/* =========================================
+   DISEÑO DEL TICKET (PANTALLA)
+   ========================================= */
+#documento-impresion {
+    font-family: 'Courier New', Courier, monospace;
+    color: #000;
+    max-width: 300px;
+    margin: 0 auto;
+}
+.ticket-header { text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
+.ticket-header h2 { font-size: 16px; font-weight: bold; margin: 0; }
+.ticket-header p { font-size: 11px; margin: 2px 0 0 0; }
+.ticket-info { font-size: 11px; margin-bottom: 10px; }
+.ticket-lista { border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+.ticket-item { font-size: 12px; margin-bottom: 5px; display: flex; justify-content: space-between; border-bottom: 1px dotted #ccc; padding-bottom: 2px;}
+.ticket-footer { text-align: center; font-size: 10px; margin-top: 15px; }
+
+/* =========================================
+   MAGIA PARA IMPRESIÓN TÉRMICA (Estilo Facturación)
+   ========================================= */
+@media print {
+    /* Ocultar la barra lateral, navbar, botones y fondo del modal */
+    .navbar, .sidebar, header, nav, .btn, .alert, .modal-backdrop, .modal-header, .modal-footer {
+        display: none !important;
+    }
+
+    /* Ocultar todo el cuerpo excepto el documento de impresión */
+    body * {
+        visibility: hidden;
+    }
+    
+    #documento-impresion, #documento-impresion * {
+        visibility: visible;
+    }
+
+    /* Posicionar el ticket en la esquina superior izquierda */
+    #documento-impresion {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        max-width: 80mm;
+        margin: 0;
+        padding: 0;
+        background: white !important;
+        border: none !important;
+        box-shadow: none !important;
+        font-size: 12px;
+    }
+
+    /* Forzar fondo blanco */
+    body, html {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Configurar el tamaño del papel a 80mm */
+    @page {
+        size: 80mm auto;
+        margin: 0mm;
+    }
+}
 </style>
 
 <div class="p-4" style="background-color: {{ bg_color }}; border-radius: 10px;">
@@ -35,6 +100,11 @@
             <i class="bi bi-cart-plus"></i> Sugerido de Compras
         </h1>
         <div>
+            <!-- BOTÓN GENERAR ORDEN -->
+            <button type="button" id="btn-generar-orden" class="btn btn-warning fw-bold text-dark me-2 shadow-sm" style="display: none;">
+                <i class="bi bi-file-earmark-text"></i> Generar Orden (<span id="count-seleccionados">0</span>)
+            </button>
+
             {% if current_user.es_programador() %}
             <a href="{{ url_for('inventario.stock_masivo', tienda=tienda_id) }}" class="btn btn-success">
                 <i class="bi bi-lightning"></i> Stock masivo
@@ -78,6 +148,9 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
+                        <th class="text-center" style="width: 40px;">
+                            <input type="checkbox" class="form-check-input" id="check-todos" title="Seleccionar todos">
+                        </th>
                         <th style="width: 60px;">ID</th>
                         <th>Producto</th>
                         <th style="width: 120px;">Código</th>
@@ -93,6 +166,13 @@
                         {% set p = item.producto %}
                         {% set pres = item.presentacion %}
                         <tr>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input check-producto" 
+                                       data-id="{{ p.id }}" 
+                                       data-nombre="{{ p.nombre }}" 
+                                       data-cant="{{ item.cantidad_sugerida }}">
+                            </td>
+
                             <td class="text-muted small">{{ p.id }}</td>
                             <td>
                                 <div class="d-flex align-items-center">
@@ -146,7 +226,7 @@
                             <td class="text-end">
                                 {% if puede_editar %}
                                     <button type="button" class="btn btn-sm btn-outline-success btn-stock" title="Actualizar stock" data-id="{{ p.id }}" data-nombre="{{ p.nombre }}" data-stock="{{ item.stock }}">
-                                        <i class="bi bi-plus-slash-minus"></i>
+                                        <i class="bi bi-plus-slash-minus"></i> 
                                     </button>
                                 {% endif %}
                                 {% if current_user.es_programador() %}
@@ -158,7 +238,7 @@
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="8" class="text-center py-5 text-muted">
+                            <td colspan="9" class="text-center py-5 text-muted">
                                 <i class="bi bi-check-circle text-success fs-1 d-block mb-2"></i>
                                 <h5 class="fw-bold">¡Todo en orden!</h5>
                                 <p class="mb-0">No hay productos por debajo del stock mínimo en esta tienda.</p>
@@ -218,6 +298,47 @@
     </div>
 </div>
 
+<!-- Modal de Orden de Compra (Estilo Ticket) -->
+<div class="modal fade" id="modalOrden" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-receipt"></i> Vista Previa del Ticket</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3 bg-light">
+                
+                <!-- DISEÑO DEL TICKET -->
+                <div id="documento-impresion" class="bg-white p-3 shadow-sm rounded">
+                    <div class="ticket-header">
+                        <h2>EL MICHÍN</h2>
+                        <p>ORDEN DE COMPRA</p>
+                    </div>
+                    
+                    <div class="ticket-info">
+                        <div><strong>Fecha:</strong> <span id="doc-fecha"></span></div>
+                        <div><strong>Tienda:</strong> {{ tienda_actual_obj.nombre if tienda_actual_obj else 'Central' }}</div>
+                    </div>
+
+                    <div class="ticket-lista" id="lista-orden-body">
+                        <!-- El JS llena esto -->
+                    </div>
+
+                    <div class="ticket-footer">
+                        *** FIN DEL PEDIDO ***<br>
+                        Generado por El Michín POS
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir Ticket</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.querySelectorAll('.btn-stock').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -271,5 +392,61 @@ document.querySelectorAll('.btn-stock').forEach(function(btn) {
         });
     }
 })();
+
+// ================= LÓGICA DE SELECCIÓN Y ORDEN DE COMPRA =================
+document.addEventListener('DOMContentLoaded', function() {
+    const checkTodos = document.getElementById('check-todos');
+    const checkProductos = document.querySelectorAll('.check-producto');
+    const btnGenerar = document.getElementById('btn-generar-orden');
+    const countSeleccionados = document.getElementById('count-seleccionados');
+    const listaOrdenBody = document.getElementById('lista-orden-body');
+
+    function actualizarBoton() {
+        const seleccionados = document.querySelectorAll('.check-producto:checked');
+        const count = seleccionados.length;
+        
+        if (count > 0) {
+            btnGenerar.style.display = 'inline-block';
+            countSeleccionados.textContent = count;
+        } else {
+            btnGenerar.style.display = 'none';
+        }
+    }
+
+    if (checkTodos) {
+        checkTodos.addEventListener('change', function() {
+            checkProductos.forEach(chk => {
+                chk.checked = this.checked;
+            });
+            actualizarBoton();
+        });
+    }
+
+    checkProductos.forEach(chk => {
+        chk.addEventListener('change', actualizarBoton);
+    });
+
+    if (btnGenerar) {
+        btnGenerar.addEventListener('click', function(e) {
+            e.preventDefault();
+            const seleccionados = document.querySelectorAll('.check-producto:checked');
+            
+            listaOrdenBody.innerHTML = ''; 
+            
+            const ahora = new Date();
+            const fechaStr = ahora.toLocaleDateString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute:'2-digit' });
+            document.getElementById('doc-fecha').textContent = fechaStr;
+            
+            seleccionados.forEach(chk => {
+                listaOrdenBody.innerHTML += `<div class="ticket-item">
+                    <span>${chk.dataset.nombre}</span>
+                    <strong>x${chk.dataset.cant}</strong>
+                </div>`;
+            });
+
+            new bootstrap.Modal(document.getElementById('modalOrden')).show();
+        });
+    }
+});
 </script>
 {% endblock %}
