@@ -50,26 +50,44 @@ def get_data():
     for p in productos:
         t1 = p.get_presentacion(1)
         t2 = p.get_presentacion(2)
+        
+        # Calculamos el Costo promedio al vuelo (no se guarda en DB)
+        t1_costo_promedio = (float(t1.precio_proveedor or 0) + float(t1.precio_proveedor2 or 0) + float(t1.precio_proveedor3 or 0)) / 3 if t1 else 0
+        t2_costo_promedio = (float(t2.precio_proveedor or 0) + float(t2.precio_proveedor2 or 0) + float(t2.precio_proveedor3 or 0)) / 3 if t2 else 0
+
         fila = {
             'id': p.id, 'nombre': p.nombre, 'categoria': p.categoria or '',
             'codigo_barras': p.codigo_barras or '', 'imagen': p.imagen or '',
-            't1_stock': t1.cantidad if t1 else 0, 't1_costo': float(t1.precio_proveedor) if t1 else 0,
-            't1_gan': float(t1.porcentaje) if t1 else 0, 't1_base': float(t1.precio_venta) if t1 else 0,
-            't1_c1': t1.condicion1 if t1 else '', 't1_p1': float(t1.precio_venta1) if t1 else 0,
-            't1_c2': t1.condicion2 if t1 else '', 't1_p2': float(t1.precio_venta2) if t1 else 0,
-            't1_prov1': float(t1.precio_proveedor) if t1 else 0,
-            't1_prov2': float(t1.precio_proveedor2) if t1 and t1.precio_proveedor2 else 0,
-            't1_prov3': float(t1.precio_proveedor3) if t1 and t1.precio_proveedor3 else 0,
-            't1_min': t1.stock_minimo if t1 else 5, 't1_max': t1.stock_maximo if t1 else 20,
             
-            't2_stock': t2.cantidad if t2 else 0, 't2_costo': float(t2.precio_proveedor) if t2 else 0,
-            't2_gan': float(t2.porcentaje) if t2 else 0, 't2_base': float(t2.precio_venta) if t2 else 0,
-            't2_c1': t2.condicion1 if t2 else '', 't2_p1': float(t2.precio_venta1) if t2 else 0,
-            't2_c2': t2.condicion2 if t2 else '', 't2_p2': float(t2.precio_venta2) if t2 else 0,
+            # TIENDA 1
+            't1_stock': t1.cantidad if t1 else 0, 
+            't1_costo': t1_costo_promedio,
+            't1_gan': float(t1.porcentaje) if t1 else 0, 
+            't1_base': float(t1.precio_venta) if t1 else 0,
+            't1_c1': t1.condicion1 if t1 else '', 
+            't1_p1': float(t1.precio_venta1) if t1 else 0,
+            't1_c2': t1.condicion2 if t1 else '', 
+            't1_p2': float(t1.precio_venta2) if t1 else 0,
+            't1_prov1': float(t1.precio_proveedor) if t1 else 0,
+            't1_prov2': float(t1.precio_proveedor2) if t1 else 0,
+            't1_prov3': float(t1.precio_proveedor3) if t1 else 0,
+            't1_min': t1.stock_minimo if t1 else 5, 
+            't1_max': t1.stock_maximo if t1 else 20,
+            
+            # TIENDA 2
+            't2_stock': t2.cantidad if t2 else 0, 
+            't2_costo': t2_costo_promedio,
+            't2_gan': float(t2.porcentaje) if t2 else 0, 
+            't2_base': float(t2.precio_venta) if t2 else 0,
+            't2_c1': t2.condicion1 if t2 else '', 
+            't2_p1': float(t2.precio_venta1) if t2 else 0,
+            't2_c2': t2.condicion2 if t2 else '', 
+            't2_p2': float(t2.precio_venta2) if t2 else 0,
             't2_prov1': float(t2.precio_proveedor) if t2 else 0,
-            't2_prov2': float(t2.precio_proveedor2) if t2 and t2.precio_proveedor2 else 0,
-            't2_prov3': float(t2.precio_proveedor3) if t2 and t2.precio_proveedor3 else 0,
-            't2_min': t2.stock_minimo if t2 else 5, 't2_max': t2.stock_maximo if t2 else 20,
+            't2_prov2': float(t2.precio_proveedor2) if t2 else 0,
+            't2_prov3': float(t2.precio_proveedor3) if t2 else 0,
+            't2_min': t2.stock_minimo if t2 else 5, 
+            't2_max': t2.stock_maximo if t2 else 20,
         }
         data.append(fila)
     return jsonify(data)
@@ -133,10 +151,14 @@ def save_data():
                 if not pres:
                     pres = ProductoTienda(producto_id=prod.id, tienda_id=t_id)
                     db.session.add(pres)
+                
                 pres.cantidad = safe_int(fila.get(f'{prefix}_stock'))
-                pres.precio_proveedor = safe_dec(fila.get(f'{prefix}_costo'))
+                
+                # Guardamos los 3 proveedores en las 3 columnas existentes
+                pres.precio_proveedor = safe_dec(fila.get(f'{prefix}_pv1'))
                 pres.precio_proveedor2 = safe_dec(fila.get(f'{prefix}_pv2'))
                 pres.precio_proveedor3 = safe_dec(fila.get(f'{prefix}_pv3'))
+                
                 pres.porcentaje = safe_dec(fila.get(f'{prefix}_gan'))
                 pres.precio_venta = safe_dec(fila.get(f'{prefix}_base'))
                 pres.condicion1 = str(fila.get(f'{prefix}_c1', ''))
@@ -144,7 +166,6 @@ def save_data():
                 pres.condicion2 = str(fila.get(f'{prefix}_c2', ''))
                 pres.precio_venta2 = safe_dec(fila.get(f'{prefix}_p2'))
                 
-                # NUEVOS CAMPOS MIN Y MAX
                 pres.stock_minimo = safe_int(fila.get(f'{prefix}_min', 5))
                 pres.stock_maximo = safe_int(fila.get(f'{prefix}_max', 20))
                 
@@ -162,7 +183,7 @@ def save_data():
                 'codigo_barras': prod.codigo_barras or '',
                 'imagen': prod.imagen or '',
                 't1_stock': safe_int(fila.get('t1_stock')),
-                't1_costo': float(safe_dec(fila.get('t1_costo'))),
+                't1_costo': (float(safe_dec(fila.get('t1_pv1'))) + float(safe_dec(fila.get('t1_pv2'))) + float(safe_dec(fila.get('t1_pv3')))) / 3,
                 't1_gan': float(safe_dec(fila.get('t1_gan'))),
                 't1_base': float(safe_dec(fila.get('t1_base'))),
                 't1_c1': fila.get('t1_c1', ''),
@@ -175,7 +196,7 @@ def save_data():
                 't1_min': safe_int(fila.get('t1_min', 5)),
                 't1_max': safe_int(fila.get('t1_max', 20)),
                 't2_stock': safe_int(fila.get('t2_stock')),
-                't2_costo': float(safe_dec(fila.get('t2_costo'))),
+                't2_costo': (float(safe_dec(fila.get('t2_pv1'))) + float(safe_dec(fila.get('t2_pv2'))) + float(safe_dec(fila.get('t2_pv3')))) / 3,
                 't2_gan': float(safe_dec(fila.get('t2_gan'))),
                 't2_base': float(safe_dec(fila.get('t2_base'))),
                 't2_c1': fila.get('t2_c1', ''),
