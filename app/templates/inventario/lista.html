@@ -251,7 +251,7 @@
             <div class="modal-footer bg-light">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 <button type="button" class="btn btn-outline-primary" onclick="window.print()"><i class="bi bi-window"></i> Imprimir (Ventana)</button>
-                <button type="button" class="btn btn-success" onclick="imprimirQZ()"><i class="bi bi-printer-fill"></i> Imprimir Directo (QZ)</button>
+                <button type="button" class="btn btn-success" onclick="imprimirTermica(event)"><i class="bi bi-printer-fill"></i> Imprimir Directo</button>
             </div>
         </div>
     </div>
@@ -273,23 +273,6 @@ document.querySelectorAll('.btn-stock').forEach(function(btn) {
         new bootstrap.Modal(document.getElementById('modalStock')).show();
     });
 });
-
-// Buscador y paginación
-(function() {
-    const KEY = 'inventario_q';
-    const inputQ = document.getElementById('input-busqueda');
-    const urlParams = new URLSearchParams(window.location.search);
-
-    if (inputQ) {
-        const form = inputQ.closest('form');
-        if (form) {
-            form.addEventListener('submit', function() {
-                const v = inputQ.value.trim();
-                if (v) { localStorage.setItem(KEY, v); } else { localStorage.removeItem(KEY); }
-            });
-        }
-    }
-})();
 
 // ================= LÓGICA DE SELECCIÓN Y ORDEN DE COMPRA =================
 document.addEventListener('DOMContentLoaded', function() {
@@ -332,7 +315,6 @@ document.addEventListener('DOMContentLoaded', function() {
             textoParaImpresora = "EL MICHIN\n";
             textoParaImpresora += "ORDEN DE COMPRA\n";
             textoParaImpresora += "Fecha: " + fechaStr + "\n";
-            textoParaImpresora += "Tienda: " + "{{ tienda_actual_obj.nombre if tienda_actual_obj else 'Central' }}".substring(0, 20) + "\n";
             textoParaImpresora += "--------------------------------\n";
             
             let contador = 1;
@@ -347,7 +329,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <strong>x${chk.dataset.cant}</strong>
                 </div>`;
 
-                // Formato para la impresora de texto (Alineado a la izquierda y cantidad a la derecha)
+                // Formato para la impresora de texto (Alineado)
                 let lineaTexto = contador + ". " + nombreCorto;
                 while(lineaTexto.length < 28) { lineaTexto += " "; } // Rellenar con espacios
                 lineaTexto += "x" + chk.dataset.cant + "\n";
@@ -364,57 +346,48 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// ================= IMPRESIÓN DIRECTA CON QZ TRAY =================
-async function imprimirQZ() {
+// ================= IMPRESIÓN DIRECTA A TÉRMICA (Por Python) =================
+async function imprimirTermica(event) {
     if (!textoParaImpresora) return;
     
-    if (typeof qz === 'undefined') {
-        alert('La librería QZ Tray no está cargada en este navegador.');
-        return;
-    }
-    
-    // Intentar conectar usando la función que ya tienes en qz-print.js
-    const conectado = await window.MichinPrint.conectar();
-    if (!conectado) {
-        alert('QZ Tray no está corriendo o está desconectado. Por favor ábrelo.');
-        return;
-    }
-    
-    try {
-        // Buscar impresoras disponibles
-        const printers = await qz.printers.find();
-        if (!printers || printers.length === 0) {
-            alert('No se encontraron impresoras en el sistema.');
-            return;
-        }
-        
-        // Usamos la primera impresora de la lista (igual que en la facturación)
-        const printerName = printers[0];
-        const config = qz.configs.create(printerName);
-        
-        const dataToPrint = [{
-            type: 'raw',
-            format: 'plain',
-            data: textoParaImpresora,
-            options: { encoding: 'CP850' }
-        }];
-        
-        await qz.print(config, dataToPrint);
-        
-        // Cerrar el modal y mostrar mensaje
-        bootstrap.Modal.getInstance(document.getElementById('modalOrden')).hide();
-        
-        // Alerta flotante
-        const div = document.createElement('div');
-        div.className = 'alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3 shadow';
-        div.style.zIndex = '9999';
-        div.innerHTML = '<i class="bi bi-check-circle"></i> Orden enviada a la impresora';
-        document.body.appendChild(div);
-        setTimeout(() => div.remove(), 3000);
+    const btn = event.target.closest('button');
+    const txtOriginal = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Imprimiendo...';
 
+    try {
+        const tiendaId = "{{ tienda_id }}";
+        const r = await fetch('/inventario/imprimir-orden', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ 
+                texto: textoParaImpresora, 
+                tienda_id: tiendaId 
+            })
+        });
+        const data = await r.json();
+
+        if (data.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('modalOrden')).hide();
+            
+            // Alerta flotante de éxito
+            const div = document.createElement('div');
+            div.className = 'alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3 shadow';
+            div.style.zIndex = '9999';
+            div.innerHTML = '<i class="bi bi-check-circle"></i> ' + data.mensaje;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
+        } else {
+            alert('Error al imprimir: ' + data.mensaje);
+        }
     } catch (e) {
-        console.error('Error QZ:', e);
-        alert('Error al imprimir: ' + e.message);
+        alert('Error de conexión: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = txtOriginal;
     }
 }
 </script>
