@@ -23,6 +23,7 @@ class Producto(db.Model):
     def __repr__(self):
         return f'<Producto {self.nombre}>'
 
+
 class ProductoTienda(db.Model):
     __tablename__ = 'producto_tienda'
 
@@ -74,3 +75,16 @@ class ProductoTienda(db.Model):
 
     def __repr__(self):
         return f'<ProductoTienda p={self.producto_id} t={self.tienda_id} stock={self.cantidad}>'
+
+
+class Ensamble(db.Model):
+    __tablename__ = 'ensambles'
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    origen_id = db.Column(db.Integer, db.ForeignKey('productos.id'))
+    cantidad_origen = db.Column(db.Integer) # Cuántas unidades se sacaron
+    destino_id = db.Column(db.Integer, db.ForeignKey('productos.id'))
+    cantidad_destino = db.Column(db.Integer) # Cuántos paquetes se armaron
+
+    def __repr__(self):
+        return f'<Ensamble ori={self.origen_id} dest={self.destino_id}>'

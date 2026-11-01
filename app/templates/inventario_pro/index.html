@@ -40,6 +40,15 @@
     .foto-hoja-vida { width: 110px; height: 110px; background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); flex-shrink: 0; }
     .foto-hoja-vida img { width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
     .drop-zone-hover:hover { border-color: #3b82f6; background-color: #eff6ff !important; }
+
+    .autocomplete-container { position: relative; }
+    .autocomplete-list { position: absolute; z-index: 1050; background: white; width: 100%; max-height: 200px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 0 0 8px 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: none; }
+    .autocomplete-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; }
+    .autocomplete-item:hover, .autocomplete-item.active { background-color: #e0f2fe; font-weight: bold; color: #0284c7; }
+    .stock-badge { font-size: 0.85rem; font-weight: bold; padding: 2px 8px; border-radius: 12px; }
+    .stock-ok { background-color: #dcfce7; color: #166534; }
+    .stock-bajo { background-color: #fef08a; color: #854d0e; }
+    .stock-cero { background-color: #fee2e2; color: #991b1b; }
 </style>
 {% endblock %}
 
@@ -51,9 +60,14 @@
             <input type="text" class="form-control form-control-lg" id="buscador" placeholder="Buscar producto, categoría o código..." autocomplete="off">
             <i class="bi bi-x-circle-fill clear-icon" id="btn-limpiar-busqueda" title="Limpiar búsqueda"></i>
         </div>
-        <button class="btn btn-success btn-lg fw-bold px-4" onclick="abrirModalNuevo()" style="border-radius: 50px;">
-            <i class="bi bi-plus-circle"></i> Nuevo Producto
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-warning btn-lg fw-bold px-4" onclick="abrirModalEnsamble()" style="border-radius: 50px;">
+                <i class="bi bi-box-seam"></i> Armar Paquete
+            </button>
+            <button class="btn btn-success btn-lg fw-bold px-4" onclick="abrirModalNuevo()" style="border-radius: 50px;">
+                <i class="bi bi-plus-circle"></i> Nuevo Producto
+            </button>
+        </div>
     </div>
 
     <div class="row g-3 mb-4">
@@ -65,7 +79,7 @@
     <div class="card border-0 shadow-sm" style="border-radius: 16px;"><div class="card-body p-0"><div id="tabla-inventario"></div></div></div>
 </div>
 
-<!-- MODAL VENTANA GRANDE -->
+<!-- MODAL EDITAR -->
 <div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl" style="max-width: 95%; margin: 2vh auto;">
         <div class="modal-content">
@@ -233,6 +247,7 @@
     var modalEditar = new bootstrap.Modal(document.getElementById('modalEditar'));
     var currentEditId = null;
     var fotoPendiente = null;
+    var listaProductosGlobal = []; 
 
     var table = new Tabulator("#tabla-inventario", {
         height: "60vh",
@@ -288,6 +303,7 @@
     });
 
     table.on("dataLoaded", function(data){
+        listaProductosGlobal = data; 
         aplicarFiltro();
         document.getElementById("kpi-total").innerText = data.length;
         document.getElementById("kpi-sin-stock").innerText = data.filter(p => p.t1_stock === 0).length;
@@ -557,5 +573,378 @@
             preview.innerHTML = '<i class="bi bi-check-circle-fill"></i> Nueva foto lista. Se subirá al guardar.';
         }
     });
+
+    // --- LÓGICA DE ENSAMBLE MEJORADA ---
+    function abrirModalEnsamble() {
+        let modalViejo = document.getElementById('modalEnsamble');
+        if (modalViejo) { modalViejo.remove(); }
+
+        let html = `
+        <div class="modal fade" id="modalEnsamble" tabindex="-1">
+          <div class="modal-dialog modal-xl">
+            <div class="modal-content" style="height: auto;">
+              <div class="modal-header" style="background: #ffc107; color: #000; border-radius: 16px 16px 0 0;">
+                <h5 class="modal-title fw-bold" style="color: #000;"><i class="bi bi-box-seam"></i> Ensamble Múltiple (Desarme)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: invert(1);"></button>
+              </div>
+              <div class="modal-body">
+                
+                <!-- SELECTOR DE TIENDA -->
+                <div class="row mb-4">
+                    <div class="col-md-12 text-center">
+                        <label class="form-label fw-bold text-dark fs-5 mb-2">¿En qué tienda estás haciendo el desarme?</label>
+                        <div class="btn-group w-50" role="group">
+                            <input type="radio" class="btn-check" name="tienda_ensamble" id="t1_ens" value="1" checked>
+                            <label class="btn btn-outline-primary fw-bold p-3" for="t1_ens"><i class="bi bi-shop"></i> Tienda 1 (Central)</label>
+                            
+                            <input type="radio" class="btn-check" name="tienda_ensamble" id="t2_ens" value="2">
+                            <label class="btn btn-outline-success fw-bold p-3" for="t2_ens"><i class="bi bi-shop"></i> Tienda 2 (El Michín Dos)</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- COLUMNA ORIGENES (IZQUIERDA) -->
+                    <div class="col-md-7 border-end">
+                        <div class="card mb-3 border-primary">
+                            <div class="card-header bg-primary text-white fw-bold">
+                                1. ¿Qué cajas abriste? (Orígenes)
+                            </div>
+                            <div class="card-body">
+                                <div id="contenedor-origenes">
+                                    <!-- Fila 1 por defecto -->
+                                    <div class="row mb-2 fila-origen align-items-center">
+                                        <div class="col-6">
+                                            <div class="autocomplete-container">
+                                                <input type="text" class="form-control buscar-origen" placeholder="Buscar sabor..." onkeyup="filtrarListaFila(this, event)" onkeydown="navegarListaFila(this, event)" autocomplete="off">
+                                                <div class="autocomplete-list lista-origen"></div>
+                                                <input type="hidden" class="id-origen">
+                                                <input type="hidden" class="stock-origen">
+                                            </div>
+                                        </div>
+                                        <div class="col-3"><input type="number" class="form-control cajas-origen" value="1" min="1" title="Cajas"></div>
+                                        <div class="col-2"><input type="number" class="form-control factor-origen" value="100" min="1" title="Unidades por caja"></div>
+                                        <div class="col-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-origen"><i class="bi bi-trash"></i></button></div>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-2 fw-bold" onclick="agregarFilaOrigen()"><i class="bi bi-plus-circle"></i> Agregar otro sabor</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COLUMNA DESTINO (DERECHA) -->
+                    <div class="col-md-5">
+                        <div class="card mb-3 border-success">
+                            <div class="card-header bg-success text-white fw-bold">
+                                2. ¿Qué armaste? (Destino)
+                            </div>
+                            <div class="card-body">
+                                <div class="autocomplete-container mb-3">
+                                    <input type="text" id="buscar-destino" class="form-control border-success" placeholder="Escribe para buscar..." onkeyup="filtrarLista('destino', event)" onkeydown="navegarLista('destino', event)" autocomplete="off">
+                                    <div id="lista-destino" class="autocomplete-list"></div>
+                                    <input type="hidden" id="id-destino">
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold">Unidades Totales a Sumar (Automático)</label>
+                                        <input type="number" id="ens-unidades-destino" class="form-control form-control-lg bg-light fw-bold text-primary" value="100" readonly>
+                                        <small class="text-muted">Se calcula multiplicando las cajas x unidades de origen.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+              </div>
+              <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning fw-bold text-dark px-4" onclick="guardarEnsambleMultiple()">Registrar Ensamble</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+        
+        document.body.insertAdjacentHTML('beforeend', html);
+        
+        let modalContainer = document.getElementById('modalEnsamble');
+        
+        // Delegación de eventos para cálculo en vivo
+        modalContainer.addEventListener('input', function(e) {
+            if (e.target.classList.contains('cajas-origen') || e.target.classList.contains('factor-origen')) {
+                actualizarTotalDestino();
+            }
+        });
+
+        // Delegación de eventos para eliminar filas
+        modalContainer.addEventListener('click', function(e) {
+            if (e.target.closest('.btn-eliminar-origen')) {
+                e.target.closest('.fila-origen').remove();
+                actualizarTotalDestino();
+            }
+        });
+
+        setTimeout(actualizarTotalDestino, 100);
+
+        new bootstrap.Modal(document.getElementById('modalEnsamble')).show();
+    }
+
+    function agregarFilaOrigen() {
+        let contenedor = document.getElementById('contenedor-origenes');
+        let nuevaFila = `
+        <div class="row mb-2 fila-origen align-items-center">
+            <div class="col-6">
+                <div class="autocomplete-container">
+                    <input type="text" class="form-control buscar-origen" placeholder="Buscar sabor..." onkeyup="filtrarListaFila(this, event)" onkeydown="navegarListaFila(this, event)" autocomplete="off">
+                    <div class="autocomplete-list lista-origen"></div>
+                    <input type="hidden" class="id-origen">
+                    <input type="hidden" class="stock-origen">
+                </div>
+            </div>
+            <div class="col-3"><input type="number" class="form-control cajas-origen" value="1" min="1" title="Cajas"></div>
+            <div class="col-2"><input type="number" class="form-control factor-origen" value="100" min="1" title="Unidades por caja"></div>
+            <div class="col-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-origen"><i class="bi bi-trash"></i></button></div>
+        </div>`;
+        contenedor.insertAdjacentHTML('beforeend', nuevaFila);
+        actualizarTotalDestino();
+    }
+
+    function actualizarTotalDestino() {
+        let total = 0;
+        let filasVisibles = document.querySelectorAll('#modalEnsamble .fila-origen');
+        filasVisibles.forEach(fila => {
+            let cajas = parseFloat(fila.querySelector('.cajas-origen').value) || 0;
+            let factor = parseFloat(fila.querySelector('.factor-origen').value) || 0;
+            total += (cajas * factor);
+        });
+        let inputDest = document.getElementById('ens-unidades-destino');
+        if (inputDest) inputDest.value = total;
+    }
+
+    // --- BUSCADOR DINÁMICO FILAS (ORIGEN) CON STOCK Y FLECHAS ---
+    function filtrarListaFila(inputElement, event) {
+        if(event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter') return;
+        
+        let contenedor = inputElement.closest('.autocomplete-container');
+        let listaDiv = contenedor.querySelector('.lista-origen');
+        let filtro = inputElement.value.toLowerCase().trim();
+        
+        listaDiv.innerHTML = '';
+        contenedor.querySelector('.id-origen').value = '';
+        contenedor.querySelector('.stock-origen').value = '';
+        inputElement.dataset.index = -1;
+
+        if (filtro.length < 2) { listaDiv.style.display = 'none'; return; }
+
+        let tiendaActual = document.querySelector('input[name="tienda_ensamble"]:checked').value;
+        let stockKey = tiendaActual == '1' ? 't1_stock' : 't2_stock';
+
+        let resultados = listaProductosGlobal.filter(p => p.nombre.toLowerCase().includes(filtro)).slice(0, 50);
+        if (resultados.length === 0) { listaDiv.style.display = 'none'; return; }
+
+        resultados.forEach((prod) => {
+            let stock = prod[stockKey] || 0;
+            let stockClass = stock === 0 ? 'stock-cero' : (stock < 5 ? 'stock-bajo' : 'stock-ok');
+            let stockText = stock === 0 ? 'Agotado' : `Stock: ${stock}`;
+            
+            let div = document.createElement('div');
+            div.className = 'autocomplete-item';
+            div.innerHTML = `<span>${prod.nombre}</span><span class="stock-badge ${stockClass}">${stockText}</span>`;
+            div.onclick = function() { 
+                inputElement.value = prod.nombre;
+                contenedor.querySelector('.id-origen').value = prod.id;
+                contenedor.querySelector('.stock-origen').value = stock;
+                listaDiv.style.display = 'none';
+                inputElement.closest('.fila-origen').querySelector('.cajas-origen').focus();
+            };
+            listaDiv.appendChild(div);
+        });
+        listaDiv.style.display = 'block';
+    }
+
+    function navegarListaFila(inputElement, event) {
+        let contenedor = inputElement.closest('.autocomplete-container');
+        let listaDiv = contenedor.querySelector('.lista-origen');
+        let items = listaDiv.getElementsByClassName('autocomplete-item');
+        if (items.length === 0 || listaDiv.style.display === 'none') return;
+
+        let currentIndex = parseInt(inputElement.dataset.index || -1);
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            currentIndex++;
+            if (currentIndex >= items.length) currentIndex = 0;
+            actualizarSeleccion(items, currentIndex);
+            inputElement.dataset.index = currentIndex;
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            currentIndex--;
+            if (currentIndex < 0) currentIndex = items.length - 1;
+            actualizarSeleccion(items, currentIndex);
+            inputElement.dataset.index = currentIndex;
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            if (currentIndex > -1 && items[currentIndex]) {
+                items[currentIndex].click();
+                inputElement.dataset.index = -1;
+            } else if (items.length > 0) {
+                items[0].click();
+            }
+        }
+    }
+
+    // --- BUSCADOR DESTINO (ÚNICO) CON FLECHAS ---
+    function filtrarLista(tipo, event) {
+        if(event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter') return;
+        let input = document.getElementById(`buscar-${tipo}`);
+        let listaDiv = document.getElementById(`lista-${tipo}`);
+        let filtro = input.value.toLowerCase().trim();
+        
+        listaDiv.innerHTML = '';
+        document.getElementById(`id-${tipo}`).value = '';
+        input.dataset.index = -1;
+
+        if (filtro.length < 2) { listaDiv.style.display = 'none'; return; }
+
+        let resultados = listaProductosGlobal.filter(p => p.nombre.toLowerCase().includes(filtro)).slice(0, 50);
+        if (resultados.length === 0) { listaDiv.style.display = 'none'; return; }
+
+        resultados.forEach((prod) => {
+            let div = document.createElement('div');
+            div.className = 'autocomplete-item';
+            div.innerHTML = `<span>${prod.nombre}</span>`;
+            div.onclick = function() { seleccionarItem(tipo, prod); };
+            listaDiv.appendChild(div);
+        });
+        listaDiv.style.display = 'block';
+    }
+
+    function navegarLista(tipo, event) {
+        let input = document.getElementById(`buscar-${tipo}`);
+        let listaDiv = document.getElementById(`lista-${tipo}`);
+        let items = listaDiv.getElementsByClassName('autocomplete-item');
+        if (items.length === 0 || listaDiv.style.display === 'none') return;
+
+        let currentIndex = parseInt(input.dataset.index || -1);
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            currentIndex++;
+            if (currentIndex >= items.length) currentIndex = 0;
+            actualizarSeleccion(items, currentIndex);
+            input.dataset.index = currentIndex;
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            currentIndex--;
+            if (currentIndex < 0) currentIndex = items.length - 1;
+            actualizarSeleccion(items, currentIndex);
+            input.dataset.index = currentIndex;
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            if (currentIndex > -1 && items[currentIndex]) {
+                items[currentIndex].click();
+                input.dataset.index = -1;
+            } else if (items.length > 0) {
+                items[0].click();
+            }
+        }
+    }
+
+    function actualizarSeleccion(items, index) {
+        for (let i = 0; i < items.length; i++) items[i].classList.remove('active');
+        if (items[index]) { 
+            items[index].classList.add('active'); 
+            items[index].scrollIntoView({ block: "nearest" }); 
+        }
+    }
+
+    function seleccionarItem(tipo, prod) {
+        let input = document.getElementById(`buscar-${tipo}`);
+        input.value = prod.nombre;
+        document.getElementById(`id-${tipo}`).value = prod.id;
+        document.getElementById(`lista-${tipo}`).style.display = 'none';
+        input.dataset.index = -1;
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.autocomplete-container')) {
+            document.querySelectorAll('.autocomplete-list').forEach(el => el.style.display = 'none');
+        }
+    });
+
+    function guardarEnsambleMultiple() {
+        let tienda_id = document.querySelector('input[name="tienda_ensamble"]:checked').value;
+        let destino_id = document.getElementById('id-destino').value;
+        
+        if (!destino_id) {
+            Swal.fire('Error', 'Debes seleccionar el producto de Destino.', 'error');
+            return;
+        }
+
+        let origenes = [];
+        let filas = document.querySelectorAll('#modalEnsamble .fila-origen');
+        let errorValidacion = false;
+        let errorStock = false;
+
+        filas.forEach(fila => {
+            let o_id = fila.querySelector('.id-origen').value;
+            let stock = parseInt(fila.querySelector('.stock-origen').value) || 0;
+            let cajas = parseInt(fila.querySelector('.cajas-origen').value) || 0;
+            let factor = parseInt(fila.querySelector('.factor-origen').value) || 0;
+            
+            if (o_id && cajas && factor) {
+                if (stock < cajas) {
+                    errorStock = true;
+                }
+                origenes.push({ id: o_id, cajas: cajas, factor: factor });
+            } else if (fila.querySelector('.buscar-origen').value !== '') {
+                errorValidacion = true; 
+            }
+        });
+
+        if (errorValidacion) {
+            Swal.fire('Error', 'Asegúrate de seleccionar productos válidos de la lista en todos los orígenes.', 'error');
+            return;
+        }
+
+        if (errorStock) {
+            Swal.fire('¡Alto!', 'No puedes armar paquetes. Hay productos de origen con stock insuficiente (marcados en rojo).', 'error');
+            return;
+        }
+
+        if (origenes.length === 0) {
+            Swal.fire('Error', 'Debes agregar al menos un producto de Origen.', 'error');
+            return;
+        }
+
+        let datos = {
+            tienda_id: tienda_id,
+            destino_id: destino_id,
+            origenes: origenes
+        };
+
+        fetch('/inventario-pro/api/ensamble', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(datos)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                let modalElement = document.getElementById('modalEnsamble');
+                let modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) modal.hide(); 
+
+                setTimeout(() => {
+                    if(modalElement) modalElement.remove();
+                    Swal.fire('¡Ensamble Exitoso!', data.message, 'success');
+                    table.setData("/inventario-pro/api/data");
+                }, 300);
+            } else {
+                Swal.fire('Error', data.message, 'error');
+            }
+        });
+    }
 </script>
 {% endblock %}

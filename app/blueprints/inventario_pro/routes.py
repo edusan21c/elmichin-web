@@ -51,7 +51,6 @@ def get_data():
         t1 = p.get_presentacion(1)
         t2 = p.get_presentacion(2)
         
-        # Calculamos el Costo promedio al vuelo (no se guarda en DB)
         t1_costo_promedio = (float(t1.precio_proveedor or 0) + float(t1.precio_proveedor2 or 0) + float(t1.precio_proveedor3 or 0)) / 3 if t1 else 0
         t2_costo_promedio = (float(t2.precio_proveedor or 0) + float(t2.precio_proveedor2 or 0) + float(t2.precio_proveedor3 or 0)) / 3 if t2 else 0
 
@@ -59,35 +58,23 @@ def get_data():
             'id': p.id, 'nombre': p.nombre, 'categoria': p.categoria or '',
             'codigo_barras': p.codigo_barras or '', 'imagen': p.imagen or '',
             
-            # TIENDA 1
-            't1_stock': t1.cantidad if t1 else 0, 
-            't1_costo': t1_costo_promedio,
-            't1_gan': float(t1.porcentaje) if t1 else 0, 
-            't1_base': float(t1.precio_venta) if t1 else 0,
-            't1_c1': t1.condicion1 if t1 else '', 
-            't1_p1': float(t1.precio_venta1) if t1 else 0,
-            't1_c2': t1.condicion2 if t1 else '', 
-            't1_p2': float(t1.precio_venta2) if t1 else 0,
+            't1_stock': t1.cantidad if t1 else 0, 't1_costo': t1_costo_promedio,
+            't1_gan': float(t1.porcentaje) if t1 else 0, 't1_base': float(t1.precio_venta) if t1 else 0,
+            't1_c1': t1.condicion1 if t1 else '', 't1_p1': float(t1.precio_venta1) if t1 else 0,
+            't1_c2': t1.condicion2 if t1 else '', 't1_p2': float(t1.precio_venta2) if t1 else 0,
             't1_prov1': float(t1.precio_proveedor) if t1 else 0,
             't1_prov2': float(t1.precio_proveedor2) if t1 else 0,
             't1_prov3': float(t1.precio_proveedor3) if t1 else 0,
-            't1_min': t1.stock_minimo if t1 else 5, 
-            't1_max': t1.stock_maximo if t1 else 20,
+            't1_min': t1.stock_minimo if t1 else 5, 't1_max': t1.stock_maximo if t1 else 20,
             
-            # TIENDA 2
-            't2_stock': t2.cantidad if t2 else 0, 
-            't2_costo': t2_costo_promedio,
-            't2_gan': float(t2.porcentaje) if t2 else 0, 
-            't2_base': float(t2.precio_venta) if t2 else 0,
-            't2_c1': t2.condicion1 if t2 else '', 
-            't2_p1': float(t2.precio_venta1) if t2 else 0,
-            't2_c2': t2.condicion2 if t2 else '', 
-            't2_p2': float(t2.precio_venta2) if t2 else 0,
+            't2_stock': t2.cantidad if t2 else 0, 't2_costo': t2_costo_promedio,
+            't2_gan': float(t2.porcentaje) if t2 else 0, 't2_base': float(t2.precio_venta) if t2 else 0,
+            't2_c1': t2.condicion1 if t2 else '', 't2_p1': float(t2.precio_venta1) if t2 else 0,
+            't2_c2': t2.condicion2 if t2 else '', 't2_p2': float(t2.precio_venta2) if t2 else 0,
             't2_prov1': float(t2.precio_proveedor) if t2 else 0,
             't2_prov2': float(t2.precio_proveedor2) if t2 else 0,
             't2_prov3': float(t2.precio_proveedor3) if t2 else 0,
-            't2_min': t2.stock_minimo if t2 else 5, 
-            't2_max': t2.stock_maximo if t2 else 20,
+            't2_min': t2.stock_minimo if t2 else 5, 't2_max': t2.stock_maximo if t2 else 20,
         }
         data.append(fila)
     return jsonify(data)
@@ -153,12 +140,9 @@ def save_data():
                     db.session.add(pres)
                 
                 pres.cantidad = safe_int(fila.get(f'{prefix}_stock'))
-                
-                # Guardamos los 3 proveedores en las 3 columnas existentes
                 pres.precio_proveedor = safe_dec(fila.get(f'{prefix}_pv1'))
                 pres.precio_proveedor2 = safe_dec(fila.get(f'{prefix}_pv2'))
                 pres.precio_proveedor3 = safe_dec(fila.get(f'{prefix}_pv3'))
-                
                 pres.porcentaje = safe_dec(fila.get(f'{prefix}_gan'))
                 pres.precio_venta = safe_dec(fila.get(f'{prefix}_base'))
                 pres.condicion1 = str(fila.get(f'{prefix}_c1', ''))
@@ -268,3 +252,46 @@ def upload_foto():
         return jsonify({"status": "ok", "message": "Foto guardada. Se enviará a las tiendas en breve.", "imagen_final": nombre_webp})
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error al procesar la foto: {str(e)}"}), 500
+
+@bp.route('/api/ensamble', methods=['POST'])
+@login_required
+def api_ensamble():
+    if not current_user.es_programador() or not verificar_central():
+        return jsonify({"status": "error", "message": "No tienes permiso."}), 403
+
+    data = request.json
+    try:
+        tienda_id = int(data.get('tienda_id')) # <-- NUEVO: Recibimos la tienda
+        destino_id = int(data.get('destino_id'))
+        origenes = data.get('origenes', [])
+
+        if not origenes:
+            return jsonify({"status": "error", "message": "Debes agregar al menos un producto de origen."}), 400
+
+        total_unidades_extraidas = 0
+
+        # 1. Procesar Origenes (Restar cajas SOLO en la tienda seleccionada)
+        for ori in origenes:
+            o_id = int(ori.get('id'))
+            cajas = int(ori.get('cajas'))
+            factor = int(ori.get('factor'))
+            total_unidades_extraidas += (cajas * factor)
+
+            pt = ProductoTienda.query.filter_by(producto_id=o_id, tienda_id=tienda_id).first()
+            if pt:
+                if pt.cantidad < cajas:
+                    return jsonify({"status": "error", "message": f"Stock insuficiente. Tienes {pt.cantidad} cajas y quieres abrir {cajas}."}), 400
+                pt.cantidad -= cajas
+                pt.sync_estado = 'pendiente'
+
+        # 2. Procesar Destino (Sumar Unidades SOLO en la tienda seleccionada)
+        pt_dest = ProductoTienda.query.filter_by(producto_id=destino_id, tienda_id=tienda_id).first()
+        if pt_dest:
+            pt_dest.cantidad += total_unidades_extraidas
+            pt_dest.sync_estado = 'pendiente'
+
+        db.session.commit()
+        return jsonify({"status": "success", "message": f"Se restaron las cajas y se sumaron {total_unidades_extraidas} unidades a la Tienda {tienda_id}."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
