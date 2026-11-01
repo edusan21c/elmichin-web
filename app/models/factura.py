@@ -45,6 +45,9 @@ class Factura(db.Model):
     # True si al menos un producto se vendió con precio manual (factura informal)
     precio_manual = db.Column(db.Boolean, default=False, index=True)
 
+    # True si la factura fue anulada (devuelve stock y borra deuda)
+    anulada = db.Column(db.Boolean, default=False, index=True)
+
     # Relaciones
     tienda = db.relationship('Tienda', back_populates='facturas')
     cliente = db.relationship('Cliente', back_populates='facturas')

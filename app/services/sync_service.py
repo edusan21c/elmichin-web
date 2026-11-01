@@ -67,6 +67,7 @@ def _factura_to_dict(f):
         'saldo_pendiente': float(f.saldo_pendiente or 0),
         'origen': getattr(f, 'origen', 'local'),
         'precio_manual': bool(getattr(f, 'precio_manual', False)),
+        'anulada': bool(getattr(f, 'anulada', False)),
         'detalles': [_detalle_to_dict(d) for d in f.detalles],
     }
 
@@ -835,6 +836,7 @@ def obtener_facturas_para_tienda(tienda_id, desde=None):
             'estado_credito': f.estado_credito or 'pagado',
             'saldo_pendiente': float(f.saldo_pendiente or 0),
             'precio_manual': bool(getattr(f, 'precio_manual', False)),
+        'anulada': bool(getattr(f, 'anulada', False)),
             'detalles': detalles,
         })
     return resultado
@@ -863,6 +865,28 @@ def aplicar_facturas_recibidas(tienda_id, facturas):
             tienda_id=tienda_id, numero_factura=numero
         ).first()
         if existente:
+            # --- LOGICA DE ANULACION REMOTA ---
+            if f_data.get('anulada') and not getattr(existente, 'anulada', False):
+                existente.anulada = True
+                
+                # 1. Devolver el inventario a la tienda
+                from app.models.producto import ProductoTienda
+                for d in existente.detalles:
+                    pt = ProductoTienda.query.filter_by(producto_id=d.producto_id, tienda_id=tienda_id).first()
+                    if pt:
+                        pt.cantidad += d.cantidad
+                
+                # 2. Borrar la deuda del cliente local
+                if existente.cliente and existente.metodo_pago == 'credito':
+                    existente.cliente.saldo_actual -= existente.saldo_pendiente
+                    if existente.cliente.saldo_actual < 0:
+                        existente.cliente.saldo_actual = 0
+                        
+                existente.saldo_pendiente = 0
+                existente.estado_credito = 'anulado'
+                print(f"Factura {numero} anulada remotamente y stock devuelto.")
+            # -----------------------------------
+            
             omitidas += 1
             continue
 

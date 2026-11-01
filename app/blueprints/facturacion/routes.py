@@ -261,3 +261,42 @@ def imagen_hd(producto_id):
         return send_from_directory(static_dir, filename)
 
     return "Imagen no encontrada", 404
+
+# ==================== ANULAR FACTURA ====================
+@bp.route('/<int:factura_id>/anular', methods=['POST'])
+@login_required
+def anular_factura(factura_id):
+    if not (current_user.es_programador() or current_user.es_admin()):
+        return jsonify({'ok': False, 'error': 'No tienes permiso para anular facturas.'}), 403
+
+    factura = Factura.query.get_or_404(factura_id)
+    
+    if factura.anulada:
+        return jsonify({'ok': False, 'error': 'Esta factura ya está anulada.'}), 400
+
+    try:
+        # 1. Devolver el inventario
+        for detalle in factura.detalles:
+            pt = ProductoTienda.query.filter_by(producto_id=detalle.producto_id, tienda_id=factura.tienda_id).first()
+            if pt:
+                pt.cantidad += detalle.cantidad
+                pt.sync_estado = 'pendiente'
+
+        # 2. Borrar la deuda del cliente (si era a crédito)
+        if factura.cliente and factura.metodo_pago == 'credito':
+            factura.cliente.saldo_actual -= factura.saldo_pendiente
+            if factura.cliente.saldo_actual < 0:
+                factura.cliente.saldo_actual = 0
+
+        # 3. Marcar la factura como anulada y pendiente de sync
+        factura.anulada = True
+        factura.saldo_pendiente = 0
+        factura.estado_credito = 'anulado'
+        factura.sync_estado = 'pendiente'
+
+        db.session.commit()
+        return jsonify({'ok': True, 'message': 'Factura anulada e inventario devuelto correctamente.'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': f'Error al anular: {str(e)}'}), 500

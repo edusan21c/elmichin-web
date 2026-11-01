@@ -6,6 +6,14 @@
     <div class="col-md-8 col-lg-6">
         <div class="card shadow" id="ticket-print-area">
             <div class="card-body text-center">
+                
+                {% if factura.anulada %}
+                <div class="alert alert-danger border-danger border-3 text-center mb-3">
+                    <h2 class="fw-bold mb-0 text-danger"><i class="bi bi-x-circle"></i> ANULADA</h2>
+                    <p class="mb-0 small text-danger">Esta factura fue anulada. El inventario ha sido devuelto.</p>
+                </div>
+                {% endif %}
+
                 <div class="fs-1">🐱</div>
                 <h4 class="fw-bold mb-0">EL MICHÍN DULCERÍA</h4>
                 <p class="text-muted small mb-3">{{ factura.tienda.nombre }}</p>
@@ -73,6 +81,15 @@
                     <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-printer"></i> Imprimir con Ctrl+P
                     </button>
+
+                    {% if current_user.es_programador() or current_user.es_admin() %}
+                        {% if not factura.anulada %}
+                        <button type="button" id="btn-anular" class="btn btn-outline-danger btn-lg mt-2"
+                                data-factura-id="{{ factura.id }}">
+                            <i class="bi bi-trash"></i> ANULAR FACTURA
+                        </button>
+                        {% endif %}
+                    {% endif %}
                 </div>
 
                 <div id="resultado-impresion" class="mt-3 d-print-none"></div>
@@ -133,48 +150,70 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('btn-imprimir');
+    const btnImprimir = document.getElementById('btn-imprimir');
+    const btnAnular = document.getElementById('btn-anular');
     const resultado = document.getElementById('resultado-impresion');
-    if (!btn) return;
     
-    const facturaId = btn.dataset.facturaId;
+    // Lógica de Impresión
+    if (btnImprimir) {
+        const facturaId = btnImprimir.dataset.facturaId;
+        btnImprimir.addEventListener('click', async () => {
+            btnImprimir.disabled = true;
+            btnImprimir.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Imprimiendo...';
+            resultado.innerHTML = '';
 
-    btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Imprimiendo...';
-        resultado.innerHTML = '';
+            try {
+                const r = await fetch(`/api/ticket/${facturaId}/imprimir`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+                });
+                const data = await r.json();
 
-        try {
-            const r = await fetch(`/api/ticket/${facturaId}/imprimir`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token() }}',
-                },
-            });
-            const data = await r.json();
-
-            if (data.ok) {
-                resultado.innerHTML = `
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle"></i> ${data.mensaje}
-                        <br><small>${data.bytes_enviados} bytes enviados</small>
-                    </div>`;
-            } else {
-                resultado.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="bi bi-x-circle"></i> ${data.mensaje}
-                    </div>`;
+                if (data.ok) {
+                    resultado.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${data.mensaje}<br><small>${data.bytes_enviados} bytes enviados</small></div>`;
+                } else {
+                    resultado.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.mensaje}</div>`;
+                }
+            } catch (e) {
+                resultado.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error de conexion: ${e.message}</div>`;
+            } finally {
+                btnImprimir.disabled = false;
+                btnImprimir.innerHTML = '<i class="bi bi-printer-fill"></i> Imprimir en térmica';
             }
-        } catch (e) {
-            resultado.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-x-circle"></i> Error de conexion: ${e.message}
-                </div>`;
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-printer-fill"></i> Imprimir en térmica';
-        }
-    });
+        });
+    }
+
+    // Lógica de Anulación
+    if (btnAnular) {
+        const facturaId = btnAnular.dataset.facturaId;
+        btnAnular.addEventListener('click', async () => {
+            if (!confirm('¿Estás SEGURO de anular esta factura? Se devolverá el inventario y se borrará la deuda del cliente.')) return;
+            
+            btnAnular.disabled = true;
+            btnAnular.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Anulando...';
+
+            try {
+                const res = await fetch(`/facturacion/${facturaId}/anular`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    alert('Factura anulada con éxito. El inventario ha sido devuelto.');
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                    btnAnular.disabled = false;
+                    btnAnular.innerHTML = '<i class="bi bi-trash"></i> ANULAR FACTURA';
+                }
+            } catch (e) {
+                alert('Error de conexión.');
+                btnAnular.disabled = false;
+                btnAnular.innerHTML = '<i class="bi bi-trash"></i> ANULAR FACTURA';
+            }
+        });
+    }
 });
 </script>
 {% endblock %}
