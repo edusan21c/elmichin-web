@@ -45,7 +45,7 @@ def generar_ticket_escpos(factura, detalles, cliente, tienda, config, config_tie
     Genera los bytes ESC/POS del ticket.
     Retorna bytes listos para enviar por socket o USB.
     """
-    W = 42  # Ancho de caracteres por linea
+    W = 48  # Ancho de caracteres por linea (Ajustado para 80mm)
     partes = []
 
     # Inicializar
@@ -97,9 +97,23 @@ def generar_ticket_escpos(factura, detalles, cliente, tienda, config, config_tie
     partes.append(_texto('-' * W))
     partes.append(b'\n')
 
-    # Cabecera productos (con negrita)
+    # ==================== AVISO DE ANULADA ====================
+    if getattr(factura, 'anulada', False):
+        partes.append(ALIGN_CENTER)
+        partes.append(BOLD_ON)
+        partes.append(SIZE_DOUBLE)
+        partes.append(_texto('*** ANULADA ***'))
+        partes.append(b'\n')
+        partes.append(SIZE_NORMAL)
+        partes.append(BOLD_OFF)
+        partes.append(ALIGN_LEFT)
+        partes.append(_texto('-' * W))
+        partes.append(b'\n')
+    # ==========================================================
+
+    # Cabecera productos (con negrita) - Ajustado a ancho 48
     partes.append(BOLD_ON)
-    partes.append(_texto(f'{"Producto":<20} {"Cant":>4} {"P.Unit":>8} {"Total":>8}'))
+    partes.append(_texto(f'{"Producto":<24} {"Cant":>4} {"P.Unit":>8} {"Total":>9}'))
     partes.append(b'\n')
     partes.append(BOLD_OFF)
     partes.append(_texto('-' * W))
@@ -107,11 +121,11 @@ def generar_ticket_escpos(factura, detalles, cliente, tienda, config, config_tie
 
     # Detalles
     for d in detalles:
-        nombre = d.producto_nombre[:20]
+        nombre = d.producto_nombre[:24]
         cant = str(d.cantidad)
         pu = f'{float(d.precio_unitario or 0):,.0f}'
         sub = f'{float(d.subtotal or 0):,.0f}'
-        partes.append(_texto(f'{nombre:<20} {cant:>4} {pu:>8} {sub:>8}'))
+        partes.append(_texto(f'{nombre:<24} {cant:>4} {pu:>8} {sub:>9}'))
         partes.append(b'\n')
 
     partes.append(_texto('-' * W))

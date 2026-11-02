@@ -16,7 +16,7 @@ from app.blueprints.configuracion.routes import get_valor
 from app.services.facturacion_service import (
     crear_factura_completa, obtener_o_crear_cliente
 )
-from app.services import sync_service  # <-- IMPORTANTE: Importamos el servicio de sync
+from app.services import sync_service
 import os
 import re
 
@@ -348,7 +348,7 @@ def anular_factura(factura_id):
         factura.saldo_pendiente = 0
         factura.estado_credito = 'anulado'
         factura.sync_estado = 'pendiente'
-        factura.sync_anulacion_pendiente = True  # <--- AGREGAR ESTA LÍNEA
+        factura.sync_anulacion_pendiente = True
 
         db.session.commit()
 
@@ -356,9 +356,9 @@ def anular_factura(factura_id):
         try:
             # Esto envía la factura anulada a la nube al instante
             sync_service.push_factura_individual(factura.tienda_id, factura.id)
-            print(f"✅ Factura {factura.numero_factura} anulada y enviada a la nube al instante.")
+            print(f"Factura {factura.numero_factura} anulada y enviada a la nube.")
         except Exception as e:
-            print(f"⚠️ Aviso: La factura se anuló localmente, pero falló el envío inmediato a la nube: {e}")
+            print(f"Aviso: Fallo el envio inmediato a la nube: {e}")
         # ---------------------------------------------------
 
         return jsonify({'ok': True, 'message': 'Factura anulada e inventario devuelto correctamente.'})
