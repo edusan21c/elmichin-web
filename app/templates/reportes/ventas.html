@@ -61,7 +61,7 @@
     <div class="col-md-4">
         <div class="card border-info">
             <div class="card-body">
-                <div class="text-muted small">🧾 Facturas</div>
+                <div class="text-muted small">🧾 Facturas válidas</div>
                 <div class="fs-3 fw-bold text-info">{{ num_facturas }}</div>
             </div>
         </div>
@@ -93,24 +93,34 @@
             </thead>
             <tbody>
                 {% for f in facturas %}
-                <tr>
+                <tr class="{% if f.anulada %}table-danger opacity-75{% endif %}">
                     <td class="fw-semibold">
                         {{ f.numero_factura }}
+                        
                         {% if f.origen == 'remota_recibida' %}
                             <span class="badge bg-info text-dark ms-1" title="Pedido hecho desde central">📥 Remota</span>
                         {% endif %}
+                        
                         {% if f.precio_manual %}
                             <span class="badge bg-warning text-dark ms-1" title="Incluye productos con precio editado">✏️ Precio manual</span>
+                        {% endif %}
+
+                        {% if f.anulada %}
+                            <span class="badge bg-danger ms-1" title="Factura anulada"><i class="bi bi-x-circle"></i> Anulada</span>
                         {% endif %}
                     </td>
                     <td class="text-muted small">{{ f.fecha_hora | fecha_local }}</td>
                     <td>{{ f.cliente.nombre }}</td>
-                    <td class="text-end fw-semibold">${{ "{:,.0f}".format(f.total) }}</td>
+                    <td class="text-end fw-semibold {% if f.anulada %}text-decoration-line-through text-muted{% endif %}">
+                        ${{ "{:,.0f}".format(f.total) }}
+                    </td>
                     <td class="text-center">
                         <span class="badge bg-secondary">{{ f.metodo_pago }}</span>
                     </td>
                     <td class="text-center">
-                        {% if f.estado_credito == 'pendiente' %}
+                        {% if f.anulada %}
+                            <span class="badge bg-danger">Anulada</span>
+                        {% elif f.estado_credito == 'pendiente' %}
                             <span class="badge bg-warning text-dark">Pendiente</span>
                         {% else %}
                             <span class="badge bg-success">Pagado</span>

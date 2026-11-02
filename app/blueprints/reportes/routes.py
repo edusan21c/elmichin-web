@@ -81,13 +81,16 @@ def ventas():
 
     facturas = query.order_by(Factura.fecha_hora.desc()).limit(500).all()
 
+    # Sumamos el total ignorando las facturas anuladas
     total_periodo = db.session.query(func.coalesce(func.sum(Factura.total), 0)).filter(
         Factura.tienda_id == tienda_id,
+        Factura.anulada == False,
         Factura.fecha_hora >= desde,
         Factura.fecha_hora < hasta
     ).scalar() or 0
 
-    num_facturas = len(facturas)
+    # Contamos solo las facturas válidas para el ticket promedio
+    num_facturas = query.filter(Factura.anulada == False).count()
     ticket_promedio = float(total_periodo) / num_facturas if num_facturas > 0 else 0
 
     return render_template(
@@ -161,7 +164,8 @@ def api_facturas_pendientes(cliente_id):
     facturas = (Factura.query
                 .filter_by(cliente_id=cliente_id)
                 .filter(Factura.estado_credito == 'pendiente',
-                        Factura.saldo_pendiente > 0.01)
+                        Factura.saldo_pendiente > 0.01,
+                        Factura.anulada == False)
                 .order_by(Factura.fecha_hora.asc())
                 .all())
 
@@ -190,8 +194,8 @@ def registrar_abono():
         return redirect(url_for('reportes.cuentas_por_cobrar'))
 
     factura = Factura.query.get_or_404(factura_id)
-    if factura.estado_credito != 'pendiente' or factura.saldo_pendiente <= 0:
-        flash('Esta factura no tiene saldo pendiente', 'warning')
+    if factura.estado_credito != 'pendiente' or factura.saldo_pendiente <= 0 or factura.anulada:
+        flash('Esta factura no tiene saldo pendiente o se encuentra anulada.', 'warning')
         return redirect(url_for('reportes.cuentas_por_cobrar'))
 
     saldo_actual = float(factura.saldo_pendiente)
@@ -320,6 +324,7 @@ def api_clientes_stats():
         .join(Factura, Factura.cliente_id == Cliente.id)
         .filter(
             Factura.tienda_id == tienda_id,
+            Factura.anulada == False,
             Factura.fecha_hora >= desde,
             Factura.fecha_hora < hasta,
         )
@@ -346,6 +351,7 @@ def api_clientes_stats():
                 Factura.cliente_id == c.id,
                 Factura.estado_credito == 'pendiente',
                 Factura.saldo_pendiente > 0.01,
+                Factura.anulada == False,
             )
             .order_by(Factura.fecha_hora.asc())
             .first()
@@ -373,6 +379,7 @@ def api_clientes_stats():
         .join(Factura, Factura.cliente_id == Cliente.id)
         .filter(
             Factura.tienda_id == tienda_id,
+            Factura.anulada == False,
             Factura.fecha_hora >= desde,
             Factura.fecha_hora < hasta,
             Factura.tipo_pago == 'credito',
@@ -450,6 +457,7 @@ def ventas_producto():
         Factura, Factura.id == DetalleFactura.factura_id
     ).filter(
         Factura.tienda_id == tienda_id,
+        Factura.anulada == False,
         Factura.fecha_hora >= desde,
         Factura.fecha_hora < hasta
     )
@@ -472,6 +480,8 @@ def ventas_producto():
         hasta=hasta_str,
         q=q,
     )
+
+
 # ==================== DETALLE DE VENTAS POR PRODUCTO ====================
 @bp.route('/ventas-producto-detalle')
 @login_required
@@ -505,6 +515,7 @@ def ventas_producto_detalle():
         DetalleFactura, Factura.id == DetalleFactura.factura_id
     ).filter(
         Factura.tienda_id == tienda_id,
+        Factura.anulada == False,
         Factura.fecha_hora >= desde,
         Factura.fecha_hora < hasta,
         DetalleFactura.producto_nombre == producto
