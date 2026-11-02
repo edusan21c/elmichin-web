@@ -68,23 +68,20 @@ def api_productos():
     q_lower = q.lower()
     empieza_con_numero = q[0].isdigit() if q else False
 
-    # FILTRO DE INACTIVOS Y OCULTAR FAMILIAS (*) APLICADO EN TODAS LAS BUSQUEDAS
+    # FILTRO SQL DE INACTIVOS
     if empieza_con_numero:
         productos = (Producto.query
                      .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
-                     .filter(Producto.nombre.notilike('%*%'))
                      .filter(Producto.codigo_barras.ilike(f'%{q}%'))
                      .order_by(Producto.nombre).limit(20).all())
         if not productos:
             productos = (Producto.query
                          .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
-                         .filter(Producto.nombre.notilike('%*%'))
                          .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
                          .order_by(Producto.nombre).limit(20).all())
     else:
         productos = (Producto.query
                      .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
-                     .filter(Producto.nombre.notilike('%*%'))
                      .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
                      .limit(50).all())
         if productos:
@@ -98,15 +95,19 @@ def api_productos():
         else:
             productos = (Producto.query
                          .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
-                         .filter(Producto.nombre.notilike('%*%'))
                          .filter(Producto.codigo_barras.ilike(f'%{q}%'))
                          .order_by(Producto.nombre).limit(20).all())
 
     resultados = []
     for p in productos:
+        # FILTRO A PRUEBA DE BALAS: Ocultar familias (productos con asterisco)
+        if '*' in (p.nombre or ''):
+            continue
+
         pres = ProductoTienda.query.filter_by(producto_id=p.id, tienda_id=tienda_id).first()
         if not pres or pres.cantidad <= 0:
             continue
+            
         resultados.append({
             'id': p.id, 'nombre': p.nombre, 'codigo': p.codigo_barras or '', 'imagen': p.imagen or '',
             'stock': pres.cantidad, 'precio': float(pres.precio_venta or 0),
