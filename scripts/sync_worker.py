@@ -131,7 +131,7 @@ def hay_internet(url):
         return False
 
 
-# ==================== FUNCION DE AUTO-REPARACION ====================
+# ==================== FUNCIONES DE AUTO-REPARACION ====================
 def reparar_fotos_locales(app):
     """Escanea la carpeta de fotos y las vincula a los productos (Ignora el sufijo _v)."""
     from app.models.producto import Producto
@@ -161,6 +161,61 @@ def reparar_fotos_locales(app):
         except Exception as e:
             log(f'  [Auto-Fix Fotos] Error: {e}')
             db.session.rollback()
+
+
+def reparar_productos_huerfanos(app, tienda_id):
+    """Busca productos en el catalogo global que no tengan registro en las tiendas y los crea."""
+    from app.models.producto import Producto, ProductoTienda
+    from app.models.tienda import Tienda
+    from flask import current_app
+
+    with app.app_context():
+        try:
+            # Si estamos en la Central, revisamos TODAS las tiendas activas.
+            # Si estamos en una tienda, solo revisamos esa tienda.
+            if current_app.config.get('MODO') == 'central':
+                tiendas = Tienda.query.filter_by(activa=True).all()
+            else:
+                t = Tienda.query.get(tienda_id)
+                tiendas = [t] if t else []
+
+            total_creados = 0
+            # Obtenemos todos los productos activos de la tabla global
+            prods_global = Producto.query.filter(db.func.coalesce(Producto.categoria, '') != 'INACTIVO').all()
+
+            for t in tiendas:
+                if not t: continue
+                t_id = t.id
+                # IDs que la tienda ya tiene
+                ids_tienda = {pt.producto_id for pt in ProductoTienda.query.filter_by(tienda_id=t_id).all()}
+                # Productos que faltan en esta tienda
+                faltantes = [p for p in prods_global if p.id not in ids_tienda]
+                
+                for p in faltantes:
+                    pt = ProductoTienda(
+                        producto_id=p.id,
+                        tienda_id=t_id,
+                        cantidad=0,
+                        precio_venta=Decimal('0.00'),
+                        precio_venta1=Decimal('0.00'),
+                        precio_venta2=Decimal('0.00'),
+                        precio_venta3=Decimal('0.00'),
+                        precio_proveedor=Decimal('0.00'),
+                        precio_proveedor2=Decimal('0.00'),
+                        precio_proveedor3=Decimal('0.00'),
+                        sync_estado='pendiente'
+                    )
+                    db.session.add(pt)
+                    total_creados += 1
+            
+            if total_creados > 0:
+                db.session.commit()
+                log(f'  [Auto-Fix Productos] Se crearon {total_creados} registros faltantes en las tiendas.')
+            return total_creados
+        except Exception as e:
+            log(f'  [Auto-Fix Productos] Error: {e}')
+            db.session.rollback()
+            return 0
 
 
 def detectar_fantasmas(app, tienda_id):
@@ -300,7 +355,7 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 requests.post(central_url.rstrip('/') + '/api/sync/marcar-pagos-enviados', json={'tienda_id': tienda_id, 'ids_pagos': ids_ok}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
         except requests.RequestException: hubo_error_pull = True
 
-        # ==================== PULL ANULACIONES (v10.3) ====================
+        # PULL ANULACIONES (v10.3)
         try:
             r = requests.get(
                 central_url.rstrip('/') + '/api/sync/pull-anulaciones',
@@ -321,7 +376,6 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                     log(f'  PULL anulaciones: {len(ids_aplicados)} aplicadas')
         except requests.RequestException:
             hubo_error_pull = True
-        # ====================================================================
 
         if hubo_error_pull: registrar_falla('pull', 'Error en pull')
         else: registrar_exito('pull')
@@ -364,6 +418,9 @@ def main():
 
     log('--- AUTO-REPARACION DE FOTOS ---')
     reparar_fotos_locales(app)
+
+    log('--- AUTO-REPARACION DE PRODUCTOS HUERFANOS ---')
+    reparar_productos_huerfanos(app, tienda_id)
 
     # 🚨 GIT PULL BLINDADO
     log('--- GIT PULL (sincronizacion forzada) ---')
