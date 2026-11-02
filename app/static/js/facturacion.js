@@ -360,6 +360,13 @@
         if (prod.stock <= 0) {
             alert('Producto sin stock');
             return;
+        
+        // SI EL PRODUCTO TIENE ASTERISCO (*), ABRE EL MODAL DE SABORES
+        if (prod.nombre.includes('*')) {
+            productoBaseActual = prod;
+            await abrirModalSabores(prod.id);
+            return;
+        }
         }
 
         procesandoProducto = true;
