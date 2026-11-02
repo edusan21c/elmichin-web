@@ -300,6 +300,29 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
                 requests.post(central_url.rstrip('/') + '/api/sync/marcar-pagos-enviados', json={'tienda_id': tienda_id, 'ids_pagos': ids_ok}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
         except requests.RequestException: hubo_error_pull = True
 
+        # ==================== PULL ANULACIONES (v10.3) ====================
+        try:
+            r = requests.get(
+                central_url.rstrip('/') + '/api/sync/pull-anulaciones',
+                params={'tienda_id': tienda_id},
+                headers={'X-Sync-Key': sync_key},
+                timeout=TIMEOUT_REQUEST,
+            )
+            if r.status_code == 200 and r.json().get('anulaciones'):
+                anulaciones = r.json()['anulaciones']
+                ids_aplicados = sync_service.aplicar_anulaciones_recibidas(tienda_id, anulaciones)
+                if ids_aplicados:
+                    requests.post(
+                        central_url.rstrip('/') + '/api/sync/marcar-anulaciones-recibidas',
+                        json={'ids': ids_aplicados},
+                        headers={'X-Sync-Key': sync_key},
+                        timeout=TIMEOUT_REQUEST,
+                    )
+                    log(f'  PULL anulaciones: {len(ids_aplicados)} aplicadas')
+        except requests.RequestException:
+            hubo_error_pull = True
+        # ====================================================================
+
         if hubo_error_pull: registrar_falla('pull', 'Error en pull')
         else: registrar_exito('pull')
         return total_productos

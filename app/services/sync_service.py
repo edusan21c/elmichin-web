@@ -1292,3 +1292,80 @@ def aplicar_config_recibida(configs):
         aplicadas += 1
     db.session.commit()
     return aplicadas, ids_aplicados
+
+# ==================== SYNC DE ANULACIONES (v10.3) ====================
+# Para facturas LOCALES que se anularon en la central y deben llegar a la tienda
+
+def obtener_anulaciones_para_tienda(tienda_id):
+    """Central: devuelve facturas anuladas pendientes de avisar a la tienda."""
+    facturas = Factura.query.filter(
+        Factura.tienda_id == tienda_id,
+        Factura.anulada == True,
+        Factura.sync_anulacion_pendiente == True,
+    ).limit(100).all()
+    
+    return [{
+        'id': f.id,
+        'numero_factura': f.numero_factura,
+    } for f in facturas]
+
+
+def marcar_anulaciones_recibidas(ids_central):
+    """Central: la tienda confirmó que recibió las anulaciones."""
+    if not ids_central:
+        return 0
+    count = Factura.query.filter(Factura.id.in_(ids_central)).update(
+        {'sync_anulacion_pendiente': False},
+        synchronize_session=False,
+    )
+    db.session.commit()
+    return count
+
+
+def aplicar_anulaciones_recibidas(tienda_id, anulaciones):
+    """Tienda: aplica las anulaciones recibidas (devuelve stock, borra deuda)."""
+    ids_aplicados = []
+    
+    for a in anulaciones:
+        central_id = a.get('id')
+        numero = a.get('numero_factura')
+        if not numero:
+            continue
+        
+        factura = Factura.query.filter_by(
+            tienda_id=tienda_id,
+            numero_factura=numero,
+        ).first()
+        
+        if not factura:
+            # No existe en la tienda, igual confirmar a la central
+            ids_aplicados.append(central_id)
+            continue
+        
+        if factura.anulada:
+            # Ya estaba anulada, solo confirmar
+            ids_aplicados.append(central_id)
+            continue
+        
+        # Aplicar anulación: devolver stock y borrar deuda
+        factura.anulada = True
+        
+        for d in factura.detalles.all():
+            pt = ProductoTienda.query.filter_by(
+                producto_id=d.producto_id,
+                tienda_id=tienda_id,
+            ).first()
+            if pt:
+                pt.cantidad += d.cantidad
+        
+        if factura.cliente and factura.metodo_pago == 'credito':
+            factura.cliente.saldo_actual -= factura.saldo_pendiente
+            if factura.cliente.saldo_actual < 0:
+                factura.cliente.saldo_actual = 0
+        
+        factura.saldo_pendiente = 0
+        factura.estado_credito = 'anulado'
+        ids_aplicados.append(central_id)
+    
+    db.session.commit()
+    return ids_aplicados

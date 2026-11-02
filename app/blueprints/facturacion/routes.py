@@ -16,7 +16,9 @@ from app.blueprints.configuracion.routes import get_valor
 from app.services.facturacion_service import (
     crear_factura_completa, obtener_o_crear_cliente
 )
+from app.services import sync_service  # <-- IMPORTANTE: Importamos el servicio de sync
 import os
+import re
 
 def es_central():
     return current_app.config.get('MODO', 'tienda_local') == 'central'
@@ -83,7 +85,6 @@ def api_productos():
     q_lower = q.lower()
     empieza_con_numero = q[0].isdigit() if q else False
 
-    # FILTRO DE INACTIVOS APLICADO EN TODAS LAS BUSQUEDAS
     if empieza_con_numero:
         productos = (Producto.query
                      .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
@@ -132,6 +133,65 @@ def api_productos():
             'condicion3': pres.condicion3 or '', 'precio3': float(pres.precio_venta3 or 0),
         })
 
+    return jsonify(resultados)
+
+# ==================== API: FAMILIA DE PRODUCTOS (MODAL SABORES) ====================
+@bp.route('/api/familia/<int:producto_id>')
+@login_required
+def api_familia(producto_id):
+    prod_base = Producto.query.get(producto_id)
+    
+    if not prod_base or '*' not in prod_base.nombre:
+        return jsonify([])
+    
+    tienda_id = tienda_actual()
+    nombre_sin_asterisco = prod_base.nombre.replace('*', '').strip()
+    
+    match_unidad = re.findall(r'(\d+)\s*(?:g|gr|ml|l|lt|kg|un|und)\b', nombre_sin_asterisco, re.IGNORECASE)
+    
+    if match_unidad:
+        num_principal = match_unidad[0]
+    else:
+        numeros_base = re.findall(r'\d+', nombre_sin_asterisco)
+        num_principal = numeros_base[-1] if numeros_base else None
+    
+    if num_principal:
+        nombre_limpio = re.sub(rf'\b{num_principal}\s*(?:g|gr|ml|l|lt|kg|un|und)?\b.*', '', nombre_sin_asterisco, flags=re.IGNORECASE)
+    else:
+        nombre_limpio = nombre_sin_asterisco
+
+    ignorar = ['varios', 'surtido', 'surtidos', 'surtida', 'x']
+    palabras = nombre_limpio.split()
+    palabras_limpias = [p for p in palabras if p.lower() not in ignorar]
+    
+    base_busqueda = " ".join(palabras_limpias[:3]) + " "
+    
+    query = Producto.query.filter(
+        Producto.nombre.ilike(f'%{base_busqueda}%'),
+        Producto.id != producto_id,
+        func.coalesce(Producto.categoria, '') != 'INACTIVO'
+    )
+    
+    if num_principal:
+        query = query.filter(Producto.nombre.ilike(f'%{num_principal}%'))
+        
+    productos = query.all()
+    
+    resultados = []
+    for p in productos:
+        pres = ProductoTienda.query.filter_by(producto_id=p.id, tienda_id=tienda_id).first()
+        if pres and pres.cantidad > 0:
+            resultados.append({
+                'id': p.id,
+                'nombre': p.nombre,
+                'imagen': p.imagen or '',
+                'stock': pres.cantidad,
+                'precio': float(pres.precio_venta or 0),
+                'condicion1': pres.condicion1 or '', 'precio1': float(pres.precio_venta1 or 0),
+                'condicion2': pres.condicion2 or '', 'precio2': float(pres.precio_venta2 or 0),
+                'condicion3': pres.condicion3 or '', 'precio3': float(pres.precio_venta3 or 0),
+            })
+            
     return jsonify(resultados)
 
 # ==================== API: BUSCAR CLIENTES ====================
@@ -236,25 +296,20 @@ def imagen_hd(producto_id):
         return "Producto no encontrado", 404
 
     codigo = prod.codigo_barras or f"PROD-{prod.id}"
-    
-    # Ruta absoluta basada en el root_path de la app (100% segura)
     BASE_DIR = os.path.dirname(current_app.root_path)
 
-    # 1. Buscar el original en data/imagenes (agregamos .webp y mayúsculas)
     img_dir = os.path.join(BASE_DIR, 'data', 'imagenes')
     for ext in ['.jpeg', '.jpg', '.png', '.JPG', '.JPEG', '.PNG', '.webp', '.WEBP']:
         filename = f"{codigo}{ext}"
         if os.path.exists(os.path.join(img_dir, filename)):
             return send_from_directory(img_dir, filename)
 
-    # 2. Si ya se procesó, buscar en data/imagenes_procesadas
     img_dir_proc = os.path.join(BASE_DIR, 'data', 'imagenes_procesadas')
     for ext in ['.jpeg', '.jpg', '.png', '.JPG', '.JPEG', '.PNG', '.webp', '.WEBP']:
         filename = f"{codigo}{ext}"
         if os.path.exists(os.path.join(img_dir_proc, filename)):
             return send_from_directory(img_dir_proc, filename)
 
-    # 3. Si no hay original, devolver la miniatura webp
     static_dir = os.path.join(BASE_DIR, 'app', 'static', 'img', 'productos')
     filename = f"{codigo}.webp"
     if os.path.exists(os.path.join(static_dir, filename)):
@@ -293,8 +348,19 @@ def anular_factura(factura_id):
         factura.saldo_pendiente = 0
         factura.estado_credito = 'anulado'
         factura.sync_estado = 'pendiente'
+        factura.sync_anulacion_pendiente = True  # <--- AGREGAR ESTA LÍNEA
 
         db.session.commit()
+
+        # --- SINCRONIZACIÓN EN CALIENTE (PUSH INMEDIATO) ---
+        try:
+            # Esto envía la factura anulada a la nube al instante
+            sync_service.push_factura_individual(factura.tienda_id, factura.id)
+            print(f"✅ Factura {factura.numero_factura} anulada y enviada a la nube al instante.")
+        except Exception as e:
+            print(f"⚠️ Aviso: La factura se anuló localmente, pero falló el envío inmediato a la nube: {e}")
+        # ---------------------------------------------------
+
         return jsonify({'ok': True, 'message': 'Factura anulada e inventario devuelto correctamente.'})
 
     except Exception as e:

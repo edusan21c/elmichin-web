@@ -481,3 +481,45 @@ def sync_health():
 </html>'''
 
     return html
+
+# ==================== PULL ANULACIONES (CENTRAL -> TIENDA) ====================
+@bp.route('/sync/pull-anulaciones', methods=['GET'])
+@requiere_sync_key
+def sync_pull_anulaciones():
+    """v10.3: devuelve facturas anuladas pendientes de avisar a la tienda."""
+    from app.services import sync_service
+    
+    tienda_id = request.args.get('tienda_id', type=int)
+    if not tienda_id or tienda_id <= 0:
+        return jsonify({'ok': False, 'error': 'tienda_id invalido'}), 400
+    
+    try:
+        anulaciones = sync_service.obtener_anulaciones_para_tienda(tienda_id)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    
+    return jsonify({
+        'ok': True,
+        'tienda_id': tienda_id,
+        'total': len(anulaciones),
+        'anulaciones': anulaciones,
+        'timestamp': datetime.utcnow().isoformat(),
+    })
+
+
+@bp.route('/sync/marcar-anulaciones-recibidas', methods=['POST'])
+@requiere_sync_key
+def sync_marcar_anulaciones_recibidas():
+    """v10.3: la tienda confirma que ya aplicó las anulaciones."""
+    from app.services import sync_service
+    
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'ok': False, 'error': 'Sin datos'}), 400
+    
+    ids = data.get('ids', [])
+    marcados = sync_service.marcar_anulaciones_recibidas(ids)
+    
+    return jsonify({'ok': True, 'marcados': marcados})

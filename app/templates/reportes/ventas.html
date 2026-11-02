@@ -6,9 +6,16 @@
     <h1 class="h3 mb-0">
         <i class="bi bi-graph-up"></i> Reportes de Ventas
     </h1>
-    <a href="{{ url_for('reportes.ventas_producto') }}" class="btn btn-success fw-bold shadow-sm">
-        <i class="bi bi-box-seam"></i> Reporte de Ventas por Producto
-    </a>
+    <div class="d-flex gap-2">
+        <form action="{{ url_for('reportes.forzar_sync') }}" method="POST" class="d-inline">
+            <button type="submit" class="btn btn-warning fw-bold shadow-sm" title="Si no ves cambios (como anulaciones), dale clic aquí.">
+                <i class="bi bi-arrow-repeat"></i> Actualizar Datos
+            </button>
+        </form>
+        <a href="{{ url_for('reportes.ventas_producto') }}" class="btn btn-success fw-bold shadow-sm">
+            <i class="bi bi-box-seam"></i> Reporte de Ventas por Producto
+        </a>
+    </div>
 </div>
 
 <!-- Filtros -->

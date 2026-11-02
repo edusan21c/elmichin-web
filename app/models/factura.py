@@ -47,6 +47,7 @@ class Factura(db.Model):
 
     # True si la factura fue anulada (devuelve stock y borra deuda)
     anulada = db.Column(db.Boolean, default=False, index=True)
+    sync_anulacion_pendiente = db.Column(db.Boolean, default=False, index=True)
 
     # Relaciones
     tienda = db.relationship('Tienda', back_populates='facturas')

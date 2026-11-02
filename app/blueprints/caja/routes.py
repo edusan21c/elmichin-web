@@ -90,9 +90,11 @@ def api_datos():
     periodo = request.args.get('periodo', 'dia')
     desde_utc, hasta_utc, etiqueta = calcular_rango(periodo)
 
+    # FILTRO CLAVE: IGNORAR ANULADAS
     q = Factura.query.filter(
         Factura.fecha_hora >= desde_utc,
         Factura.fecha_hora <= hasta_utc,
+        Factura.anulada == False,
     )
     if tienda_id:
         q = q.filter((Factura.tienda_id == tienda_id if tienda_id else True), Producto.categoria != 'INACTIVO')
@@ -265,9 +267,11 @@ def api_categoria_productos():
     periodo = request.args.get('periodo', 'dia')
     desde_utc, hasta_utc, etiqueta = calcular_rango(periodo)
 
+    # FILTRO CLAVE: IGNORAR ANULADAS
     q = Factura.query.filter(
         Factura.fecha_hora >= desde_utc,
         Factura.fecha_hora <= hasta_utc,
+        Factura.anulada == False,
     )
     if tienda_id:
         q = q.filter((Factura.tienda_id == tienda_id if tienda_id else True), Producto.categoria != 'INACTIVO')
@@ -365,9 +369,11 @@ def api_buscar_productos():
     if not productos:
         return jsonify({'ok': True, 'productos': [], 'etiqueta': etiqueta})
 
+    # FILTRO CLAVE: IGNORAR ANULADAS
     qf = Factura.query.filter(
         Factura.fecha_hora >= desde_utc,
         Factura.fecha_hora <= hasta_utc,
+        Factura.anulada == False,
     )
     if tienda_id:
         qf = qf.filter((Factura.tienda_id == tienda_id if tienda_id else True), Producto.categoria != 'INACTIVO')
