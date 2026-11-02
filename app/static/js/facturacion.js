@@ -14,6 +14,8 @@
     };
 
     let procesandoProducto = false;
+    let saboresSeleccionados = {};
+    let productoBaseActual = null;
 
     function crearPestanaVacia(id) {
         return {
@@ -22,8 +24,8 @@
             cliente: { nombre: '', documento: '', telefono: '', direccion: '' },
             metodoPago: 'efectivo',
             bolsas: 0,
-            pagos: ['', '', ''],                        
-            pagosMetodos: ['efectivo', 'efectivo', 'efectivo'],  
+            pagos: ['', '', ''],
+            pagosMetodos: ['efectivo', 'efectivo', 'efectivo'],
             modoPrecioLibre: false,
         };
     }
@@ -233,6 +235,60 @@
         return prod.precio || 0;
     }
 
+    function obtenerFamilia(nombre) {
+        const limpio = (nombre || '').replace('*', '').trim();
+
+        let num = '';
+        const matchUnidad = limpio.match(/(\d+)\s*(?:g|gr|ml|l|lt|kg|un|und)\b/i);
+
+        if (matchUnidad) {
+            num = matchUnidad[1];
+        } else {
+            const numeros = limpio.match(/\d+/g);
+            num = numeros ? numeros[numeros.length - 1] : '';
+        }
+
+        let sinNum = limpio;
+        if (num) {
+            const regexSize = new RegExp(`\\b${num}\\s*(?:g|gr|ml|l|lt|kg|un|und)?\\b.*`, 'gi');
+            sinNum = limpio.replace(regexSize, '');
+        }
+
+        const ignoradas = ['varios', 'surtido', 'surtidos', 'surtida', 'x'];
+        let palabras = sinNum.split(' ').filter(p => p.length > 0);
+        palabras = palabras.filter(p => !ignoradas.includes(p.toLowerCase()));
+
+        const base = palabras.slice(0, 3).join(' ');
+
+        return num ? `${base} ${num}`.replace(/\s+/g, ' ').trim() : base.trim();
+    }
+
+    function recalcularPreciosFamilia() {
+        const p = pestanaActual();
+        const carrito = p.carrito;
+
+        const cantidadesFamilia = {};
+        carrito.forEach(it => {
+            let fam = it.familia || obtenerFamilia(it.nombre);
+            if (!cantidadesFamilia[fam]) cantidadesFamilia[fam] = 0;
+            cantidadesFamilia[fam] += it.cantidad;
+        });
+
+        carrito.forEach(it => {
+            if (it.precio_editado) return;
+
+            let fam = it.familia || obtenerFamilia(it.nombre);
+            let totalFamilia = cantidadesFamilia[fam];
+
+            const prod = it.prod_data;
+            if (prod) {
+                let nuevoPrecio = calcularPrecioProducto(prod, totalFamilia);
+                it.precio_unitario = nuevoPrecio;
+                it.subtotal = nuevoPrecio * it.cantidad;
+            }
+        });
+    }
+
     // ==================== BUSQUEDA DE PRODUCTOS ====================
     const inputBuscar = $('#input-buscar');
     const resultados = $('#resultados');
@@ -278,6 +334,7 @@
             indiceActivo = indiceActivo <= 0 ? items.length - 1 : indiceActivo - 1;
             actualizarActivo(items);
         } else if (e.key === 'Escape') {
+            e.preventDefault();
             resultados.innerHTML = '';
             indiceActivo = -1;
         }
@@ -287,8 +344,7 @@
         try {
             const r = await fetch(CFG.urlBuscarProductos + '?q=' + encodeURIComponent(q));
             const data = await r.json();
-            
-            // SOLUCIÓN VENTA RÁPIDA: Solo pintar si el buscador TODAVÍA tiene el mismo texto
+
             if (inputBuscar.value.trim() === q) {
                 pintarResultados(data);
             }
@@ -300,7 +356,7 @@
     function pintarResultados(data) {
         resultados.innerHTML = '';
         indiceActivo = -1;
-        
+
         if (!data.length) {
             resultados.innerHTML = '<div class="list-group-item text-muted">Sin resultados</div>';
             return;
@@ -310,9 +366,9 @@
             const item = document.createElement('button');
             item.type = 'button';
             item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2';
-            
-            const imgHtml = p.imagen 
-                ? `<img src="/static/img/productos/${p.imagen}" class="foto-clickable" data-img="/facturacion/imagen-hd/${p.id}" data-nombre="${p.nombre}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 5px; margin-right: 12px; cursor: zoom-in;" title="Clic para ampliar foto">` 
+
+            const imgHtml = p.imagen
+                ? `<img src="/static/img/productos/${p.imagen}" class="foto-clickable" data-img="/facturacion/imagen-hd/${p.id}" data-nombre="${p.nombre}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 5px; margin-right: 12px; cursor: zoom-in;" title="Clic para ampliar foto">`
                 : `<div style="width: 45px; height: 45px; background: #f0f0f0; border-radius: 5px; margin-right: 12px; display: flex; align-items: center; justify-content: center; color: #ccc;"><i class="bi bi-image"></i></div>`;
 
             item.innerHTML = `
@@ -332,11 +388,11 @@
             const foto = item.querySelector('.foto-clickable');
             if (foto) {
                 foto.addEventListener('click', function(e) {
-                    e.stopPropagation(); // Evita que se agregue al carrito
-                    
+                    e.stopPropagation();
+
                     const urlImagen = this.getAttribute('data-img');
                     const nombreProducto = this.getAttribute('data-nombre');
-                    
+
                     Swal.fire({
                         title: `<span style="font-size: 1.6rem; font-weight: bold; color: #333;">${nombreProducto}</span>`,
                         html: `<img src="${urlImagen}" onerror="this.src='/static/img/productos/${p.imagen}'" style="max-width: 100%; max-height: 75vh; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); object-fit: contain;">`,
@@ -356,23 +412,27 @@
 
     // ==================== AGREGAR AL CARRITO ====================
     async function agregarAlCarrito(prod) {
-        if (procesandoProducto) return; // Evita modales dobles si presionan Enter muy rápido
+        if (procesandoProducto) return;
         if (prod.stock <= 0) {
             alert('Producto sin stock');
             return;
-        
+        }
+
         // SI EL PRODUCTO TIENE ASTERISCO (*), ABRE EL MODAL DE SABORES
         if (prod.nombre.includes('*')) {
             productoBaseActual = prod;
             await abrirModalSabores(prod.id);
             return;
         }
-        }
 
+        // FLUJO NORMAL
         procesandoProducto = true;
         try {
             const cantidad = await window.michinPedirCantidad(prod.nombre, prod.stock, 1);
-            if (cantidad === null) return;
+            if (cantidad === null) {
+                setTimeout(() => inputBuscar.focus(), 100);
+                return;
+            }
 
             const p = pestanaActual();
             const existente = p.carrito.find(it => it.producto_id === prod.id);
@@ -399,6 +459,7 @@
                     prod_data: prod,
                     precio_editado: false,
                     _empacado: false,
+                    familia: obtenerFamilia(prod.nombre)
                 });
             }
 
@@ -414,8 +475,125 @@
         }
     }
 
+    // ==================== MODAL SABORES ====================
+    async function abrirModalSabores(idBase) {
+        saboresSeleccionados = {};
+        const totalEl = document.getElementById('total-sabores-seleccionados');
+        if (totalEl) totalEl.textContent = '0';
+        document.getElementById('lista-sabores').innerHTML = '<div class="col-12 text-center"><div class="spinner-border text-primary"></div></div>';
+
+        const modal = new bootstrap.Modal(document.getElementById('modalSabores'));
+        modal.show();
+
+        try {
+            const res = await fetch(`/facturacion/api/familia/${idBase}`);
+            const sabores = await res.json();
+
+            if (sabores.length === 0) {
+                document.getElementById('lista-sabores').innerHTML = '<div class="col-12 text-danger">No se encontraron sabores disponibles.</div>';
+                return;
+            }
+
+            let html = '';
+            sabores.forEach(s => {
+                saboresSeleccionados[s.id] = { prod: s, cantidad: 0 };
+
+                const imgHtml = s.imagen
+                    ? `<img src="/static/img/productos/${s.imagen}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 5px; margin-right: 10px;">`
+                    : `<div style="width: 45px; height: 45px; background: #f0f0f0; border-radius: 5px; margin-right: 10px; display: flex; align-items: center; justify-content: center; color: #ccc;"><i class="bi bi-image"></i></div>`;
+
+                html += `
+                <div class="col-md-6 mb-2">
+                    <div class="card p-2 border-primary">
+                        <div class="d-flex align-items-center mb-2">
+                            ${imgHtml}
+                            <div class="fw-bold text-primary" style="font-size: 0.85rem; line-height: 1.1;">${s.nombre}</div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="input-group input-group-sm w-50">
+                                <button class="btn btn-outline-danger fw-bold" onclick="cambiarCantidadSabor(${s.id}, -1)">-</button>
+                                <input type="text" id="qty-${s.id}" class="form-control text-center fw-bold fs-5" value="0" readonly>
+                                <button class="btn btn-outline-success fw-bold" onclick="cambiarCantidadSabor(${s.id}, 1)">+</button>
+                            </div>
+                            <small class="text-muted fw-bold">Stock: ${s.stock}</small>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            document.getElementById('lista-sabores').innerHTML = html;
+        } catch (e) {
+            document.getElementById('lista-sabores').innerHTML = '<div class="col-12 text-danger">Error al cargar.</div>';
+        }
+    }
+
+    window.cambiarCantidadSabor = function(id, delta) {
+        let sabor = saboresSeleccionados[id];
+        let nuevaCant = sabor.cantidad + delta;
+        if (nuevaCant < 0) nuevaCant = 0;
+        if (nuevaCant > sabor.prod.stock) {
+            alert(`Solo hay ${sabor.prod.stock} unidades`);
+            return;
+        }
+        sabor.cantidad = nuevaCant;
+        document.getElementById(`qty-${id}`).value = nuevaCant;
+
+        let total = 0;
+        for (let key in saboresSeleccionados) {
+            total += saboresSeleccionados[key].cantidad;
+        }
+        const totalEl = document.getElementById('total-sabores-seleccionados');
+        if (totalEl) totalEl.textContent = total;
+    }
+
+    window.confirmarSabores = function() {
+        const p = pestanaActual();
+        let totalAgregados = 0;
+
+        Object.keys(saboresSeleccionados).forEach(id => {
+            const item = saboresSeleccionados[id];
+            if (item.cantidad > 0) {
+                const prod = item.prod;
+                const existente = p.carrito.find(it => it.producto_id === prod.id);
+                const familiaBase = obtenerFamilia(productoBaseActual.nombre);
+
+                if (existente) {
+                    existente.cantidad += item.cantidad;
+                    existente.subtotal = existente.precio_unitario * existente.cantidad;
+                } else {
+                    p.carrito.push({
+                        producto_id: prod.id,
+                        nombre: prod.nombre,
+                        cantidad: item.cantidad,
+                        precio_unitario: calcularPrecioProducto(prod, item.cantidad),
+                        subtotal: calcularPrecioProducto(prod, item.cantidad) * item.cantidad,
+                        stock_max: prod.stock,
+                        prod_data: prod,
+                        precio_editado: false,
+                        _empacado: false,
+                        familia: familiaBase
+                    });
+                }
+                totalAgregados += item.cantidad;
+            }
+        });
+
+        if (totalAgregados > 0) {
+            document.getElementById('modalSabores').querySelector('.btn-close').click();
+            inputBuscar.value = '';
+            resultados.innerHTML = '';
+            inputBuscar.focus();
+            guardarEstado();
+            renderPestanas();
+            renderCarrito();
+        } else {
+            alert('No seleccionaste ninguna cantidad.');
+        }
+    }
+
     // ==================== RENDER CARRITO ====================
     function renderCarrito() {
+        recalcularPreciosFamilia();
+
         const p = pestanaActual();
         const carrito = p.carrito;
         const modoLibre = !!p.modoPrecioLibre;
@@ -490,8 +668,7 @@
                     guardarEstado();
                     renderPestanas();
                     renderCarrito();
-                    
-                    // RESTAURAR FOCO: Para que no toque volver a hacer clic en la casilla
+
                     const nextInput = document.querySelector(`#carrito-body input[data-accion="cantidad"][data-idx="${idx}"]`);
                     if (nextInput) { nextInput.focus(); nextInput.select(); }
                 });
@@ -511,7 +688,6 @@
                     renderPestanas();
                     renderCarrito();
 
-                    // RESTAURAR FOCO
                     const nextInput = document.querySelector(`#carrito-body input[data-accion="precio"][data-idx="${idx}"]`);
                     if (nextInput) { nextInput.focus(); nextInput.select(); }
                 });
@@ -519,7 +695,6 @@
 
             body.querySelectorAll('button[data-accion="eliminar"]').forEach(btn => {
                 btn.addEventListener('click', function(e) {
-                    // MAGIA: Quitamos el foco y la selección de texto para que no quede "pintado"
                     this.blur();
                     if (window.getSelection) {
                         window.getSelection().removeAllRanges();
@@ -817,7 +992,6 @@
         });
     }
 
-    // Quitar el resaltado (active) de la lista de búsqueda si se hace clic afuera
     document.addEventListener('click', function(e) {
         if (inputBuscar && !inputBuscar.contains(e.target) && !resultados.contains(e.target)) {
             const items = resultados.querySelectorAll('.list-group-item');
@@ -826,11 +1000,31 @@
         }
     });
 
-
     // ==================== INIT ====================
     cargarEstado();
     renderPestanas();
     cargarPestanaEnUI();
     inputBuscar.focus();
+
+    // ==================== MANEJO DE FOCO (v10.7) ====================
+    // Cuando se cierra el modal de sabores (X, ESC o Cancelar), devolver foco al buscador
+    const modalSaboresEl = document.getElementById('modalSabores');
+    if (modalSaboresEl) {
+        modalSaboresEl.addEventListener('hidden.bs.modal', function() {
+            setTimeout(() => {
+                if (inputBuscar) inputBuscar.focus();
+            }, 100);
+        });
+    }
+
+    // Evitar que ESC haga scroll en la página cuando hay modales abiertos
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modalesAbiertos = document.querySelectorAll('.modal.show');
+            if (modalesAbiertos.length > 0) {
+                e.preventDefault();
+            }
+        }
+    }, true);
 
 })();

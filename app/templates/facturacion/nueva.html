@@ -259,6 +259,30 @@
     </div>
 </div>
 
+<!-- MODAL DE DICTADO RÁPIDO (SABORES) - ¡ESTE ERA EL QUE FALTABA! -->
+<div class="modal fade" id="modalSabores" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-box-seam"></i> Seleccionar Sabores</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="lista-sabores" class="row g-3"></div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div class="fs-4 fw-bold text-primary mb-0">
+                    Total: <span id="total-sabores-seleccionados">0</span>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success fw-bold" onclick="confirmarSabores()">Agregar al Carrito</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Config para JS -->
 <script>
     window.FACTURACION_CONFIG = {
@@ -274,7 +298,8 @@
 </script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="{{ url_for('static', filename='js/michin-modal.js') }}"></script>
-<script src="{{ url_for('static', filename='js/facturacion.js') }}"></script>
+<!-- El ?v=10.6 es la magia para que el navegador descargue el archivo nuevo -->
+<script src="{{ url_for('static', filename='js/facturacion.js') }}?v=10.6"></script>
 
 <style>
     /* v2.33-carrito-empacado */
@@ -308,12 +333,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const inputNombre = document.getElementById('cliente-nombre');
     const divInfo = document.getElementById('cliente-info');
     let timeoutId = null;
-    let clienteIndex = -1; // Para saber qué cliente está seleccionado con las flechas
+    let clienteIndex = -1;
 
-    // Función para pintar la lista
     function renderListaClientes(data) {
         divInfo.innerHTML = '';
-        clienteIndex = -1; // Reiniciamos el índice
+        clienteIndex = -1; 
         
         if (data.length > 0) {
             const ul = document.createElement('ul');
@@ -334,7 +358,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     <small class="text-muted">${detalle}</small>
                 </div>`;
                 
-                // Al hacer clic con el mouse
                 li.addEventListener('click', function() {
                     seleccionarCliente(c);
                 });
@@ -345,7 +368,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Función para llenar los datos del cliente
     function seleccionarCliente(c) {
         inputNombre.value = c.nombre;
         document.getElementById('cliente-documento').value = c.documento || '';
@@ -353,16 +375,13 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('cliente-direccion').value = c.direccion || '';
         divInfo.innerHTML = ''; 
         
-        // Disparamos el evento para que el sistema guarde el estado
         inputNombre.dispatchEvent(new Event('input'));
     }
 
-    // Escuchar cuando el cajero escribe
     inputNombre.addEventListener('input', function() {
         clearTimeout(timeoutId);
         const q = this.value.trim();
         
-        // Si borra todo el nombre, limpiamos también los otros campos
         if (q.length < 2) {
             divInfo.innerHTML = '';
             if (q.length === 0) {
@@ -381,7 +400,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 300);
     });
 
-    // Control con las flechas del teclado
     inputNombre.addEventListener('keydown', function(e) {
         const ul = divInfo.querySelector('ul');
         if (!ul) return;
@@ -389,7 +407,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (items.length === 0) return;
 
         if (e.key === 'ArrowDown') {
-            e.preventDefault(); // Evita que el cursor se mueva en el texto
+            e.preventDefault();
             clienteIndex = (clienteIndex + 1) % items.length;
             actualizarActivo(items, ul);
         } else if (e.key === 'ArrowUp') {
@@ -399,7 +417,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (e.key === 'Enter') {
             e.preventDefault();
             if (clienteIndex >= 0 && clienteIndex < items.length) {
-                items[clienteIndex].click(); // Simula el clic
+                items[clienteIndex].click();
             }
         } else if (e.key === 'Escape') {
             divInfo.innerHTML = '';
@@ -407,11 +425,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Pintar la fila que está resaltada con las flechas
     function actualizarActivo(items, ul) {
         items.forEach((it, i) => {
             if (i === clienteIndex) {
-                it.classList.add('active'); // Pone la fila azul
+                it.classList.add('active');
                 it.scrollIntoView({ block: 'nearest' });
             } else {
                 it.classList.remove('active');
@@ -419,7 +436,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Ocultar la listica si hace clic afuera
     document.addEventListener('click', function(e) {
         if (!inputNombre.contains(e.target) && !divInfo.contains(e.target)) {
             divInfo.innerHTML = '';
