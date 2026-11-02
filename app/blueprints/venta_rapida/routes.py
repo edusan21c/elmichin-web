@@ -68,20 +68,23 @@ def api_productos():
     q_lower = q.lower()
     empieza_con_numero = q[0].isdigit() if q else False
 
-    # FILTRO DE INACTIVOS APLICADO EN TODAS LAS BUSQUEDAS
+    # FILTRO DE INACTIVOS Y OCULTAR FAMILIAS (*) APLICADO EN TODAS LAS BUSQUEDAS
     if empieza_con_numero:
         productos = (Producto.query
                      .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
+                     .filter(Producto.nombre.notilike('%*%'))
                      .filter(Producto.codigo_barras.ilike(f'%{q}%'))
                      .order_by(Producto.nombre).limit(20).all())
         if not productos:
             productos = (Producto.query
                          .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
+                         .filter(Producto.nombre.notilike('%*%'))
                          .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
                          .order_by(Producto.nombre).limit(20).all())
     else:
         productos = (Producto.query
                      .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
+                     .filter(Producto.nombre.notilike('%*%'))
                      .filter(func.unaccent(Producto.nombre).ilike(patron_unaccent))
                      .limit(50).all())
         if productos:
@@ -95,6 +98,7 @@ def api_productos():
         else:
             productos = (Producto.query
                          .filter(func.coalesce(Producto.categoria, '') != 'INACTIVO')
+                         .filter(Producto.nombre.notilike('%*%'))
                          .filter(Producto.codigo_barras.ilike(f'%{q}%'))
                          .order_by(Producto.nombre).limit(20).all())
 

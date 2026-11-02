@@ -371,11 +371,16 @@
                 ? `<img src="/static/img/productos/${p.imagen}" class="foto-clickable" data-img="/facturacion/imagen-hd/${p.id}" data-nombre="${p.nombre}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 5px; margin-right: 12px; cursor: zoom-in;" title="Clic para ampliar foto">`
                 : `<div style="width: 45px; height: 45px; background: #f0f0f0; border-radius: 5px; margin-right: 12px; display: flex; align-items: center; justify-content: center; color: #ccc;"><i class="bi bi-image"></i></div>`;
 
+            const esFamilia = p.nombre.includes('*');
+            const badgeFamilia = esFamilia 
+                ? '<span class="badge bg-warning text-dark ms-2" title="Producto familiar, abre modal de sabores"><i class="bi bi-box-seam"></i> Fam</span>' 
+                : '';
+
             item.innerHTML = `
                 <div class="d-flex align-items-center text-start">
                     ${imgHtml}
                     <div>
-                        <div class="fw-semibold">${p.nombre}</div>
+                        <div class="fw-semibold">${p.nombre} ${badgeFamilia}</div>
                         <small class="text-muted">${p.codigo || ''}</small>
                     </div>
                 </div>
