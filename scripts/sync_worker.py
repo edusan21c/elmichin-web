@@ -171,24 +171,19 @@ def reparar_productos_huerfanos(app, tienda_id):
 
     with app.app_context():
         try:
-            # Si estamos en la Central, revisamos TODAS las tiendas activas.
-            # Si estamos en una tienda, solo revisamos esa tienda.
             if current_app.config.get('MODO') == 'central':
                 tiendas = Tienda.query.filter_by(activa=True).all()
             else:
-                t = Tienda.query.get(tienda_id)
+                t = db.session.get(Tienda, tienda_id)
                 tiendas = [t] if t else []
 
             total_creados = 0
-            # Obtenemos todos los productos activos de la tabla global
             prods_global = Producto.query.filter(db.func.coalesce(Producto.categoria, '') != 'INACTIVO').all()
 
             for t in tiendas:
                 if not t: continue
                 t_id = t.id
-                # IDs que la tienda ya tiene
                 ids_tienda = {pt.producto_id for pt in ProductoTienda.query.filter_by(tienda_id=t_id).all()}
-                # Productos que faltan en esta tienda
                 faltantes = [p for p in prods_global if p.id not in ids_tienda]
                 
                 for p in faltantes:
@@ -214,6 +209,33 @@ def reparar_productos_huerfanos(app, tienda_id):
             return total_creados
         except Exception as e:
             log(f'  [Auto-Fix Productos] Error: {e}')
+            db.session.rollback()
+            return 0
+
+
+def reparar_codigos_vacios(app):
+    """Busca productos globales sin código de barras, les asigna uno automático y los marca para sync."""
+    from app.models.producto import Producto, ProductoTienda
+    with app.app_context():
+        try:
+            sin_codigo = Producto.query.filter(
+                (Producto.codigo_barras == None) | (Producto.codigo_barras == '')
+            ).all()
+            
+            if not sin_codigo:
+                return 0
+                
+            arreglados = 0
+            for p in sin_codigo:
+                p.codigo_barras = f"AUTO-{p.id}"
+                ProductoTienda.query.filter_by(producto_id=p.id).update({'sync_estado': 'pendiente'})
+                arreglados += 1
+                
+            db.session.commit()
+            log(f'  [Auto-Fix Codigos] Se asignaron {arreglados} codigos a productos vacios.')
+            return arreglados
+        except Exception as e:
+            log(f'  [Auto-Fix Codigos] Error: {e}')
             db.session.rollback()
             return 0
 
@@ -421,6 +443,9 @@ def main():
 
     log('--- AUTO-REPARACION DE PRODUCTOS HUERFANOS ---')
     reparar_productos_huerfanos(app, tienda_id)
+
+    log('--- AUTO-REPARACION DE CODIGOS VACIOS ---')
+    reparar_codigos_vacios(app)
 
     # 🚨 GIT PULL BLINDADO
     log('--- GIT PULL (sincronizacion forzada) ---')

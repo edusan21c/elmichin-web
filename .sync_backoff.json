@@ -1,0 +1,12 @@
+{
+  "push": {
+    "fallas": 0,
+    "proximo_intento": null,
+    "ultimo_error": null
+  },
+  "pull": {
+    "fallas": 1,
+    "proximo_intento": "2026-11-02T09:34:45.680465",
+    "ultimo_error": "Error en pull"
+  }
+}
