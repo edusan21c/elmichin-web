@@ -1,3 +1,4 @@
+# app/blueprints/inventario_pro/routes.py
 from flask import render_template, jsonify, request, current_app, flash, redirect, url_for
 from flask_login import login_required, current_user
 from . import bp
@@ -10,6 +11,7 @@ import subprocess
 from PIL import Image
 import uuid
 import random
+from sqlalchemy.exc import IntegrityError
 
 def safe_dec(val):
     try:
@@ -62,6 +64,7 @@ def get_data():
             't1_gan': float(t1.porcentaje) if t1 else 0, 't1_base': float(t1.precio_venta) if t1 else 0,
             't1_c1': t1.condicion1 if t1 else '', 't1_p1': float(t1.precio_venta1) if t1 else 0,
             't1_c2': t1.condicion2 if t1 else '', 't1_p2': float(t1.precio_venta2) if t1 else 0,
+            't1_c3': t1.condicion3 if t1 else '', 't1_p3': float(t1.precio_venta3) if t1 else 0,
             't1_prov1': float(t1.precio_proveedor) if t1 else 0,
             't1_prov2': float(t1.precio_proveedor2) if t1 else 0,
             't1_prov3': float(t1.precio_proveedor3) if t1 else 0,
@@ -71,6 +74,7 @@ def get_data():
             't2_gan': float(t2.porcentaje) if t2 else 0, 't2_base': float(t2.precio_venta) if t2 else 0,
             't2_c1': t2.condicion1 if t2 else '', 't2_p1': float(t2.precio_venta1) if t2 else 0,
             't2_c2': t2.condicion2 if t2 else '', 't2_p2': float(t2.precio_venta2) if t2 else 0,
+            't2_c3': t2.condicion3 if t2 else '', 't2_p3': float(t2.precio_venta3) if t2 else 0,
             't2_prov1': float(t2.precio_proveedor) if t2 else 0,
             't2_prov2': float(t2.precio_proveedor2) if t2 else 0,
             't2_prov3': float(t2.precio_proveedor3) if t2 else 0,
@@ -95,6 +99,16 @@ def save_data():
             existe_otro = Producto.query.filter(Producto.nombre == nuevo_nombre, Producto.id != prod_id).first()
             if existe_otro:
                 return jsonify({"status": "error", "message": f"¡ALTO! Ya existe un producto llamado '{nuevo_nombre}'."}), 400
+
+            # --- VALIDACIÓN DE CÓDIGO DE BARRAS DUPLICADO ---
+            if nuevo_codigo and prod_id and str(prod_id).strip() != '':
+                existe_codigo = Producto.query.filter(
+                    Producto.codigo_barras == nuevo_codigo,
+                    Producto.id != int(prod_id)
+                ).first()
+                if existe_codigo:
+                    return jsonify({"status": "error", "message": f"El código de barras '{nuevo_codigo}' ya está asignado al producto: {existe_codigo.nombre} (ID: {existe_codigo.id})."}), 400
+            # ------------------------------------------------
 
             if prod_id and str(prod_id).strip() != '':
                 prod = Producto.query.get(int(prod_id))
@@ -145,10 +159,15 @@ def save_data():
                 pres.precio_proveedor3 = safe_dec(fila.get(f'{prefix}_pv3'))
                 pres.porcentaje = safe_dec(fila.get(f'{prefix}_gan'))
                 pres.precio_venta = safe_dec(fila.get(f'{prefix}_base'))
+                
                 pres.condicion1 = str(fila.get(f'{prefix}_c1', ''))
                 pres.precio_venta1 = safe_dec(fila.get(f'{prefix}_p1'))
                 pres.condicion2 = str(fila.get(f'{prefix}_c2', ''))
                 pres.precio_venta2 = safe_dec(fila.get(f'{prefix}_p2'))
+                
+                # AQUI GUARDAMOS LA CONDICION 3
+                pres.condicion3 = str(fila.get(f'{prefix}_c3', ''))
+                pres.precio_venta3 = safe_dec(fila.get(f'{prefix}_p3'))
                 
                 pres.stock_minimo = safe_int(fila.get(f'{prefix}_min', 5))
                 pres.stock_maximo = safe_int(fila.get(f'{prefix}_max', 20))
@@ -174,6 +193,8 @@ def save_data():
                 't1_p1': float(safe_dec(fila.get('t1_p1'))),
                 't1_c2': fila.get('t1_c2', ''),
                 't1_p2': float(safe_dec(fila.get('t1_p2'))),
+                't1_c3': fila.get('t1_c3', ''), # <-- AGREGADO
+                't1_p3': float(safe_dec(fila.get('t1_p3'))), # <-- AGREGADO
                 't1_prov1': float(safe_dec(fila.get('t1_pv1'))),
                 't1_prov2': float(safe_dec(fila.get('t1_pv2'))),
                 't1_prov3': float(safe_dec(fila.get('t1_pv3'))),
@@ -187,6 +208,8 @@ def save_data():
                 't2_p1': float(safe_dec(fila.get('t2_p1'))),
                 't2_c2': fila.get('t2_c2', ''),
                 't2_p2': float(safe_dec(fila.get('t2_p2'))),
+                't2_c3': fila.get('t2_c3', ''), # <-- AGREGADO
+                't2_p3': float(safe_dec(fila.get('t2_p3'))), # <-- AGREGADO
                 't2_prov1': float(safe_dec(fila.get('t2_pv1'))),
                 't2_prov2': float(safe_dec(fila.get('t2_pv2'))),
                 't2_prov3': float(safe_dec(fila.get('t2_pv3'))),
@@ -194,6 +217,9 @@ def save_data():
                 't2_max': safe_int(fila.get('t2_max', 20)),
             }
         })
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": "Error: El código de barras que intentas guardar ya existe en otro producto (Verifica la base de datos)."}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -261,7 +287,7 @@ def api_ensamble():
 
     data = request.json
     try:
-        tienda_id = int(data.get('tienda_id')) # <-- NUEVO: Recibimos la tienda
+        tienda_id = int(data.get('tienda_id')) 
         destino_id = int(data.get('destino_id'))
         origenes = data.get('origenes', [])
 
@@ -270,7 +296,6 @@ def api_ensamble():
 
         total_unidades_extraidas = 0
 
-        # 1. Procesar Origenes (Restar cajas SOLO en la tienda seleccionada)
         for ori in origenes:
             o_id = int(ori.get('id'))
             cajas = int(ori.get('cajas'))
@@ -284,7 +309,6 @@ def api_ensamble():
                 pt.cantidad -= cajas
                 pt.sync_estado = 'pendiente'
 
-        # 2. Procesar Destino (Sumar Unidades SOLO en la tienda seleccionada)
         pt_dest = ProductoTienda.query.filter_by(producto_id=destino_id, tienda_id=tienda_id).first()
         if pt_dest:
             pt_dest.cantidad += total_unidades_extraidas

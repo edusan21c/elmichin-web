@@ -166,9 +166,13 @@
                                     <div class="col-3"><label class="form-label">Cant 1</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-c1" inputmode="decimal"></div>
                                     <div class="col-9"><label class="form-label">Precio 1</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-p1" inputmode="decimal"></div>
                                 </div>
-                                <div class="row g-2 mb-3">
+                                <div class="row g-2 mb-2">
                                     <div class="col-3"><label class="form-label">Cant 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-c2" inputmode="decimal"></div>
                                     <div class="col-9"><label class="form-label">Precio 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-p2" inputmode="decimal"></div>
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-3"><label class="form-label">Cant 3</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-c3" inputmode="decimal"></div>
+                                    <div class="col-9"><label class="form-label">Precio 3</label><input type="text" class="form-control form-control-sm text-end" id="edit-t1-p3" inputmode="decimal"></div>
                                 </div>
                                 <div class="section-subtitle">Proveedores (Promedio)</div>
                                 <div class="row g-2 mb-3">
@@ -203,9 +207,13 @@
                                     <div class="col-3"><label class="form-label">Cant 1</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-c1" inputmode="decimal"></div>
                                     <div class="col-9"><label class="form-label">Precio 1</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-p1" inputmode="decimal"></div>
                                 </div>
-                                <div class="row g-2 mb-3">
+                                <div class="row g-2 mb-2">
                                     <div class="col-3"><label class="form-label">Cant 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-c2" inputmode="decimal"></div>
                                     <div class="col-9"><label class="form-label">Precio 2</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-p2" inputmode="decimal"></div>
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-3"><label class="form-label">Cant 3</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-c3" inputmode="decimal"></div>
+                                    <div class="col-9"><label class="form-label">Precio 3</label><input type="text" class="form-control form-control-sm text-end" id="edit-t2-p3" inputmode="decimal"></div>
                                 </div>
                                 <div class="section-subtitle">Proveedores (Promedio)</div>
                                 <div class="row g-2 mb-3">
@@ -327,8 +335,8 @@
         document.getElementById('edit-nombre').value = '';
         document.getElementById('edit-categoria').value = '';
         document.getElementById('edit-codigo').value = '';
-        ['t1_stock', 't1_costo', 't1_gan', 't1_base', 't1_c1', 't1_p1', 't1_c2', 't1_p2', 't1_pv1', 't1_pv2', 't1_pv3', 't1_min', 't1_max',
-         't2_stock', 't2_costo', 't2_gan', 't2_base', 't2_c1', 't2_p1', 't2_c2', 't2_p2', 't2_pv1', 't2_pv2', 't2_pv3', 't2_min', 't2_max'].forEach(field => {
+        ['t1_stock', 't1_costo', 't1_gan', 't1_base', 't1_c1', 't1_p1', 't1_c2', 't1_p2', 't1_c3', 't1_p3', 't1_pv1', 't1_pv2', 't1_pv3', 't1_min', 't1_max',
+         't2_stock', 't2_costo', 't2_gan', 't2_base', 't2_c1', 't2_p1', 't2_c2', 't2_p2', 't2_c3', 't2_p3', 't2_pv1', 't2_pv2', 't2_pv3', 't2_min', 't2_max'].forEach(field => {
             document.getElementById('edit-' + field.replace('_', '-')).value = '';
         });
         document.getElementById('edit-t1-min').value = 5;
@@ -358,6 +366,8 @@
         document.getElementById('edit-t1-p1').value = data.t1_p1;
         document.getElementById('edit-t1-c2').value = data.t1_c2;
         document.getElementById('edit-t1-p2').value = data.t1_p2;
+        document.getElementById('edit-t1-c3').value = data.t1_c3 || '';
+        document.getElementById('edit-t1-p3').value = data.t1_p3 || '';
         document.getElementById('edit-t1-pv1').value = data.t1_prov1 || '';
         document.getElementById('edit-t1-pv2').value = data.t1_prov2 || '';
         document.getElementById('edit-t1-pv3').value = data.t1_prov3 || '';
@@ -372,6 +382,8 @@
         document.getElementById('edit-t2-p1').value = data.t2_p1;
         document.getElementById('edit-t2-c2').value = data.t2_c2;
         document.getElementById('edit-t2-p2').value = data.t2_p2;
+        document.getElementById('edit-t2-c3').value = data.t2_c3 || '';
+        document.getElementById('edit-t2-p3').value = data.t2_p3 || '';
         document.getElementById('edit-t2-pv1').value = data.t2_prov1 || '';
         document.getElementById('edit-t2-pv2').value = data.t2_prov2 || '';
         document.getElementById('edit-t2-pv3').value = data.t2_prov3 || '';
@@ -473,6 +485,8 @@
             t1_p1: document.getElementById('edit-t1-p1').value,
             t1_c2: document.getElementById('edit-t1-c2').value,
             t1_p2: document.getElementById('edit-t1-p2').value,
+            t1_c3: document.getElementById('edit-t1-c3').value,
+            t1_p3: document.getElementById('edit-t1-p3').value,
             t1_pv1: document.getElementById('edit-t1-pv1').value,
             t1_pv2: document.getElementById('edit-t1-pv2').value,
             t1_pv3: document.getElementById('edit-t1-pv3').value,
@@ -486,6 +500,8 @@
             t2_p1: document.getElementById('edit-t2-p1').value,
             t2_c2: document.getElementById('edit-t2-c2').value,
             t2_p2: document.getElementById('edit-t2-p2').value,
+            t2_c3: document.getElementById('edit-t2-c3').value,
+            t2_p3: document.getElementById('edit-t2-p3').value,
             t2_pv1: document.getElementById('edit-t2-pv1').value,
             t2_pv2: document.getElementById('edit-t2-pv2').value,
             t2_pv3: document.getElementById('edit-t2-pv3').value,
