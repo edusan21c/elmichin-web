@@ -447,18 +447,21 @@ def main():
     log('--- AUTO-REPARACION DE CODIGOS VACIOS ---')
     reparar_codigos_vacios(app)
 
-    # 🚨 GIT PULL BLINDADO
+    # 🚨 GIT PULL BLINDADO (AHORA 100% INVISIBLE)
     log('--- GIT PULL (sincronizacion forzada) ---')
     import subprocess
     try:
-        old_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=RAIZ, capture_output=True, text=True).stdout.strip()
-        subprocess.run(['git', 'fetch', 'origin', 'main', '--tags'], cwd=RAIZ, capture_output=True, timeout=60)
-        subprocess.run(['git', 'reset', '--hard', 'origin/main'], cwd=RAIZ, capture_output=True, timeout=60)
-        new_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=RAIZ, capture_output=True, text=True).stdout.strip()
+        # Esta línea es la magia que oculta las ventanas negras
+        flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        
+        old_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=RAIZ, capture_output=True, text=True, creationflags=flags).stdout.strip()
+        subprocess.run(['git', 'fetch', 'origin', 'main', '--tags'], cwd=RAIZ, capture_output=True, timeout=60, creationflags=flags)
+        subprocess.run(['git', 'reset', '--hard', 'origin/main'], cwd=RAIZ, capture_output=True, timeout=60, creationflags=flags)
+        new_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=RAIZ, capture_output=True, text=True, creationflags=flags).stdout.strip()
         
         if old_hash != new_hash:
             log('Git Pull: ¡Actualizaciones forzadas con éxito! Reiniciando sistema...')
-            subprocess.run(['powershell', '-Command', 'Restart-Service MichinFlask -Force'], capture_output=True)
+            subprocess.run(['powershell', '-Command', 'Restart-Service MichinFlask -Force'], capture_output=True, creationflags=flags)
             log('Sistema reiniciado.')
         else:
             log('Git Pull: Sin actualizaciones nuevas.')
