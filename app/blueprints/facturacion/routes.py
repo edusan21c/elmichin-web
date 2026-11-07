@@ -147,13 +147,15 @@ def api_familia(producto_id):
     tienda_id = tienda_actual()
     nombre_sin_asterisco = prod_base.nombre.replace('*', '').strip()
     
-    match_unidad = re.findall(r'(\d+)\s*(?:g|gr|ml|l|lt|kg|un|und)\b', nombre_sin_asterisco, re.IGNORECASE)
+    match_unidad = re.findall(r'(\d+)\s*(g|gr|ml|l|lt|kg|un|und)\b', nombre_sin_asterisco, re.IGNORECASE)
     
     if match_unidad:
-        num_principal = match_unidad[0]
+        num_principal = match_unidad[0][0]
+        unidad_principal = match_unidad[0][1].lower()
     else:
         numeros_base = re.findall(r'\d+', nombre_sin_asterisco)
         num_principal = numeros_base[-1] if numeros_base else None
+        unidad_principal = None
     
     if num_principal:
         nombre_limpio = re.sub(rf'\b{num_principal}\s*(?:g|gr|ml|l|lt|kg|un|und)?\b.*', '', nombre_sin_asterisco, flags=re.IGNORECASE)
@@ -174,6 +176,23 @@ def api_familia(producto_id):
     
     if num_principal:
         query = query.filter(Producto.nombre.ilike(f'%{num_principal}%'))
+        
+        if unidad_principal:
+            if unidad_principal in ['g', 'gr']:
+                query = query.filter(or_(
+                    Producto.nombre.ilike(f'%{num_principal}g%'),
+                    Producto.nombre.ilike(f'%{num_principal} g%'),
+                    Producto.nombre.ilike(f'%{num_principal}gr%'),
+                    Producto.nombre.ilike(f'%{num_principal} gr%')
+                ))
+            elif unidad_principal in ['un', 'und']:
+                query = query.filter(or_(
+                    Producto.nombre.ilike(f'%{num_principal}u%'),
+                    Producto.nombre.ilike(f'%{num_principal} u%'),
+                    Producto.nombre.ilike(f'%{num_principal}un%'),
+                    Producto.nombre.ilike(f'%{num_principal} un%'),
+                    Producto.nombre.ilike(f'%{num_principal}und%')
+                ))
         
     productos = query.all()
     
