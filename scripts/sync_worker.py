@@ -348,58 +348,33 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
         
     if not puede_intentar('pull'): return True
     with app.app_context():
-        # FIX DEFINITIVO: Buscar desde el año 2020, así siempre bajará todo
         desde = "2020-01-01T00:00:00"
         headers_pull = {'X-Sync-Key': sync_key, 'X-Sync-Ack': 'true'}
         hubo_error_pull = False
-        desde_id = 0
-
-        log(f'  PULL productos desde {desde[:10]}...')
         total_productos = 0
-        ids_pendientes_ack = []
-        MAX_ITERACIONES = 50
 
-        for i in range(MAX_ITERACIONES):
-            try:
-                r = requests.get(central_url.rstrip('/') + '/api/sync/pull', params={'tienda_id': tienda_id, 'desde': desde, 'desde_id': desde_id}, headers=headers_pull, timeout=TIMEOUT_REQUEST)
-                if r.status_code != 200:
-                    hubo_error_pull = True
-                    break
-
+        try:
+            r = requests.get(central_url.rstrip('/') + '/api/sync/pull', params={'tienda_id': tienda_id, 'desde': desde, 'desde_id': 0}, headers=headers_pull, timeout=TIMEOUT_REQUEST)
+            if r.status_code == 200:
                 datos = r.json()
                 productos = datos.get('productos', [])
-                hay_mas = datos.get('hay_mas', False)
-                ultimo_id = datos.get('ultimo_id', desde_id)
-
-                if not productos:
-                    break
-
-                try:
+                if productos:
                     resultado = sync_service.aplicar_cambios_pull({'productos': productos})
                     aplicados = resultado.get('actualizados', 0)
                     ids_lote = resultado.get('ids_aplicados', [])
-                except Exception as e:
-                    log(f'  [ALERTA] Error en lote {i+1}, ignorando para no caer.')
-                    db.session.rollback()
-                    aplicados = 0
-                    ids_lote = []
-
-                total_productos += aplicados
-                ids_pendientes_ack.extend(ids_lote)
-                desde_id = ultimo_id
-
-                log(f'  PULL productos lote {i+1}: {aplicados} actualizados')
-                if not hay_mas:
-                    break
-            except requests.RequestException as e:
-                log(f'  PULL productos: fallo red - {e}')
+                    total_productos += aplicados
+                    log(f'  PULL: {aplicados} productos actualizados.')
+                    
+                    if ids_lote:
+                        requests.post(central_url.rstrip('/') + '/api/sync/ack', json={'tienda_id': tienda_id, 'ids_productos': ids_lote}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
+                else:
+                    log('  PULL: Sin novedades.')
+            else:
+                log(f'  PULL: Error HTTP {r.status_code}')
                 hubo_error_pull = True
-                break
-
-        if ids_pendientes_ack:
-            try:
-                requests.post(central_url.rstrip('/') + '/api/sync/ack', json={'tienda_id': tienda_id, 'ids_productos': ids_pendientes_ack}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
-            except requests.RequestException: pass
+        except requests.RequestException as e:
+            log(f'  PULL: Error de red - {e}')
+            hubo_error_pull = True
 
         # PULL CONFIG
         try:

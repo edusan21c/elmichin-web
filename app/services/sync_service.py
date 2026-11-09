@@ -160,30 +160,28 @@ def marcar_sincronizados(tienda_id, resultado):
 
 
 # ==================== PULL (CENTRAL -> TIENDA) ====================
-def obtener_cambios_pull(tienda_id, desde=None, desde_id=0, limite=200):
+def obtener_cambios_pull(tienda_id, desde=None, desde_id=0, limite=5000):
     if not tienda_id:
         return {'productos': [], 'timestamp': datetime.utcnow().isoformat(),
                 'hay_mas': False, 'ultimo_id': 0}
 
+    # FIX DEFINITIVO: Sin paginación estricta por ID. Traemos TODOS los pendientes
     query = (db.session.query(Producto, ProductoTienda)
              .join(ProductoTienda, Producto.id == ProductoTienda.producto_id)
              .filter(
                  ProductoTienda.tienda_id == tienda_id,
-                 ProductoTienda.sync_estado == 'pendiente',
-                 ProductoTienda.producto_id > desde_id
+                 ProductoTienda.sync_estado == 'pendiente'
              )
              .order_by(ProductoTienda.producto_id)
-             .limit(limite + 1))
+             .limit(limite))
 
     registros = query.all()
-    hay_mas = len(registros) > limite
-    registros = registros[:limite]
-
+    
     resultado = {
         'productos': [],
         'timestamp': datetime.utcnow().isoformat(),
-        'hay_mas': hay_mas,
-        'ultimo_id': registros[-1][1].producto_id if registros else desde_id
+        'hay_mas': False,
+        'ultimo_id': 0
     }
 
     for p, pres in registros:
@@ -350,7 +348,6 @@ def aplicar_cambios_pull(datos):
                 actualizados += 1
                 ids_aplicados.append(producto_id)
         except Exception as e:
-            # Si aún así algo falla, se anota el error pero el bucle sigue
             print(f'  [IA Auto-Fix] Producto {p_data.get("nombre")} ignorado por error: {e}')
 
     db.session.commit()
