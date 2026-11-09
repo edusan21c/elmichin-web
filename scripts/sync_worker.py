@@ -284,20 +284,57 @@ def hacer_push(app, central_url, sync_key, tienda_id):
             return True
 
         try:
-            r = requests.post(central_url.rstrip('/') + '/api/sync/push', json={'tienda_id': tienda_id, **pendientes}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
-            if r.status_code == 200 and r.json().get('ok'):
-                sync_service.marcar_sincronizados(tienda_id, r.json())
-                registrar_exito('push')
+            # FIX: Si es la Central (tienda 0), separamos los productos y los enviamos por tienda
+            if tienda_id == 0:
+                productos_t1 = [p for p in pendientes['productos'] if p['tienda_id'] == 1]
+                productos_t2 = [p for p in pendientes['productos'] if p['tienda_id'] == 2]
+                
+                enviados_alguno = False
+                for t_id, prods in [(1, productos_t1), (2, productos_t2)]:
+                    conf = pendientes['configuracion'] if t_id == 1 else []
+                    
+                    if prods or conf:
+                        payload = {
+                            'tienda_id': t_id, 
+                            'productos': prods, 
+                            'configuracion': conf,
+                            'facturas': [], 
+                            'pagos': [], 
+                            'clientes': []
+                        }
+                        r = requests.post(central_url.rstrip('/') + '/api/sync/push', json=payload, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
+                        if r.status_code == 200 and r.json().get('ok'):
+                            sync_service.marcar_sincronizados(t_id, r.json())
+                            enviados_alguno = True
+                        else:
+                            raise Exception(f'HTTP {r.status_code} para Tienda {t_id}: {r.text}')
+                
+                if enviados_alguno:
+                    registrar_exito('push')
                 return True
             else:
-                registrar_falla('push', f'HTTP {r.status_code}')
-                return False
+                # Lógica normal para tiendas locales (Tienda 1 y 2)
+                r = requests.post(central_url.rstrip('/') + '/api/sync/push', json={'tienda_id': tienda_id, **pendientes}, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
+                if r.status_code == 200 and r.json().get('ok'):
+                    sync_service.marcar_sincronizados(tienda_id, r.json())
+                    registrar_exito('push')
+                    return True
+                else:
+                    registrar_falla('push', f'HTTP {r.status_code}: {r.text}')
+                    return False
         except requests.RequestException as e:
             registrar_falla('push', f'Red: {e}')
+            return False
+        except Exception as e:
+            registrar_falla('push', str(e))
             return False
 
 
 def hacer_pull(app, central_url, sync_key, tienda_id):
+    # FIX: La Central no necesita hacer pull de productos
+    if tienda_id == 0:
+        return 0
+        
     if not puede_intentar('pull'): return True
     with app.app_context():
         desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
