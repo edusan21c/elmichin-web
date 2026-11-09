@@ -26,7 +26,8 @@ TIMEOUT_REQUEST = 30
 LOG_FILE = os.path.join(RAIZ, 'logs', 'sync.log')
 BACKOFF_FILE = os.path.join(RAIZ, '.sync_backoff.json')
 
-BACKOFF_MINUTOS = [2, 5, 15, 30, 60]
+# Ya no usamos tiempos largos de castigo
+BACKOFF_MINUTOS = [0.1, 0.1, 0.1, 0.1, 0.1]
 UMBRAL_ALERTA_FALLAS = 3
 
 
@@ -102,8 +103,9 @@ def registrar_falla(operacion, error_msg):
     data = _leer_backoff()
     op = data.get(operacion, {})
     fallas = op.get('fallas', 0) + 1
-    idx = min(fallas - 1, len(BACKOFF_MINUTOS) - 1)
-    espera_min = BACKOFF_MINUTOS[idx]
+    
+    # FIX: Reintento rápido (6 segundos) en lugar de minutos
+    espera_min = 0.1
     proximo_dt = datetime.now() + timedelta(minutes=espera_min)
 
     data[operacion] = {
@@ -309,7 +311,7 @@ def hacer_push(app, central_url, sync_key, tienda_id):
                             'facturas': [], 
                             'pagos': [], 
                             'clientes': [],
-                            'origen': 'central'  # <--- ESTO ES CLAVE
+                            'origen': 'central'
                         }
                         r = requests.post(central_url.rstrip('/') + '/api/sync/push', json=payload, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
                         if r.status_code == 200 and r.json().get('ok'):
@@ -346,7 +348,8 @@ def hacer_pull(app, central_url, sync_key, tienda_id):
         
     if not puede_intentar('pull'): return True
     with app.app_context():
-        desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        # FIX DEFINITIVO: Buscar desde el año 2020, así siempre bajará todo
+        desde = "2020-01-01T00:00:00"
         headers_pull = {'X-Sync-Key': sync_key, 'X-Sync-Ack': 'true'}
         hubo_error_pull = False
         desde_id = 0
