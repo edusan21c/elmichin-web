@@ -141,10 +141,11 @@ def marcar_sincronizados(tienda_id, resultado):
             query = query.filter(Cliente.tienda_id == tienda_id)
         query.update({'sync_estado': 'sincronizado', 'sync_fecha': datetime.utcnow()}, synchronize_session=False)
 
-    if ids_productos:
+    # FIX CRÍTICO: Solo las tiendas (tienda_id != 0) pueden marcar productos como sincronizados.
+    # La Central NUNCA debe marcarlos, para que el producto quede visible para las tiendas.
+    if ids_productos and tienda_id != 0:
         query = ProductoTienda.query.filter(ProductoTienda.producto_id.in_(ids_productos))
-        if tienda_id != 0:
-            query = query.filter(ProductoTienda.tienda_id == tienda_id)
+        query = query.filter(ProductoTienda.tienda_id == tienda_id)
         query.update({'sync_estado': 'sincronizado', 'sync_fecha': datetime.utcnow()}, synchronize_session=False)
 
     if resultado.get('configuracion_ok'):
