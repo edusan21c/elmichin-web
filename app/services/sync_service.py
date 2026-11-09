@@ -165,12 +165,12 @@ def obtener_cambios_pull(tienda_id, desde=None, desde_id=0, limite=5000):
         return {'productos': [], 'timestamp': datetime.utcnow().isoformat(),
                 'hay_mas': False, 'ultimo_id': 0}
 
-    # FIX DEFINITIVO: Sin paginación estricta por ID. Traemos TODOS los pendientes
+    # FIX: Incluimos 'enviado_central' para que las tiendas sí lo puedan bajar
     query = (db.session.query(Producto, ProductoTienda)
              .join(ProductoTienda, Producto.id == ProductoTienda.producto_id)
              .filter(
                  ProductoTienda.tienda_id == tienda_id,
-                 ProductoTienda.sync_estado == 'pendiente'
+                 ProductoTienda.sync_estado.in_(['pendiente', 'enviado_central'])
              )
              .order_by(ProductoTienda.producto_id)
              .limit(limite))
@@ -216,10 +216,11 @@ def marcar_productos_ack(tienda_id, ids_productos):
     if not ids_productos or not tienda_id:
         return 0
 
+    # FIX: También marcamos los 'enviado_central' como sincronizados cuando la tienda confirma
     n = (ProductoTienda.query
          .filter(ProductoTienda.tienda_id == tienda_id,
                  ProductoTienda.producto_id.in_(ids_productos),
-                 ProductoTienda.sync_estado == 'pendiente')
+                 ProductoTienda.sync_estado.in_(['pendiente', 'enviado_central']))
          .update({
              'sync_estado': 'sincronizado',
              'sync_fecha': datetime.utcnow(),
@@ -762,9 +763,9 @@ def procesar_push(tienda_id, datos):
             pres.condicion2 = p_data.get('condicion2', '')
             pres.condicion3 = p_data.get('condicion3', '')
 
-            # FIX: Si viene de la central, lo dejamos pendiente para que las tiendas lo puedan bajar
+            # FIX DEFINITIVO: Si viene de la central, lo dejamos en 'enviado_central' para que las tiendas lo puedan bajar
             if datos.get('origen') == 'central':
-                pres.sync_estado = 'pendiente'
+                pres.sync_estado = 'enviado_central'
             else:
                 pres.sync_estado = 'sincronizado'
                 
@@ -1059,12 +1060,12 @@ def obtener_productos_pendientes_push(tienda_id):
     if tienda_id == 0:
         query = ProductoTienda.query.filter(
             ProductoTienda.tienda_id.in_([1, 2]),
-            ProductoTienda.sync_estado == 'pendiente'
+            ProductoTienda.sync_estado.in_(['pendiente', 'enviado_central'])
         ).all()
     else:
-        query = ProductoTienda.query.filter_by(
-            tienda_id=tienda_id,
-            sync_estado='pendiente'
+        query = ProductoTienda.query.filter(
+            ProductoTienda.tienda_id == tienda_id,
+            ProductoTienda.sync_estado.in_(['pendiente', 'enviado_central'])
         ).all()
 
     resultado = []
