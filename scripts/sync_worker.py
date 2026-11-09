@@ -5,6 +5,7 @@ import sys
 import json
 import socket
 import warnings
+import random
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -227,7 +228,14 @@ def reparar_codigos_vacios(app):
                 
             arreglados = 0
             for p in sin_codigo:
-                p.codigo_barras = f"AUTO-{p.id}"
+                nuevo_codigo = f"AUTO-{p.id}"
+                
+                # FIX: Verificar si el código ya existe antes de asignarlo
+                existe = Producto.query.filter(Producto.codigo_barras == nuevo_codigo, Producto.id != p.id).first()
+                if existe:
+                    nuevo_codigo = f"AUTO-{p.id}-{random.randint(100, 999)}"
+
+                p.codigo_barras = nuevo_codigo
                 ProductoTienda.query.filter_by(producto_id=p.id).update({'sync_estado': 'pendiente'})
                 arreglados += 1
                 
