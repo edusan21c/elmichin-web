@@ -765,7 +765,12 @@ def procesar_push(tienda_id, datos):
             pres.condicion2 = p_data.get('condicion2', '')
             pres.condicion3 = p_data.get('condicion3', '')
 
-            pres.sync_estado = 'sincronizado'
+            # FIX: Si viene de la central, lo dejamos pendiente para que las tiendas lo puedan bajar
+            if datos.get('origen') == 'central':
+                pres.sync_estado = 'pendiente'
+            else:
+                pres.sync_estado = 'sincronizado'
+                
             pres.sync_fecha = datetime.utcnow()
 
             productos_ok.append(producto_id)

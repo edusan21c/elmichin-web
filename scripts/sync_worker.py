@@ -300,7 +300,8 @@ def hacer_push(app, central_url, sync_key, tienda_id):
                             'configuracion': conf,
                             'facturas': [], 
                             'pagos': [], 
-                            'clientes': []
+                            'clientes': [],
+                            'origen': 'central'  # <--- ESTO ES CLAVE
                         }
                         r = requests.post(central_url.rstrip('/') + '/api/sync/push', json=payload, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
                         if r.status_code == 200 and r.json().get('ok'):
