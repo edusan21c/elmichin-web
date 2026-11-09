@@ -233,6 +233,10 @@
                 
             </div>
             <div class="modal-footer bg-light">
+                <!-- BOTÓN DE ELIMINAR AGREGADO AQUÍ -->
+                <button type="button" class="btn btn-danger me-auto" id="btnEliminarProducto" style="display: none;">
+                    <i class="bi bi-trash"></i> Eliminar Producto
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-success fw-bold px-4" id="btn-guardar-modal">Guardar Cambios</button>
             </div>
@@ -331,6 +335,7 @@
     function abrirModalNuevo() {
         currentEditId = null;
         document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-plus-circle"></i> Crear Nuevo Producto';
+        document.getElementById('btnEliminarProducto').style.display = 'none'; // Ocultar botón de borrar al crear
         document.getElementById('edit-id').value = '';
         document.getElementById('edit-nombre').value = '';
         document.getElementById('edit-categoria').value = '';
@@ -350,6 +355,7 @@
     function abrirModalEditar(data) {
         currentEditId = data.id;
         document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-pencil-square"></i> Editar Producto';
+        document.getElementById('btnEliminarProducto').style.display = 'block'; // Mostrar botón de borrar al editar
         document.getElementById('edit-id').value = data.id;
         document.getElementById('edit-nombre').value = data.nombre;
         var selectCat = document.getElementById('edit-categoria');
@@ -393,10 +399,45 @@
         limpiarZonaFoto();
         if (data.imagen) {
             document.getElementById('foto-actual').style.display = 'flex';
+            // ANTI-CACHÉ: Agregamos la fecha actual para que el navegador no guarde la foto vieja
             document.getElementById('img-actual').src = `/static/img/productos/${data.imagen}?v=${new Date().getTime()}`;
         }
         modalEditar.show();
     }
+
+    // --- LÓGICA DEL BOTÓN ELIMINAR ---
+    document.getElementById('btnEliminarProducto').addEventListener('click', function() {
+        if (!currentEditId) return;
+
+        Swal.fire({
+            title: '¿Estás seguro?',
+            text: "El sistema intentará borrarlo. Si tiene ventas, solo se ocultará para no romper la base de datos.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, borrar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch(`/inventario-pro/api/delete/${currentEditId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        modalEditar.hide();
+                        table.setData("/inventario-pro/api/data");
+                        Swal.fire('¡Borrado!', data.message, 'success');
+                    } else {
+                        Swal.fire('Atención', data.message, 'warning');
+                    }
+                })
+                .catch(err => Swal.fire('Error', 'Error de conexión con el servidor', 'error'));
+            }
+        });
+    });
 
     function generarCodigoEAN13() {
         let codigosActuales = table.getData().map(p => p.codigo_barras);
@@ -686,14 +727,12 @@
         
         let modalContainer = document.getElementById('modalEnsamble');
         
-        // Delegación de eventos para cálculo en vivo
         modalContainer.addEventListener('input', function(e) {
             if (e.target.classList.contains('cajas-origen') || e.target.classList.contains('factor-origen')) {
                 actualizarTotalDestino();
             }
         });
 
-        // Delegación de eventos para eliminar filas
         modalContainer.addEventListener('click', function(e) {
             if (e.target.closest('.btn-eliminar-origen')) {
                 e.target.closest('.fila-origen').remove();
@@ -738,7 +777,6 @@
         if (inputDest) inputDest.value = total;
     }
 
-    // --- BUSCADOR DINÁMICO FILAS (ORIGEN) CON STOCK Y FLECHAS ---
     function filtrarListaFila(inputElement, event) {
         if(event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter') return;
         
@@ -810,7 +848,6 @@
         }
     }
 
-    // --- BUSCADOR DESTINO (ÚNICO) CON FLECHAS ---
     function filtrarLista(tipo, event) {
         if(event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter') return;
         let input = document.getElementById(`buscar-${tipo}`);

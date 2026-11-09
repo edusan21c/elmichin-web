@@ -100,7 +100,6 @@ def save_data():
             if existe_otro:
                 return jsonify({"status": "error", "message": f"¡ALTO! Ya existe un producto llamado '{nuevo_nombre}'."}), 400
 
-            # --- VALIDACIÓN DE CÓDIGO DE BARRAS DUPLICADO ---
             if nuevo_codigo and prod_id and str(prod_id).strip() != '':
                 existe_codigo = Producto.query.filter(
                     Producto.codigo_barras == nuevo_codigo,
@@ -108,7 +107,6 @@ def save_data():
                 ).first()
                 if existe_codigo:
                     return jsonify({"status": "error", "message": f"El código de barras '{nuevo_codigo}' ya está asignado al producto: {existe_codigo.nombre} (ID: {existe_codigo.id})."}), 400
-            # ------------------------------------------------
 
             if prod_id and str(prod_id).strip() != '':
                 prod = Producto.query.get(int(prod_id))
@@ -165,7 +163,6 @@ def save_data():
                 pres.condicion2 = str(fila.get(f'{prefix}_c2', ''))
                 pres.precio_venta2 = safe_dec(fila.get(f'{prefix}_p2'))
                 
-                # AQUI GUARDAMOS LA CONDICION 3
                 pres.condicion3 = str(fila.get(f'{prefix}_c3', ''))
                 pres.precio_venta3 = safe_dec(fila.get(f'{prefix}_p3'))
                 
@@ -193,8 +190,8 @@ def save_data():
                 't1_p1': float(safe_dec(fila.get('t1_p1'))),
                 't1_c2': fila.get('t1_c2', ''),
                 't1_p2': float(safe_dec(fila.get('t1_p2'))),
-                't1_c3': fila.get('t1_c3', ''), # <-- AGREGADO
-                't1_p3': float(safe_dec(fila.get('t1_p3'))), # <-- AGREGADO
+                't1_c3': fila.get('t1_c3', ''),
+                't1_p3': float(safe_dec(fila.get('t1_p3'))),
                 't1_prov1': float(safe_dec(fila.get('t1_pv1'))),
                 't1_prov2': float(safe_dec(fila.get('t1_pv2'))),
                 't1_prov3': float(safe_dec(fila.get('t1_pv3'))),
@@ -208,8 +205,8 @@ def save_data():
                 't2_p1': float(safe_dec(fila.get('t2_p1'))),
                 't2_c2': fila.get('t2_c2', ''),
                 't2_p2': float(safe_dec(fila.get('t2_p2'))),
-                't2_c3': fila.get('t2_c3', ''), # <-- AGREGADO
-                't2_p3': float(safe_dec(fila.get('t2_p3'))), # <-- AGREGADO
+                't2_c3': fila.get('t2_c3', ''),
+                't2_p3': float(safe_dec(fila.get('t2_p3'))),
                 't2_prov1': float(safe_dec(fila.get('t2_pv1'))),
                 't2_prov2': float(safe_dec(fila.get('t2_pv2'))),
                 't2_prov3': float(safe_dec(fila.get('t2_pv3'))),
@@ -319,3 +316,36 @@ def api_ensamble():
     except Exception as e:
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@bp.route('/api/delete/<int:producto_id>', methods=['POST'])
+@login_required
+def delete_producto(producto_id):
+    if not current_user.es_programador() or not verificar_central():
+        return jsonify({"status": "error", "message": "No tienes permiso."}), 403
+
+    prod = Producto.query.get(producto_id)
+    if not prod:
+        return jsonify({"status": "error", "message": "Producto no encontrado"}), 404
+
+    try:
+        # CANDADO DE SEGURIDAD: Verificar si tiene facturas cruzadas
+        from app.models.factura import DetalleFactura
+        tiene_facturas = DetalleFactura.query.filter_by(producto_id=prod.id).first()
+
+        if tiene_facturas:
+            return jsonify({
+                "status": "error", 
+                "message": "¡ALTO! No se puede borrar este producto porque ya tiene ventas registradas (Facturas). Para evitar descuadres, solo puedes INACTIVARLO cambiando su categoría."
+            }), 400
+
+        # Si no tiene facturas, borramos su stock en las tiendas
+        ProductoTienda.query.filter_by(producto_id=prod.id).delete()
+
+        # Borramos el producto de la base de datos definitivamente
+        db.session.delete(prod)
+        db.session.commit()
+
+        return jsonify({"status": "success", "message": "Producto borrado PERMANENTEMENTE de la base de datos."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": f"Error al borrar: {str(e)}"}), 500
