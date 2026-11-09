@@ -124,33 +124,28 @@ def marcar_sincronizados(tienda_id, resultado):
     ids_productos = resultado.get('productos_ok', [])
 
     if ids_facturas:
-        (Factura.query
-         .filter(Factura.id.in_(ids_facturas), Factura.tienda_id == tienda_id)
-         .update({'sync_estado': 'sincronizado',
-                  'sync_fecha': datetime.utcnow()},
-                 synchronize_session=False))
+        query = Factura.query.filter(Factura.id.in_(ids_facturas))
+        if tienda_id != 0:
+            query = query.filter(Factura.tienda_id == tienda_id)
+        query.update({'sync_estado': 'sincronizado', 'sync_fecha': datetime.utcnow()}, synchronize_session=False)
 
     if ids_pagos:
-        (Pago.query
-         .filter(Pago.id.in_(ids_pagos), Pago.tienda_id == tienda_id)
-         .update({'sync_estado': 'sincronizado',
-                  'sync_fecha': datetime.utcnow()},
-                 synchronize_session=False))
+        query = Pago.query.filter(Pago.id.in_(ids_pagos))
+        if tienda_id != 0:
+            query = query.filter(Pago.tienda_id == tienda_id)
+        query.update({'sync_estado': 'sincronizado', 'sync_fecha': datetime.utcnow()}, synchronize_session=False)
 
     if ids_clientes:
-        (Cliente.query
-         .filter(Cliente.id.in_(ids_clientes), Cliente.tienda_id == tienda_id)
-         .update({'sync_estado': 'sincronizado',
-                  'sync_fecha': datetime.utcnow()},
-                 synchronize_session=False))
+        query = Cliente.query.filter(Cliente.id.in_(ids_clientes))
+        if tienda_id != 0:
+            query = query.filter(Cliente.tienda_id == tienda_id)
+        query.update({'sync_estado': 'sincronizado', 'sync_fecha': datetime.utcnow()}, synchronize_session=False)
 
     if ids_productos:
-        (ProductoTienda.query
-         .filter(ProductoTienda.tienda_id == tienda_id,
-                 ProductoTienda.producto_id.in_(ids_productos))
-         .update({'sync_estado': 'sincronizado',
-                  'sync_fecha': datetime.utcnow()},
-                 synchronize_session=False))
+        query = ProductoTienda.query.filter(ProductoTienda.producto_id.in_(ids_productos))
+        if tienda_id != 0:
+            query = query.filter(ProductoTienda.tienda_id == tienda_id)
+        query.update({'sync_estado': 'sincronizado', 'sync_fecha': datetime.utcnow()}, synchronize_session=False)
 
     if resultado.get('configuracion_ok'):
         from app.models.configuracion import Configuracion
@@ -1059,10 +1054,16 @@ def detectar_facturas_faltantes(tienda_id):
 # ==================== PRODUCTOS PENDIENTES DE PUSH ====================
 def obtener_productos_pendientes_push(tienda_id):
     """Devuelve TODOS los campos del producto para push."""
-    query = ProductoTienda.query.filter_by(
-        tienda_id=tienda_id,
-        sync_estado='pendiente'
-    ).all()
+    if tienda_id == 0:
+        query = ProductoTienda.query.filter(
+            ProductoTienda.tienda_id.in_([1, 2]),
+            ProductoTienda.sync_estado == 'pendiente'
+        ).all()
+    else:
+        query = ProductoTienda.query.filter_by(
+            tienda_id=tienda_id,
+            sync_estado='pendiente'
+        ).all()
 
     resultado = []
     for pres in query:
