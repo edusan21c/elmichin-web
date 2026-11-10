@@ -665,6 +665,14 @@ def procesar_push(tienda_id, datos):
             if not t_id:
                 continue
 
+            # 🛡️ GUARDIAN DE PRECIOS (Evita sincronizar activos a $0)
+            categoria = (p_data.get('categoria') or '').strip()
+            precio = float(p_data.get('precio_venta', 0) or 0)
+            
+            if categoria != 'INACTIVO' and precio <= 0:
+                errores.append(f"❌ Omitido '{nombre}': No se sincroniza un producto activo con precio $0.")
+                continue # Salta este producto y no lo guarda
+
             codigo_global = p_data.get('codigo_global')
 
             producto = None

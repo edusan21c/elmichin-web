@@ -10,7 +10,6 @@ import time
 import subprocess
 from PIL import Image
 import uuid
-import random
 from sqlalchemy.exc import IntegrityError
 
 def safe_dec(val):
@@ -112,12 +111,11 @@ def save_data():
                 prod = Producto.query.get(int(prod_id))
             else:
                 codigo_ingresado = nuevo_codigo
+                
+                # 🛡️ GUARDIAN: No permitir crear productos sin código de barras (evita los 200...)
                 if not codigo_ingresado:
-                    while True:
-                        nuevo_codigo_gen = "200" + str(random.randint(100000000, 999999999))
-                        if not Producto.query.filter_by(codigo_barras=nuevo_codigo_gen).first():
-                            codigo_ingresado = nuevo_codigo_gen
-                            break
+                    return jsonify({"status": "error", "message": "¡ALTO! No puedes crear un producto nuevo sin un código de barras válido. Escanea o escribe uno."}), 400
+                
                 prod = Producto(nombre=nuevo_nombre, categoria=fila.get('categoria'), codigo_barras=codigo_ingresado, codigo_global=str(uuid.uuid4()))
                 db.session.add(prod)
                 db.session.flush()
@@ -152,9 +150,9 @@ def save_data():
                     db.session.add(pres)
                 
                 pres.cantidad = safe_int(fila.get(f'{prefix}_stock'))
-                pres.precio_proveedor = safe_dec(fila.get(f'{prefix}_pv1'))
-                pres.precio_proveedor2 = safe_dec(fila.get(f'{prefix}_pv2'))
-                pres.precio_proveedor3 = safe_dec(fila.get(f'{prefix}_pv3'))
+                pres.precio_proveedor = safe_dec(fila.get(f'{prefix}_prov1'))
+                pres.precio_proveedor2 = safe_dec(fila.get(f'{prefix}_prov2'))
+                pres.precio_proveedor3 = safe_dec(fila.get(f'{prefix}_prov3'))
                 pres.porcentaje = safe_dec(fila.get(f'{prefix}_gan'))
                 pres.precio_venta = safe_dec(fila.get(f'{prefix}_base'))
                 
@@ -183,7 +181,7 @@ def save_data():
                 'codigo_barras': prod.codigo_barras or '',
                 'imagen': prod.imagen or '',
                 't1_stock': safe_int(fila.get('t1_stock')),
-                't1_costo': (float(safe_dec(fila.get('t1_pv1'))) + float(safe_dec(fila.get('t1_pv2'))) + float(safe_dec(fila.get('t1_pv3')))) / 3,
+                't1_costo': (float(safe_dec(fila.get('t1_prov1'))) + float(safe_dec(fila.get('t1_prov2'))) + float(safe_dec(fila.get('t1_prov3')))) / 3,
                 't1_gan': float(safe_dec(fila.get('t1_gan'))),
                 't1_base': float(safe_dec(fila.get('t1_base'))),
                 't1_c1': fila.get('t1_c1', ''),
@@ -192,13 +190,13 @@ def save_data():
                 't1_p2': float(safe_dec(fila.get('t1_p2'))),
                 't1_c3': fila.get('t1_c3', ''),
                 't1_p3': float(safe_dec(fila.get('t1_p3'))),
-                't1_prov1': float(safe_dec(fila.get('t1_pv1'))),
-                't1_prov2': float(safe_dec(fila.get('t1_pv2'))),
-                't1_prov3': float(safe_dec(fila.get('t1_pv3'))),
+                't1_prov1': float(safe_dec(fila.get('t1_prov1'))),
+                't1_prov2': float(safe_dec(fila.get('t1_prov2'))),
+                't1_prov3': float(safe_dec(fila.get('t1_prov3'))),
                 't1_min': safe_int(fila.get('t1_min', 5)),
                 't1_max': safe_int(fila.get('t1_max', 20)),
                 't2_stock': safe_int(fila.get('t2_stock')),
-                't2_costo': (float(safe_dec(fila.get('t2_pv1'))) + float(safe_dec(fila.get('t2_pv2'))) + float(safe_dec(fila.get('t2_pv3')))) / 3,
+                't2_costo': (float(safe_dec(fila.get('t2_prov1'))) + float(safe_dec(fila.get('t2_prov2'))) + float(safe_dec(fila.get('t2_prov3')))) / 3,
                 't2_gan': float(safe_dec(fila.get('t2_gan'))),
                 't2_base': float(safe_dec(fila.get('t2_base'))),
                 't2_c1': fila.get('t2_c1', ''),
@@ -207,13 +205,17 @@ def save_data():
                 't2_p2': float(safe_dec(fila.get('t2_p2'))),
                 't2_c3': fila.get('t2_c3', ''),
                 't2_p3': float(safe_dec(fila.get('t2_p3'))),
-                't2_prov1': float(safe_dec(fila.get('t2_pv1'))),
-                't2_prov2': float(safe_dec(fila.get('t2_pv2'))),
-                't2_prov3': float(safe_dec(fila.get('t2_pv3'))),
+                't2_prov1': float(safe_dec(fila.get('t2_prov1'))),
+                't2_prov2': float(safe_dec(fila.get('t2_prov2'))),
+                't2_prov3': float(safe_dec(fila.get('t2_prov3'))),
                 't2_min': safe_int(fila.get('t2_min', 5)),
                 't2_max': safe_int(fila.get('t2_max', 20)),
             }
         })
+    except ValueError as ve:
+        # Atrapa los errores de validación del modelo Producto
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(ve)}), 400
     except IntegrityError:
         db.session.rollback()
         return jsonify({"status": "error", "message": "Error: El código de barras que intentas guardar ya existe en otro producto (Verifica la base de datos)."}), 400
@@ -338,7 +340,15 @@ def delete_producto(producto_id):
                 "message": "¡ALTO! No se puede borrar este producto porque ya tiene ventas registradas (Facturas). Para evitar descuadres, solo puedes INACTIVARLO cambiando su categoría."
             }), 400
 
-        # Si no tiene facturas, borramos su stock en las tiendas
+        # CANDADO DE SEGURIDAD 2: Verificar si tiene stock
+        tiene_stock = ProductoTienda.query.filter(ProductoTienda.producto_id == prod.id, ProductoTienda.cantidad > 0).first()
+        if tiene_stock:
+            return jsonify({
+                "status": "error", 
+                "message": "¡ALTO! No se puede borrar este producto porque tiene stock físico en las tiendas. Ajusta el stock a 0 o INACTÍVALO."
+            }), 400
+
+        # Si no tiene facturas ni stock, borramos su registro en las tiendas
         ProductoTienda.query.filter_by(producto_id=prod.id).delete()
 
         # Borramos el producto de la base de datos definitivamente

@@ -1,6 +1,7 @@
 # app/models/producto.py
 from datetime import datetime
 from app.extensions import db
+from sqlalchemy.orm import validates
 
 class Producto(db.Model):
     __tablename__ = 'productos'
@@ -22,6 +23,55 @@ class Producto(db.Model):
 
     def __repr__(self):
         return f'<Producto {self.nombre}>'
+
+    # ==========================================
+    # 🛡️ GUARDIANES DE INTEGRIDAD (Validadores)
+    # ==========================================
+    
+    @validates('nombre')
+    def validar_nombre(self, key, value):
+        if not value:
+            raise ValueError("El nombre del producto no puede estar vacío.")
+        
+        value = value.strip() # Quitar espacios en blanco al inicio y final
+        
+        # Verificar si el nombre ya existe en OTRO producto
+        existente = Producto.query.filter(
+            Producto.nombre == value, 
+            Producto.id != self.id
+        ).first()
+        
+        if existente:
+            raise ValueError(f"❌ BLOQUEADO: Ya existe un producto con el nombre '{value}' (ID: {existente.id}).")
+        return value
+
+    @validates('codigo_barras')
+    def validar_codigo_barras(self, key, value):
+        if not value:
+            return value # Permitir códigos vacíos
+            
+        value = value.strip()
+        
+        # Si el producto ya está guardado y el código no cambió, no validar de nuevo
+        if self.id and self.codigo_barras == value:
+            return value
+            
+        # Evitar la creación de códigos basura del POS (solo si es producto nuevo)
+        if not self.id:
+            if value.startswith('200') and len(value) > 10:
+                raise ValueError(f"❌ BLOQUEADO: No se permite crear productos con código de emergencia POS ('200...').")
+            if value.startswith('AUTO-'):
+                raise ValueError(f"❌ BLOQUEADO: No se permite crear productos con código automático ('AUTO-...').")
+                
+        # Verificar si el código ya existe en OTRO producto
+        existente = Producto.query.filter(
+            Producto.codigo_barras == value, 
+            Producto.id != self.id
+        ).first()
+        
+        if existente:
+            raise ValueError(f"❌ BLOQUEADO: El código de barras '{value}' ya pertenece al producto '{existente.nombre}' (ID: {existente.id}).")
+        return value
 
 
 class ProductoTienda(db.Model):
