@@ -61,7 +61,6 @@
             <i class="bi bi-x-circle-fill clear-icon" id="btn-limpiar-busqueda" title="Limpiar búsqueda"></i>
         </div>
         <div class="d-flex align-items-center gap-2">
-            <!-- INTERRUPTOR PARA OCULTAR INACTIVOS -->
             <div class="form-check form-switch me-3 mb-0">
                 <input class="form-check-input" type="checkbox" id="ocultar-inactivos" style="cursor:pointer; transform: scale(1.3);">
                 <label class="form-check-label fw-bold text-muted ms-2" for="ocultar-inactivos" style="cursor:pointer; margin-top: 4px;">Ocultar Inactivos</label>
@@ -85,13 +84,13 @@
     <div class="card border-0 shadow-sm" style="border-radius: 16px;"><div class="card-body p-0"><div id="tabla-inventario"></div></div></div>
 </div>
 
-<!-- MODAL EDITAR -->
-<div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
+<!-- MODAL EDITAR (BLINDADO: data-bs-backdrop="static" evita que se cierre al hacer clic por fuera) -->
+<div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-xl" style="max-width: 95%; margin: 2vh auto;">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modal-titulo"><i class="bi bi-pencil-square"></i> Editar Producto</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="btn-cerrar-x"></button>
             </div>
             
             <div class="modal-body">
@@ -255,6 +254,9 @@
 <script src="{{ url_for('static', filename='lib/tabulator.min.js') }}"></script>
 <script src="{{ url_for('static', filename='lib/sweetalert2.js') }}"></script>
 <script>
+    // 🛡️ BANDERA GLOBAL PARA SABER SI ESTAMOS GUARDANDO
+    window.isSaving = false;
+
     var moneyFormatter = function(cell) {
         var val = cell.getValue();
         if(val === null || val === undefined || val === "") return "";
@@ -262,6 +264,17 @@
     };
 
     var modalEditar = new bootstrap.Modal(document.getElementById('modalEditar'));
+    
+    // 🛡️ ESCUCHAR EL EVENTO DE CIERRE DEL MODAL (Para la confirmación)
+    document.getElementById('modalEditar').addEventListener('hide.bs.modal', function (event) {
+        if (window.isSaving) return; // Si está guardando, dejarlo cerrar.
+        
+        var confirmar = confirm('¿Estás seguro de que deseas cerrar? Se perderán los cambios no guardados.');
+        if (!confirmar) {
+            event.preventDefault(); // Cancela el cierre
+        }
+    });
+
     var currentEditId = null;
     var fotoPendiente = null;
     var listaProductosGlobal = []; 
@@ -312,7 +325,6 @@
         
         let filtros = [];
         
-        // 1. Filtro de búsqueda de texto
         if (term !== '') {
             filtros.push([
                 {field: "nombre", type: "like", value: term},
@@ -321,7 +333,6 @@
             ]);
         }
         
-        // 2. Filtro visual de inactivos
         if (checkOcultarInactivos.checked) {
             filtros.push({field: "categoria", type: "!=", value: "INACTIVO"});
         }
@@ -340,7 +351,6 @@
         inputBuscador.addEventListener("keyup", function(e){ localStorage.setItem("busqueda_inventario_pro", e.target.value); aplicarFiltro(); });
         btnLimpiarBusqueda.addEventListener("click", function() { inputBuscador.value = ''; localStorage.setItem("busqueda_inventario_pro", ''); aplicarFiltro(); inputBuscador.focus(); });
         
-        // Escuchar el cambio en el interruptor de ocultar
         checkOcultarInactivos.addEventListener('change', aplicarFiltro);
     });
 
@@ -363,6 +373,7 @@
     }
 
     function abrirModalNuevo() {
+        window.isSaving = false; // Resetear bandera
         currentEditId = null;
         document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-plus-circle"></i> Crear Nuevo Producto';
         document.getElementById('btnEliminarProducto').style.display = 'none';
@@ -383,6 +394,7 @@
     }
 
     function abrirModalEditar(data) {
+        window.isSaving = false; // Resetear bandera
         currentEditId = data.id;
         document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-pencil-square"></i> Editar Producto';
         document.getElementById('btnEliminarProducto').style.display = 'block';
@@ -434,13 +446,12 @@
         modalEditar.show();
     }
 
-    // --- LÓGICA DEL BOTÓN ELIMINAR ---
     document.getElementById('btnEliminarProducto').addEventListener('click', function() {
         if (!currentEditId) return;
 
         Swal.fire({
             title: '¿Estás seguro?',
-            text: "El sistema intentará borrarlo. Si tiene ventas, solo se ocultará para no romper la base de datos.",
+            text: "El sistema intentará borrarlo. Si tiene ventas o stock, solo se ocultará para no romper la base de datos.",
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
@@ -456,6 +467,7 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.status === 'success') {
+                        window.isSaving = true; // Evitar que salga el cartel de "seguro que quieres salir"
                         modalEditar.hide();
                         table.setData("/inventario-pro/api/data");
                         Swal.fire('¡Borrado!', data.message, 'success');
@@ -468,11 +480,13 @@
         });
     });
 
+    // 🛡️ GENERADOR DE CÓDIGOS ARREGLADO
     function generarCodigoEAN13() {
         let codigosActuales = table.getData().map(p => p.codigo_barras);
         let codigoFinal = "", repetido = true;
         while (repetido) {
-            let base = "200"; for (let i = 0; i < 9; i++) base += Math.floor(Math.random() * 10);
+            // Ahora genera un código aleatorio estándar que NO empiece con 200 ni AUTO
+            let base = "770"; for (let i = 0; i < 9; i++) base += Math.floor(Math.random() * 10);
             let suma = 0; for (let i = 0; i < 12; i++) suma += (i % 2 === 0) ? parseInt(base[i]) : parseInt(base[i]) * 3;
             codigoFinal = base + ((10 - (suma % 10)) % 10);
             if (!codigosActuales.includes(codigoFinal)) repetido = false;
@@ -579,6 +593,8 @@
             t2_max: document.getElementById('edit-t2-max').value,
         };
 
+        window.isSaving = true; // Desactivar el aviso de confirmación al guardar
+
         fetch("/inventario-pro/api/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -628,7 +644,11 @@
             }
         })
         .catch(err => Swal.fire('Error', 'No se pudo conectar.', 'error'))
-        .finally(() => { btn.innerHTML = 'Guardar Cambios'; btn.disabled = false; });
+        .finally(() => { 
+            btn.innerHTML = 'Guardar Cambios'; 
+            btn.disabled = false; 
+            window.isSaving = false; // Restaurar bandera
+        });
     });
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -660,13 +680,12 @@
         }
     });
 
-    // --- LÓGICA DE ENSAMBLE MEJORADA ---
     function abrirModalEnsamble() {
         let modalViejo = document.getElementById('modalEnsamble');
         if (modalViejo) { modalViejo.remove(); }
 
         let html = `
-        <div class="modal fade" id="modalEnsamble" tabindex="-1">
+        <div class="modal fade" id="modalEnsamble" tabindex="-1" data-bs-backdrop="static">
           <div class="modal-dialog modal-xl">
             <div class="modal-content" style="height: auto;">
               <div class="modal-header" style="background: #ffc107; color: #000; border-radius: 16px 16px 0 0;">
