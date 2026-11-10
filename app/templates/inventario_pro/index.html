@@ -480,15 +480,17 @@
         });
     });
 
-    // 🛡️ GENERADOR DE CÓDIGOS ARREGLADO
+    // 🛡️ GENERADOR DE CÓDIGOS INTERNOS (200...)
     function generarCodigoEAN13() {
         let codigosActuales = table.getData().map(p => p.codigo_barras);
         let codigoFinal = "", repetido = true;
         while (repetido) {
-            // Ahora genera un código aleatorio estándar que NO empiece con 200 ni AUTO
-            let base = "770"; for (let i = 0; i < 9; i++) base += Math.floor(Math.random() * 10);
+            // Genera un código interno con prefijo 200
+            let base = "200"; for (let i = 0; i < 9; i++) base += Math.floor(Math.random() * 10);
+            // Calcula el dígito de verificación EAN-13
             let suma = 0; for (let i = 0; i < 12; i++) suma += (i % 2 === 0) ? parseInt(base[i]) : parseInt(base[i]) * 3;
             codigoFinal = base + ((10 - (suma % 10)) % 10);
+            // Si el código ya existe en la tabla, el bucle lo vuelve a generar
             if (!codigosActuales.includes(codigoFinal)) repetido = false;
         }
         document.getElementById('edit-codigo').value = codigoFinal;
