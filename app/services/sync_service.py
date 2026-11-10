@@ -234,7 +234,7 @@ def marcar_productos_enviados(tienda_id, ids_productos):
     return marcar_productos_ack(tienda_id, ids_productos)
 
 
-# 🛡️ BLINDAJE: Esta es la función que ya no se cae si hay nombres duplicados
+# 🛡️ BLINDAJE: Buscar SOLO por codigo_global (La Cédula Inmutable)
 def aplicar_cambios_pull(datos):
     """Aplica cambios recibidos del central con IA Auto-Fix para evitar caidas."""
     actualizados = 0
@@ -255,28 +255,31 @@ def aplicar_cambios_pull(datos):
 
                 codigo_global = p_data.get('codigo_global')
 
+                # 🛡️ ARQUITECTURA UUID: Buscar SOLO por codigo_global
                 producto = None
                 if codigo_global:
                     producto = Producto.query.filter_by(codigo_global=codigo_global).first()
-                if not producto and codigo:
-                    producto = Producto.query.filter_by(codigo_barras=codigo).first()
-                if not producto and nombre:
-                    producto = Producto.query.filter_by(nombre=nombre).first()
 
                 if not producto:
-                    producto = Producto(
-                        nombre=nombre or f'Producto {producto_id}',
-                        codigo_barras=codigo or None,
-                        categoria=p_data.get('categoria') or None,
-                        codigo_global=codigo_global or str(uuid.uuid4()),
-                        imagen=p_data.get('imagen'),
-                    )
-                    db.session.add(producto)
-                    db.session.flush()
+                    # Si no existe la cédula, es un producto NUEVO para esta tienda.
+                    # Validamos si el codigo_barras ya existe para no violar el UniqueConstraint
+                    if codigo:
+                        producto = Producto.query.filter_by(codigo_barras=codigo).first()
+                    
+                    if not producto:
+                        producto = Producto(
+                            nombre=nombre or f'Producto {producto_id}',
+                            codigo_barras=codigo or None,
+                            categoria=p_data.get('categoria') or None,
+                            codigo_global=codigo_global or str(uuid.uuid4()),
+                            imagen=p_data.get('imagen'),
+                        )
+                        db.session.add(producto)
+                        db.session.flush()
                 elif codigo_global and producto.codigo_global != codigo_global:
                     producto.codigo_global = codigo_global
 
-                # Barcode
+                # Barcode (Solo si no choca con otro producto)
                 if producto and codigo and producto.codigo_barras != codigo:
                     otro = Producto.query.filter(
                         Producto.codigo_barras == codigo,
@@ -295,7 +298,7 @@ def aplicar_cambios_pull(datos):
                 if producto and p_data.get('imagen') is not None and producto.imagen != p_data.get('imagen'):
                     producto.imagen = p_data.get('imagen')
 
-                # 🧠 IA AUTO-FIX: Detecta conflicto de nombre antes de asignar
+                # Nombre (El nombre ya no es la llave, solo un atributo mutable)
                 if producto and nombre and producto.nombre != nombre:
                     existe_mismo_nombre = Producto.query.filter(Producto.nombre == nombre, Producto.id != producto.id).first()
                     if existe_mismo_nombre:
@@ -675,32 +678,35 @@ def procesar_push(tienda_id, datos):
 
             codigo_global = p_data.get('codigo_global')
 
+            # 🛡️ ARQUITECTURA UUID: Buscar SOLO por codigo_global
             producto = None
             if codigo_global:
                 producto = Producto.query.filter_by(codigo_global=codigo_global).first()
-            if not producto and codigo:
-                producto = Producto.query.filter_by(codigo_barras=codigo).first()
-            if not producto and nombre:
-                producto = Producto.query.filter_by(nombre=nombre).first()
 
             if not producto:
-                if not codigo:
-                    errores.append(f'Producto {producto_id}: sin codigo_barras, no se puede crear')
-                    continue
-                try:
-                    producto = Producto(
-                        nombre=nombre or f'Producto {producto_id}',
-                        codigo_barras=codigo,
-                        categoria=p_data.get('categoria') or None,
-                        codigo_global=codigo_global or str(uuid.uuid4()),
-                        imagen=p_data.get('imagen'),
-                    )
-                    db.session.add(producto)
-                    db.session.flush()
-                except Exception as e:
-                    db.session.rollback()
-                    errores.append(f'Producto {producto_id}: no se pudo crear ({e})')
-                    continue
+                # Si no existe la cédula, es un producto NUEVO.
+                # Validar que el código no exista para no violar el UniqueConstraint
+                if codigo:
+                    producto = Producto.query.filter_by(codigo_barras=codigo).first()
+                
+                if not producto:
+                    if not codigo:
+                        errores.append(f'Producto {producto_id}: sin codigo_barras, no se puede crear')
+                        continue
+                    try:
+                        producto = Producto(
+                            nombre=nombre or f'Producto {producto_id}',
+                            codigo_barras=codigo,
+                            categoria=p_data.get('categoria') or None,
+                            codigo_global=codigo_global or str(uuid.uuid4()),
+                            imagen=p_data.get('imagen'),
+                        )
+                        db.session.add(producto)
+                        db.session.flush()
+                    except Exception as e:
+                        db.session.rollback()
+                        errores.append(f'Producto {producto_id}: no se pudo crear ({e})')
+                        continue
             elif codigo_global and not producto.codigo_global:
                 producto.codigo_global = codigo_global
 
@@ -714,7 +720,7 @@ def procesar_push(tienda_id, datos):
             if producto and p_data.get('imagen') is not None and producto.imagen != p_data.get('imagen'):
                 producto.imagen = p_data.get('imagen')
 
-            # Nombre
+            # Nombre (Ya no es llave, es atributo)
             if producto and nombre and producto.nombre != nombre:
                 producto.nombre = nombre
 
