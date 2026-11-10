@@ -315,7 +315,10 @@ def hacer_push(app, central_url, sync_key, tienda_id):
                         }
                         r = requests.post(central_url.rstrip('/') + '/api/sync/push', json=payload, headers={'X-Sync-Key': sync_key}, timeout=TIMEOUT_REQUEST)
                         if r.status_code == 200 and r.json().get('ok'):
-                            sync_service.marcar_sincronizados(t_id, r.json())
+                            # FIX CRITICO: NO llamar a marcar_sincronizados aca.
+                            # La nube ya guardo los productos como 'enviado_central'.
+                            # Si los marcamos como 'sincronizado', las tiendas no los pueden bajar.
+                            # El paso a 'sincronizado' lo hace el ACK de cada tienda.
                             enviados_alguno = True
                         else:
                             raise Exception(f'HTTP {r.status_code} para Tienda {t_id}: {r.text}')

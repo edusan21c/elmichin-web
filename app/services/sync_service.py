@@ -1059,9 +1059,12 @@ def detectar_facturas_faltantes(tienda_id):
 def obtener_productos_pendientes_push(tienda_id):
     """Devuelve TODOS los campos del producto para push."""
     if tienda_id == 0:
+        # FIX: La Central solo envia lo que esta 'pendiente'.
+        # Los 'enviado_central' ya fueron enviados y esperan ACK de las tiendas.
+        # Si los incluyeramos aca, la Central reenviaria cada minuto en loop.
         query = ProductoTienda.query.filter(
             ProductoTienda.tienda_id.in_([1, 2]),
-            ProductoTienda.sync_estado.in_(['pendiente', 'enviado_central'])
+            ProductoTienda.sync_estado == 'pendiente'
         ).all()
     else:
         query = ProductoTienda.query.filter(
