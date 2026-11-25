@@ -234,6 +234,18 @@ def crear_factura_completa(
                 sync_estado='pendiente',
             )
             db.session.add(nuevo_pago)
+    # BLINDAJE DE RAIZ: Si no viene array de pagos, pero si un valor_pagado, forzamos el Pago
+    elif not pagos_limpios and valor_pagado > 0 and metodo_pago != 'credito':
+        nuevo_pago = Pago(
+            factura_id=factura.id,
+            tienda_id=tienda_id,
+            fecha=datetime.utcnow(),
+            monto=valor_pagado,
+            metodo_pago=metodo_pago,
+            origen='local',
+            sync_estado='pendiente',
+        )
+        db.session.add(nuevo_pago)
 
     for item in items_procesados:
         detalle = DetalleFactura(
