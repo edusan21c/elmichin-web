@@ -141,8 +141,7 @@ def marcar_sincronizados(tienda_id, resultado):
             query = query.filter(Cliente.tienda_id == tienda_id)
         query.update({'sync_estado': 'sincronizado', 'sync_fecha': datetime.utcnow()}, synchronize_session=False)
 
-    # FIX CRÍTICO: Solo las tiendas (tienda_id != 0) pueden marcar productos como sincronizados.
-    # La Central NUNCA debe marcarlos, para que el producto quede visible para las tiendas.
+    # FIX CRITICO: Solo las tiendas (tienda_id != 0) pueden marcar productos como sincronizados.
     if ids_productos and tienda_id != 0:
         query = ProductoTienda.query.filter(ProductoTienda.producto_id.in_(ids_productos))
         query = query.filter(ProductoTienda.tienda_id == tienda_id)
@@ -166,7 +165,6 @@ def obtener_cambios_pull(tienda_id, desde=None, desde_id=0, limite=5000):
         return {'productos': [], 'timestamp': datetime.utcnow().isoformat(),
                 'hay_mas': False, 'ultimo_id': 0}
 
-    # FIX: Incluimos 'enviado_central' para que las tiendas sí lo puedan bajar
     query = (db.session.query(Producto, ProductoTienda)
              .join(ProductoTienda, Producto.id == ProductoTienda.producto_id)
              .filter(
@@ -217,7 +215,6 @@ def marcar_productos_ack(tienda_id, ids_productos):
     if not ids_productos or not tienda_id:
         return 0
 
-    # FIX: También marcamos los 'enviado_central' como sincronizados cuando la tienda confirma
     n = (ProductoTienda.query
          .filter(ProductoTienda.tienda_id == tienda_id,
                  ProductoTienda.producto_id.in_(ids_productos),
@@ -234,7 +231,7 @@ def marcar_productos_enviados(tienda_id, ids_productos):
     return marcar_productos_ack(tienda_id, ids_productos)
 
 
-# 🛡️ BLINDAJE: Buscar SOLO por codigo_global (La Cédula Inmutable)
+# BLINDAJE: Buscar SOLO por codigo_global (La Cedula Inmutable)
 def aplicar_cambios_pull(datos):
     """Aplica cambios recibidos del central con IA Auto-Fix para evitar caidas."""
     actualizados = 0
@@ -244,7 +241,7 @@ def aplicar_cambios_pull(datos):
 
     for p_data in datos.get('productos', []):
         try:
-            with db.session.begin_nested(): # Savepoint: si este producto falla, no daña el lote
+            with db.session.begin_nested():
                 producto_id = p_data.get('producto_id')
                 tienda_id = p_data.get('tienda_id')
                 nombre = p_data.get('nombre')
@@ -255,14 +252,11 @@ def aplicar_cambios_pull(datos):
 
                 codigo_global = p_data.get('codigo_global')
 
-                # 🛡️ ARQUITECTURA UUID: Buscar SOLO por codigo_global
                 producto = None
                 if codigo_global:
                     producto = Producto.query.filter_by(codigo_global=codigo_global).first()
 
                 if not producto:
-                    # Si no existe la cédula, es un producto NUEVO para esta tienda.
-                    # Validamos si el codigo_barras ya existe para no violar el UniqueConstraint
                     if codigo:
                         producto = Producto.query.filter_by(codigo_barras=codigo).first()
                     
@@ -279,7 +273,6 @@ def aplicar_cambios_pull(datos):
                 elif codigo_global and producto.codigo_global != codigo_global:
                     producto.codigo_global = codigo_global
 
-                # Barcode (Solo si no choca con otro producto)
                 if producto and codigo and producto.codigo_barras != codigo:
                     otro = Producto.query.filter(
                         Producto.codigo_barras == codigo,
@@ -288,17 +281,14 @@ def aplicar_cambios_pull(datos):
                     if not otro:
                         producto.codigo_barras = codigo
 
-                # Categoria
                 if producto and p_data.get('categoria') is not None:
                     cat_nueva = (p_data.get('categoria') or '').strip()
                     if cat_nueva and producto.categoria != cat_nueva:
                         producto.categoria = cat_nueva
 
-                # Imagen
                 if producto and p_data.get('imagen') is not None and producto.imagen != p_data.get('imagen'):
                     producto.imagen = p_data.get('imagen')
 
-                # Nombre (El nombre ya no es la llave, solo un atributo mutable)
                 if producto and nombre and producto.nombre != nombre:
                     existe_mismo_nombre = Producto.query.filter(Producto.nombre == nombre, Producto.id != producto.id).first()
                     if existe_mismo_nombre:
@@ -559,14 +549,14 @@ def procesar_push(tienda_id, datos):
                             break
                     
                     try:
-                        prod_real = Producto(
-                            nombre=prod_nombre or f'Producto {prod_local_id}',
-                            codigo_barras=codigo_tmp, categoria='otro',
-                        )
-                        db.session.add(prod_real)
-                        db.session.flush()
+                        with db.session.begin_nested():
+                            prod_real = Producto(
+                                nombre=prod_nombre or f'Producto {prod_local_id}',
+                                codigo_barras=codigo_tmp, categoria='otro',
+                            )
+                            db.session.add(prod_real)
+                            db.session.flush()
                     except Exception as e:
-                        db.session.rollback()
                         errores.append(f'Detalle: no se pudo crear producto ({e})')
                         continue
 
@@ -668,24 +658,21 @@ def procesar_push(tienda_id, datos):
             if not t_id:
                 continue
 
-            # 🛡️ GUARDIAN DE PRECIOS (Evita sincronizar activos a $0)
+            # GUARDIAN DE PRECIOS (Evita sincronizar activos a $0)
             categoria = (p_data.get('categoria') or '').strip()
             precio = float(p_data.get('precio_venta', 0) or 0)
             
             if categoria != 'INACTIVO' and precio <= 0:
-                errores.append(f"❌ Omitido '{nombre}': No se sincroniza un producto activo con precio $0.")
-                continue # Salta este producto y no lo guarda
+                errores.append(f"Omitido '{nombre}': No se sincroniza un producto activo con precio $0.")
+                continue
 
             codigo_global = p_data.get('codigo_global')
 
-            # 🛡️ ARQUITECTURA UUID: Buscar SOLO por codigo_global
             producto = None
             if codigo_global:
                 producto = Producto.query.filter_by(codigo_global=codigo_global).first()
 
             if not producto:
-                # Si no existe la cédula, es un producto NUEVO.
-                # Validar que el código no exista para no violar el UniqueConstraint
                 if codigo:
                     producto = Producto.query.filter_by(codigo_barras=codigo).first()
                 
@@ -694,33 +681,30 @@ def procesar_push(tienda_id, datos):
                         errores.append(f'Producto {producto_id}: sin codigo_barras, no se puede crear')
                         continue
                     try:
-                        producto = Producto(
-                            nombre=nombre or f'Producto {producto_id}',
-                            codigo_barras=codigo,
-                            categoria=p_data.get('categoria') or None,
-                            codigo_global=codigo_global or str(uuid.uuid4()),
-                            imagen=p_data.get('imagen'),
-                        )
-                        db.session.add(producto)
-                        db.session.flush()
+                        with db.session.begin_nested():
+                            producto = Producto(
+                                nombre=nombre or f'Producto {producto_id}',
+                                codigo_barras=codigo,
+                                categoria=p_data.get('categoria') or None,
+                                codigo_global=codigo_global or str(uuid.uuid4()),
+                                imagen=p_data.get('imagen'),
+                            )
+                            db.session.add(producto)
+                            db.session.flush()
                     except Exception as e:
-                        db.session.rollback()
                         errores.append(f'Producto {producto_id}: no se pudo crear ({e})')
                         continue
             elif codigo_global and not producto.codigo_global:
                 producto.codigo_global = codigo_global
 
-            # Categoria
             if producto and p_data.get('categoria') is not None:
                 cat_nueva = (p_data.get('categoria') or '').strip()
                 if cat_nueva and producto.categoria != cat_nueva:
                     producto.categoria = cat_nueva
 
-            # Imagen
             if producto and p_data.get('imagen') is not None and producto.imagen != p_data.get('imagen'):
                 producto.imagen = p_data.get('imagen')
 
-            # Nombre (Ya no es llave, es atributo)
             if producto and nombre and producto.nombre != nombre:
                 producto.nombre = nombre
 
@@ -733,7 +717,6 @@ def procesar_push(tienda_id, datos):
                     except (ValueError, TypeError):
                         producto.modificado_en = datetime.utcnow()
 
-            # Barcode
             if producto and codigo and producto.codigo_barras != codigo:
                 codigo_anterior = producto.codigo_barras
                 otro = Producto.query.filter(
@@ -753,15 +736,15 @@ def procesar_push(tienda_id, datos):
 
             if not pres:
                 try:
-                    pres = ProductoTienda(
-                        producto_id=producto.id, tienda_id=t_id, cantidad=0,
-                        precio_venta=Decimal('0'), precio_venta1=Decimal('0'),
-                        precio_venta2=Decimal('0'), precio_venta3=Decimal('0'),
-                    )
-                    db.session.add(pres)
-                    db.session.flush()
+                    with db.session.begin_nested():
+                        pres = ProductoTienda(
+                            producto_id=producto.id, tienda_id=t_id, cantidad=0,
+                            precio_venta=Decimal('0'), precio_venta1=Decimal('0'),
+                            precio_venta2=Decimal('0'), precio_venta3=Decimal('0'),
+                        )
+                        db.session.add(pres)
+                        db.session.flush()
                 except Exception as e:
-                    db.session.rollback()
                     errores.append(f'Producto {producto_id}: no se pudo crear presentacion ({e})')
                     continue
 
@@ -849,7 +832,7 @@ def obtener_facturas_para_tienda(tienda_id, desde=None):
             'estado_credito': f.estado_credito or 'pagado',
             'saldo_pendiente': float(f.saldo_pendiente or 0),
             'precio_manual': bool(getattr(f, 'precio_manual', False)),
-        'anulada': bool(getattr(f, 'anulada', False)),
+            'anulada': bool(getattr(f, 'anulada', False)),
             'detalles': detalles,
         })
     return resultado
@@ -1073,9 +1056,6 @@ def detectar_facturas_faltantes(tienda_id):
 def obtener_productos_pendientes_push(tienda_id):
     """Devuelve TODOS los campos del producto para push."""
     if tienda_id == 0:
-        # FIX: La Central solo envia lo que esta 'pendiente'.
-        # Los 'enviado_central' ya fueron enviados y esperan ACK de las tiendas.
-        # Si los incluyeramos aca, la Central reenviaria cada minuto en loop.
         query = ProductoTienda.query.filter(
             ProductoTienda.tienda_id.in_([1, 2]),
             ProductoTienda.sync_estado == 'pendiente'
