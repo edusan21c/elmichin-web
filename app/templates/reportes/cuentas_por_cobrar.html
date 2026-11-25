@@ -11,10 +11,27 @@
     </div>
 </div>
 
+<!-- SELECTOR DE TIENDA PARA FILTRAR -->
+<div class="card mb-3 shadow-sm">
+    <div class="card-body py-2">
+        <form method="GET" action="{{ url_for('reportes.cuentas_por_cobrar') }}" class="d-flex align-items-center">
+            <label class="me-2 fw-bold text-nowrap"><i class="bi bi-shop"></i> Seleccionar Tienda:</label>
+            <select name="tienda" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                {% for t in tiendas %}
+                    <option value="{{ t.id }}" {% if t.id == tienda_id %}selected{% endif %}>
+                        {{ t.nombre }}
+                    </option>
+                {% endfor %}
+            </select>
+            <noscript><button type="submit" class="btn btn-sm btn-primary ms-2">Filtrar</button></noscript>
+        </form>
+    </div>
+</div>
+
 {% if not clientes %}
 <div class="alert alert-success">
     <i class="bi bi-check-circle"></i>
-    ¡Excelente! No hay clientes con deuda pendiente.
+    No hay clientes con deuda pendiente para esta tienda.
 </div>
 {% else %}
 <div class="card">
